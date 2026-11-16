@@ -2,3 +2,4 @@
 {$APP_DOMAIN:localhost} {
     reverse_proxy mapaleads:5055
 }
+
