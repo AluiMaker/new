@@ -737,20 +737,23 @@ function closeLeadDrawer() {
   document.getElementById('lead-drawer').classList.add('hidden');
 }
 
-function fillDrawerTemplate() {
+function fillTemplateText(raw, l) {
+  return (raw || '')
+    .replace(/\{nome\}/g, l?.name || 'sua empresa')
+    .replace(/\{categoria\}/g, l?.category || 'seu segmento')
+    .replace(/\{bairro\}/g, l?.neighborhood || l?.city || 'sua região')
+    .replace(/\{rua\}/g, l?.street || '')
+    .replace(/\{avaliacao\}/g, l?.rating || '5.0')
+    .replace(/\{avaliacoes\}/g, l?.reviews_count || '0');
+}
+
+function fillDrawerTemplate(useFollowUp = false) {
   const l = STATE.selectedLead;
   const tid = document.getElementById('drawer-template-select').value;
   const tpl = STATE.templates.find(t => t.id === tid);
   if (!tpl || !l) return;
-  let txt = tpl.content || '';
-  txt = txt
-    .replace(/\{nome\}/g, l.name || 'sua empresa')
-    .replace(/\{categoria\}/g, l.category || 'seu segmento')
-    .replace(/\{bairro\}/g, l.neighborhood || l.city || 'sua região')
-    .replace(/\{rua\}/g, l.street || '')
-    .replace(/\{avaliacao\}/g, l.rating || '5.0')
-    .replace(/\{avaliacoes\}/g, l.reviews_count || '0');
-  document.getElementById('drawer-message-text').value = txt;
+  const raw = (useFollowUp === true) ? (tpl.follow_up || tpl.content || '') : (tpl.content || '');
+  document.getElementById('drawer-message-text').value = fillTemplateText(raw, l);
 }
 
 async function loadLeadConversation(leadId) {
@@ -773,6 +776,29 @@ async function loadLeadConversation(leadId) {
 
 // ==================== TEMPLATES ====================
 function initTemplateControls() {
+  document.getElementById('btn-drawer-icebreaker')?.addEventListener('click', () => {
+    const sel = document.getElementById('drawer-template-select');
+    const ice = STATE.templates.find(t => t.id === 'quebra_gelo_antibloqueio') || STATE.templates[0];
+    if (ice) {
+      sel.value = ice.id;
+      fillDrawerTemplate(false);
+    }
+  });
+
+  document.getElementById('btn-drawer-followup')?.addEventListener('click', () => {
+    fillDrawerTemplate(true);
+  });
+
+  document.getElementById('btn-reset-templates')?.addEventListener('click', async () => {
+    if (!confirm('Restaurar os modelos curtos padrão (incluindo o Quebra-Gelo Anti-Bloqueio)?')) return;
+    const res = await apiFetch('/api/pitch-templates/reset', { method: 'POST' });
+    const d = await res.json();
+    if (d.success) {
+      toast('Modelos curtos restaurados!', 'success');
+      loadTemplates();
+    }
+  });
+
   document.getElementById('btn-new-template')?.addEventListener('click', () => {
     document.getElementById('tpl-id').value = '';
     document.getElementById('tpl-title').value = '';

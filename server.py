@@ -14,7 +14,7 @@ from curl_cffi import requests as cffi_requests
 from database import (
     upsert_lead, get_leads, update_lead, delete_lead,
     get_stats, record_search, get_search_history,
-    get_pitch_templates, save_pitch_template, delete_pitch_template,
+    get_pitch_templates, save_pitch_template, delete_pitch_template, reset_user_templates,
     init_db, deduplicate_database, batch_verify_whatsapp, is_phone_already_contacted,
     get_connection, create_user, authenticate_user, get_user_by_id,
     list_users, update_user, get_wa_user_config, save_wa_user_config
@@ -907,6 +907,13 @@ def api_save_template():
 def api_delete_template(template_id):
     ok = delete_pitch_template(template_id, user_id=current_user_id())
     return jsonify({"success": ok})
+
+
+@app.route("/api/pitch-templates/reset", methods=["POST"])
+@login_required
+def api_reset_templates():
+    reset_user_templates(user_id=current_user_id())
+    return jsonify({"success": True, "templates": get_pitch_templates(user_id=current_user_id())})
 
 # ==================== WHATSAPP OFICIAL (META CLOUD API) ====================
 

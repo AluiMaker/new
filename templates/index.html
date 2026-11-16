@@ -539,11 +539,16 @@
               <div class="card-header">
                 <div>
                   <h3>Seus Modelos de Abordagem</h3>
-                  <p class="card-sub">Prontos para Plaquinhas NFC, Cardápio Digital, WhatsApp Business e Biossites</p>
+                  <p class="card-sub">Prontos e resumidos para WhatsApp: Quebra-Gelo, NFC, Cardápio, WhatsApp Business e Biossite</p>
                 </div>
-                <button class="btn btn-primary btn-sm" id="btn-new-template">
-                  <i class="fa-solid fa-plus"></i> Novo Modelo
-                </button>
+                <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                  <button class="btn btn-outline btn-sm" id="btn-reset-templates" title="Restaurar os modelos curtos padrão">
+                    <i class="fa-solid fa-rotate-left"></i> Restaurar Curtos
+                  </button>
+                  <button class="btn btn-primary btn-sm" id="btn-new-template">
+                    <i class="fa-solid fa-plus"></i> Novo Modelo
+                  </button>
+                </div>
               </div>
               <div class="templates-list" id="templates-list"></div>
             </div>
@@ -893,7 +898,17 @@
       </div>
 
       <div class="drawer-section">
-        <label>Enviar Abordagem no WhatsApp</label>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap;">
+          <label style="margin:0;">Enviar Abordagem no WhatsApp</label>
+          <div style="display:flex; gap:6px;">
+            <button type="button" class="btn btn-outline btn-xs" id="btn-drawer-icebreaker" title="Usar mensagem inicial quebra-gelo anti-bloqueio">
+              🧊 Quebra-Gelo
+            </button>
+            <button type="button" class="btn btn-outline btn-xs" id="btn-drawer-followup" title="Carregar o follow-up deste modelo">
+              ↪️ Follow-up
+            </button>
+          </div>
+        </div>
         <select id="drawer-template-select" style="margin-bottom: 8px;"></select>
         <textarea id="drawer-message-text" rows="5" placeholder="Escolha um modelo acima ou escreva sua mensagem..."></textarea>
         <div class="drawer-send-actions">

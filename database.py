@@ -16,67 +16,68 @@ FOOD_KEYWORDS = (
 
 DEFAULT_TEMPLATES = [
     {
+        "id": "quebra_gelo_antibloqueio",
+        "product": "geral",
+        "title": "🧊 Quebra-Gelo Inicial (Anti-Bloqueio - 1ª Mensagem)",
+        "content": (
+            "Olá, pessoal da {nome}! Tudo bem? "
+            "Posso tirar uma dúvida rápida com quem cuida do atendimento ou marketing aí?"
+        ),
+        "follow_up": (
+            "Obrigado pelo retorno! Vi o perfil da {nome} no Google aqui em {bairro}. "
+            "Posso te mostrar rapidinho como gerar mais avaliações no Google e organizar seus atendimentos no WhatsApp?"
+        )
+    },
+    {
         "id": "nfc_avaliacoes_google",
         "product": "nfc",
-        "title": "Plaquinha NFC + QR Code (Google Avaliações, Pix, Wi-Fi & Instagram)",
+        "title": "Plaquinha NFC + QR Code (Google, Pix, Wi-Fi & Insta)",
         "content": (
-            "Olá, equipe da {nome}! Tudo bem?\n\n"
-            "Vi o perfil de vocês no Google Maps ({avaliacao}⭐ com {avaliacoes} avaliações) aqui em {bairro}. "
-            "Trabalho com *Plaquinhas NFC + QR Code personalizadas* para balcão e mesas.\n\n"
-            "Com um toque do celular do cliente na plaquinha (ou leitura do QR Code), ele já cai direto na tela de *Avaliação 5 Estrelas no Google*, *Instagram*, *Pix* ou *Wi-Fi automático* — sem precisar digitar nada!\n\n"
-            "Posso te enviar uma foto/prévia de como ficaria a plaquinha com a logo da {nome}?"
+            "Olá, {nome}! Vi vocês no Google ({avaliacao}⭐). Trabalho com *Plaquinhas NFC + QR Code* personalizadas: "
+            "o cliente encosta o celular e já abre sua *Avaliação 5⭐ no Google*, *Instagram*, *Pix* ou *Wi-Fi*. "
+            "Posso te enviar uma foto modelo?"
         ),
-        "follow_up": "Perfeito! Consigo montar uma prévia visual com a identidade da {nome} sem compromisso. Prefere receber por aqui mesmo?"
+        "follow_up": "Show! Consigo montar uma prévia com a logo da {nome} sem compromisso. Mando por aqui mesmo?"
     },
     {
         "id": "cardapio_digital_nfc",
         "product": "cardapio",
         "title": "Cardápio Digital + Plaquinha NFC de Mesa",
         "content": (
-            "Olá, pessoal da {nome}! Tudo bem?\n\n"
-            "Encontrei vocês no Google aqui em {bairro} e vi que atendem no segmento de {categoria}. "
-            "Vocês já usam *Cardápio Digital interativo* integrado com *Plaquinha NFC + QR Code* nas mesas?\n\n"
-            "Além de eliminar custos com impressão quando muda o preço, o cliente encosta o celular na mesa, vê o cardápio com fotos, pede direto no WhatsApp e ainda pode pagar no Pix ou deixar avaliação no Google.\n\n"
-            "Posso te mandar um modelo funcionando agora para você testar no seu celular?"
+            "Oi, pessoal da {nome}! Vi vocês no Google em {bairro}. Vocês já usam *Cardápio Digital com Plaquinha NFC + QR* na mesa? "
+            "O cliente encosta o celular, vê o cardápio e pede direto no WhatsApp. Quer ver um modelo ao vivo?"
         ),
-        "follow_up": "Show! Vou te enviar o link de um cardápio modelo para você navegar. Em menos de 48h conseguimos colocar o da {nome} no ar!"
+        "follow_up": "Perfeito! Vou te mandar o link de demonstração. Em até 48h deixamos o da {nome} pronto!"
     },
     {
         "id": "whatsapp_business_setup",
         "product": "whatsapp",
-        "title": "Configuração Profissional de WhatsApp Business",
+        "title": "Configuração WhatsApp Business",
         "content": (
-            "Olá, equipe da {nome}! Tudo bem?\n\n"
-            "Vi o contato de vocês no Google Maps aqui em {bairro}. Hoje muitas empresas de {categoria} acabam perdendo clientes porque o WhatsApp não está estruturado para atendimento rápido.\n\n"
-            "Eu faço a *configuração profissional completa do WhatsApp Business*: catálogo de produtos/serviços, mensagem de boas-vindas, respostas rápidas, etiquetas de clientes e link direto para Instagram e Google.\n\n"
-            "Quer que eu te mostre como isso pode organizar o atendimento da {nome} e aumentar suas conversões?"
+            "Olá, equipe da {nome}! Peguei o contato no Google. Eu estruturo o *WhatsApp Business* de empresas de {categoria} "
+            "com catálogo, respostas rápidas e etiquetas para vocês não perderem nenhum cliente. Posso te mostrar como funciona?"
         ),
-        "follow_up": "Ótimo! É um serviço rápido que já deixa seu atendimento automatizado e profissional no mesmo dia. Posso te passar os detalhes?"
+        "follow_up": "Ótimo! É bem rápido e já deixa seu atendimento organizado no mesmo dia. Quer ver os detalhes?"
     },
     {
         "id": "biossite_landing_page",
         "product": "biossite",
-        "title": "Biossite & Landing Page de Alta Conversão",
+        "title": "Biossite & Landing Page (Sem Site)",
         "content": (
-            "Olá, equipe da {nome}! Tudo bem?\n\n"
-            "Encontrei a {nome} no Google ({avaliacao}⭐ em {bairro}) e notei que vocês ainda não têm uma página própria/Biossite oficial vinculada ao perfil.\n\n"
-            "Eu crio *Biossites e Landing Pages profissionais* pensados para converter visitantes do Google e do Instagram em clientes no WhatsApp — com seus serviços, fotos, localização, botões de ação e carregamento instantâneo.\n\n"
-            "Posso te enviar uma prévia rápida sem compromisso para você ver como ficaria para a {nome}?"
+            "Olá, {nome}! Vi que no Google vocês ainda não têm um site oficial. Eu crio *Biossites e Landing Pages* rápidas "
+            "com seus serviços, localização e botão direto pro WhatsApp. Posso te mandar uma prévia sem compromisso?"
         ),
-        "follow_up": "Maravilha! Tenho 2 modelos prontos para {categoria} que convertem muito bem. Quer dar uma olhada nos links?"
+        "follow_up": "Maravilha! Tenho 2 modelos prontos para {categoria}. Posso enviar os links aqui?"
     },
     {
         "id": "combo_presenca_local",
         "product": "combo",
-        "title": "Combo Completo (WhatsApp + Plaquinha NFC + Biossite)",
+        "title": "Combo Presença Local (WhatsApp + NFC + Biossite)",
         "content": (
-            "Olá, equipe da {nome}! Tudo bem?\n\n"
-            "Pesquisando por {categoria} em {bairro} encontrei vocês no Google! "
-            "Trabalho ajudando negócios locais a venderem mais com um *Kit Completo de Presença Digital*: "
-            "1) Biossite / Landing Page no Google, 2) WhatsApp Business configurado para vendas e 3) Plaquinha NFC + QR Code para avaliações no Google, Pix e Instagram.\n\n"
-            "Tenho uma condição especial no pacote completo esta semana. Posso te enviar a apresentação rapidinho?"
+            "Olá, {nome}! Ajudo negócios de {bairro} a venderem mais no Google com *Biossite + WhatsApp Business configurado + Plaquinha NFC (Avaliações/Pix/Insta)*. "
+            "Posso te enviar uma apresentação rápida?"
         ),
-        "follow_up": "Perfeito! Vou te mandar os valores e exemplos reais de outros clientes da região. Qual o melhor horário para falarmos 5 minutinhos?"
+        "follow_up": "Show! Vou te enviar exemplos reais e condições da semana. Qual melhor horário para falarmos?"
     }
 ]
 
@@ -429,7 +430,8 @@ def init_db():
 
 def seed_user_templates(cursor, user_id: int):
     cursor.execute("SELECT COUNT(*) FROM pitch_templates WHERE user_id = ?", (user_id,))
-    if cursor.fetchone()[0] == 0:
+    total = cursor.fetchone()[0]
+    if total == 0:
         for t in DEFAULT_TEMPLATES:
             cursor.execute(
                 """
@@ -438,6 +440,41 @@ def seed_user_templates(cursor, user_id: int):
                 """,
                 (t["id"], user_id, t.get("product", "geral"), t["title"], t["content"], t.get("follow_up", ""))
             )
+    else:
+        # Garante que o Quebra-Gelo exista e atualiza templates padrão antigos muito longos (>280 chars)
+        for t in DEFAULT_TEMPLATES:
+            cursor.execute(
+                """
+                INSERT OR IGNORE INTO pitch_templates (id, user_id, product, title, content, follow_up)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (t["id"], user_id, t.get("product", "geral"), t["title"], t["content"], t.get("follow_up", ""))
+            )
+            cursor.execute(
+                """
+                UPDATE pitch_templates
+                SET title = ?, content = ?, follow_up = ?, product = ?
+                WHERE id = ? AND user_id = ? AND LENGTH(content) > 280
+                """,
+                (t["title"], t["content"], t.get("follow_up", ""), t.get("product", "geral"), t["id"], user_id)
+            )
+
+
+def reset_user_templates(user_id: int):
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        for t in DEFAULT_TEMPLATES:
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO pitch_templates (id, user_id, product, title, content, follow_up)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (t["id"], user_id, t.get("product", "geral"), t["title"], t["content"], t.get("follow_up", ""))
+            )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 # ==================== USUÁRIOS & AUTH ====================
@@ -1083,7 +1120,7 @@ def get_pitch_templates(user_id: int = 1) -> List[Dict[str, Any]]:
     cursor = conn.cursor()
     seed_user_templates(cursor, user_id)
     conn.commit()
-    cursor.execute("SELECT * FROM pitch_templates WHERE user_id = ? ORDER BY rowid ASC", (user_id,))
+    cursor.execute("SELECT * FROM pitch_templates WHERE user_id = ? ORDER BY CASE WHEN id = 'quebra_gelo_antibloqueio' THEN 0 ELSE 1 END, rowid ASC", (user_id,))
     templates = [dict(r) for r in cursor.fetchall()]
     conn.close()
     return templates
