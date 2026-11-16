@@ -26,8 +26,8 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY whatsapp_service/package.json whatsapp_service/package-lock.json ./whatsapp_service/
-RUN cd whatsapp_service && npm ci --omit=dev
+COPY whatsapp_service/package.json ./whatsapp_service/
+RUN cd whatsapp_service && npm install --omit=dev --no-audit --no-fund
 
 COPY . .
 
