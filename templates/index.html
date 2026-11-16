@@ -62,6 +62,11 @@
           <span>CRM & Pipeline</span>
           <span class="nav-badge" id="badge-crm-novo">0</span>
         </button>
+        <button class="nav-item" data-tab="tab-chat">
+          <i class="fa-solid fa-comments"></i>
+          <span>Chat / Conversas</span>
+          <span class="nav-badge hidden" id="badge-chat-replies" style="background:#10b981;">0</span>
+        </button>
         <button class="nav-item" data-tab="tab-templates">
           <i class="fa-solid fa-message"></i>
           <span>Modelos de Copy</span>
@@ -462,6 +467,71 @@
           </div>
         </section>
 
+        <!-- ==================== 4B. CHAT / CONVERSAS (KOMMO) ==================== -->
+        <section class="tab-view" id="tab-chat">
+          <div class="chat-shell card">
+            <aside class="chat-sidebar">
+              <div class="chat-sidebar-head">
+                <div class="input-icon-wrap">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                  <input type="text" id="chat-search-input" placeholder="Buscar conversa ou número...">
+                </div>
+                <div class="chat-filter-pills">
+                  <button type="button" class="seg-btn active" data-chat-filter="all">Todas</button>
+                  <button type="button" class="seg-btn" data-chat-filter="replied">Responderam</button>
+                  <button type="button" class="seg-btn" data-chat-filter="contacted">Aguardando</button>
+                </div>
+              </div>
+              <div class="chat-thread-list" id="chat-thread-list">
+                <div class="chat-empty">Nenhuma conversa ativa ainda.</div>
+              </div>
+            </aside>
+
+            <div class="chat-main">
+              <div class="chat-main-empty" id="chat-main-empty">
+                <i class="fa-regular fa-comments" style="font-size:2.4rem; color:#94a3b8; margin-bottom:10px;"></i>
+                <h3>Selecione uma conversa</h3>
+                <p class="text-muted">Escolha um cliente na lista à esquerda para visualizar o histórico e responder.</p>
+              </div>
+
+              <div class="chat-active-pane hidden" id="chat-active-pane">
+                <div class="chat-header">
+                  <div>
+                    <strong id="chat-peer-name">Empresa</strong>
+                    <span class="text-muted" id="chat-peer-meta" style="display:block; font-size:0.78rem;">Telefone · Categoria</span>
+                  </div>
+                  <div class="chat-header-actions">
+                    <select id="chat-peer-status" style="width:auto; font-size:0.8rem;">
+                      <option value="novo">1. Novo Lead</option>
+                      <option value="contatado">2. Contatado</option>
+                      <option value="respondeu">3. Respondeu</option>
+                      <option value="negociacao">4. Proposta / Reunião</option>
+                      <option value="fechado">5. Venda Fechada</option>
+                    </select>
+                    <button type="button" class="btn btn-outline btn-sm" id="btn-chat-open-drawer">
+                      <i class="fa-solid fa-id-card"></i> Ver Ficha
+                    </button>
+                  </div>
+                </div>
+
+                <div class="chat-messages-box" id="chat-messages-box"></div>
+
+                <div class="chat-composer">
+                  <div class="chat-composer-top">
+                    <select id="chat-template-select" style="font-size:0.8rem;"></select>
+                  </div>
+                  <div class="chat-composer-row">
+                    <textarea id="chat-input-text" rows="2" placeholder="Digite sua mensagem para o cliente... (Enter para enviar)"></textarea>
+                    <button type="button" class="btn btn-emerald" id="btn-chat-send">
+                      <i class="fa-solid fa-paper-plane"></i> Enviar
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- ==================== 5. MODELOS DE COPY ==================== -->
         <section class="tab-view" id="tab-templates">
           <div class="templates-layout">
@@ -660,19 +730,20 @@
             <div id="meta-templates-result" class="hidden" style="margin-top: 16px;"></div>
           </div>
 
-          <!-- Baileys Local -->
+          <!-- Baileys Local / Online QR -->
           <div class="card settings-pane hidden" id="pane-baileys">
             <div class="card-header">
               <div>
-                <h3>Conexão Local via QR Code (Baileys)</h3>
-                <p class="card-sub">Opcional para uso local no computador. Em servidores online, recomendamos a API Oficial da Meta ou WhatsApp Web 1-Clique.</p>
+                <h3>Conexão WhatsApp via QR Code</h3>
+                <p class="card-sub">Escaneie o QR Code com o WhatsApp da sua conta para enviar e receber mensagens direto na aba Chat.</p>
               </div>
               <span class="status-pill" id="baileys-status-badge">Verificando...</span>
             </div>
             <div class="baileys-box">
+              <div id="baileys-user-info" class="info-banner hidden" style="background:#ecfdf5; border-color:#a7f3d0; color:#065f46;"></div>
               <div id="baileys-qr-wrap" class="hidden">
                 <img id="baileys-qr-img" alt="QR Code WhatsApp">
-                <p>Escaneie com o WhatsApp do seu celular</p>
+                <p id="baileys-qr-hint" style="margin-top:8px; font-size:0.82rem; color:#475569;">Abra o WhatsApp no celular → Aparelhos Conectados → Conectar aparelho.</p>
               </div>
               <div class="form-actions">
                 <button class="btn btn-primary" id="btn-baileys-connect"><i class="fa-solid fa-qrcode"></i> Gerar QR / Conectar</button>
@@ -828,6 +899,9 @@
         <div class="drawer-send-actions">
           <button class="btn btn-emerald" id="btn-drawer-wa-web">
             <i class="fa-brands fa-whatsapp"></i> WhatsApp Web (1-Clique)
+          </button>
+          <button class="btn btn-outline" id="btn-drawer-wa-baileys" title="Enviar direto pelo WhatsApp conectado por QR Code">
+            <i class="fa-solid fa-qrcode"></i> Enviar WhatsApp QR
           </button>
           <button class="btn btn-primary" id="btn-drawer-wa-official">
             <i class="fa-solid fa-paper-plane"></i> Enviar API Oficial <span class="badge-beta">BETA</span>

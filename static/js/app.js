@@ -14,6 +14,9 @@ const STATE = {
   charts: { opps: null, funnel: null },
   sse: null,
   baileysPoll: null,
+  chatFilter: 'all',
+  activeChatLead: null,
+  chatThreads: [],
 };
 
 const TAB_META = {
@@ -21,8 +24,9 @@ const TAB_META = {
   'tab-search': ['Buscar Empresas', 'Encontre negócios locais com telefone válido para ofertar seus serviços'],
   'tab-map': ['Mapa de Oportunidades', 'Visualize seus leads e clique em qualquer rua para prospectar'],
   'tab-crm': ['CRM & Pipeline', 'Gerencie negociações no Kanban ou em lista e envie abordagens'],
+  'tab-chat': ['Chat / Conversas', 'Atenda e acompanhe suas conversas ativas estilo Kommo'],
   'tab-templates': ['Modelos de Copy', 'Mensagens prontas para Plaquinhas NFC, WhatsApp, Cardápio e Biossites'],
-  'tab-settings': ['WhatsApp & Conta', 'Configure a API Oficial da Meta, WhatsApp local e seus dados'],
+  'tab-settings': ['WhatsApp & Conta', 'Configure o WhatsApp por QR Code, API Oficial da Meta e seus dados'],
   'tab-admin': ['Painel Admin', 'Gerencie contas de clientes e planos do sistema'],
 };
 
@@ -38,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initNavigation();
   initSearchControls();
   initCrmControls();
+  initChatControls();
   initDrawerControls();
   initTemplateControls();
   initSettingsControls();
@@ -48,7 +53,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function loadAllData() {
-  await Promise.all([loadStats(), loadLeads(), loadTemplates(), loadSegments(), loadSearchHistory()]);
+  await Promise.all([loadStats(), loadLeads(), loadTemplates(), loadSegments(), loadSearchHistory(), loadChatThreads()]);
   if (window.CURRENT_USER && window.CURRENT_USER.role === 'admin') {
     loadAdminUsers();
   }
@@ -115,6 +120,12 @@ function switchTab(tabId) {
   }
   if (tabId === 'tab-dashboard') {
     loadStats();
+  }
+  if (tabId === 'tab-chat') {
+    loadChatThreads();
+  }
+  if (tabId !== 'tab-settings') {
+    stopBaileysPolling();
   }
 }
 
@@ -396,7 +407,21 @@ function initSSE() {
   });
 
   es.addEventListener('search_finished', () => setSearchRunning(false));
-  es.addEventListener('lead_updated', () => { loadStats(); loadLeads(); });
+  es.addEventListener('lead_updated', () => { loadStats(); loadLeads(); loadChatThreads(); });
+  es.addEventListener('lead_reply', (e) => {
+    const d = JSON.parse(e.data || '{}');
+    toast(`Nova resposta de ${d.name || 'um cliente'}!`, 'success');
+    loadStats();
+    loadLeads();
+    loadChatThreads();
+  });
+  es.addEventListener('chat_message', (e) => {
+    const d = JSON.parse(e.data || '{}');
+    loadChatThreads();
+    if (STATE.activeChatLead?.id === d.lead_id) {
+      renderActiveChatMessages(d.lead_id);
+    }
+  });
 }
 
 // ==================== MAPA ====================
@@ -595,6 +620,25 @@ function initDrawerControls() {
     toast('WhatsApp Web aberto e lead marcado como Contatado!', 'success');
     loadAllData();
     loadLeadConversation(l.id);
+  });
+
+  document.getElementById('btn-drawer-wa-baileys')?.addEventListener('click', async () => {
+    const l = STATE.selectedLead;
+    if (!l) return;
+    const text = document.getElementById('drawer-message-text').value.trim();
+    const res = await apiFetch('/api/wa/send-one', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lead_id: l.id, text, force: true })
+    });
+    const d = await res.json();
+    if (d.success) {
+      toast('Mensagem enviada pelo WhatsApp QR!', 'success');
+      loadAllData();
+      loadLeadConversation(l.id);
+    } else {
+      toast(d.error || 'WhatsApp QR não conectado. Conecte em WhatsApp & Conta.', 'error');
+    }
   });
 
   document.getElementById('btn-drawer-wa-official')?.addEventListener('click', async () => {
@@ -812,7 +856,11 @@ function setSettingsSubtab(name) {
   document.getElementById('pane-official').classList.toggle('hidden', name !== 'official');
   document.getElementById('pane-baileys').classList.toggle('hidden', name !== 'baileys');
   document.getElementById('pane-account').classList.toggle('hidden', name !== 'account');
-  if (name === 'baileys') pollBaileysStatus();
+  if (name === 'baileys') {
+    startBaileysPolling();
+  } else {
+    stopBaileysPolling();
+  }
 }
 
 function copyWebhookUrl() {
@@ -885,11 +933,22 @@ function initSettingsControls() {
   });
 
   document.getElementById('btn-baileys-connect')?.addEventListener('click', async () => {
-    await apiFetch('/api/wa/connect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ force: true }) });
-    pollBaileysStatus();
+    const badge = document.getElementById('baileys-status-badge');
+    badge.textContent = 'Gerando QR...';
+    const res = await apiFetch('/api/wa/connect', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ force: true })
+    });
+    const d = await res.json();
+    if (d.offline || d.error) {
+      toast(d.error || 'Serviço WhatsApp QR iniciando, aguarde...', 'info');
+    }
+    startBaileysPolling();
   });
 
   document.getElementById('btn-baileys-logout')?.addEventListener('click', async () => {
+    stopBaileysPolling();
     await apiFetch('/api/wa/logout', { method: 'POST' });
     pollBaileysStatus();
   });
@@ -1022,6 +1081,19 @@ async function initMetaEmbeddedSignup() {
   });
 }
 
+function startBaileysPolling() {
+  stopBaileysPolling();
+  pollBaileysStatus();
+  STATE.baileysPoll = setInterval(pollBaileysStatus, 2000);
+}
+
+function stopBaileysPolling() {
+  if (STATE.baileysPoll) {
+    clearInterval(STATE.baileysPoll);
+    STATE.baileysPoll = null;
+  }
+}
+
 async function pollBaileysStatus() {
   try {
     const res = await apiFetch('/api/wa/status');
@@ -1029,15 +1101,208 @@ async function pollBaileysStatus() {
     const badge = document.getElementById('baileys-status-badge');
     const qrWrap = document.getElementById('baileys-qr-wrap');
     const qrImg = document.getElementById('baileys-qr-img');
-    badge.textContent = st.state || 'offline';
-    badge.className = `status-pill ${st.state === 'connected' ? 'ok' : ''}`;
-    if (st.qr) {
-      qrImg.src = st.qr;
-      qrWrap.classList.remove('hidden');
-    } else {
+    const userInfo = document.getElementById('baileys-user-info');
+    if (!badge) return;
+
+    const labels = {
+      connected: 'Conectado',
+      qrcode: 'Escaneie o QR Code',
+      connecting: 'Gerando QR Code...',
+      disconnected: 'Desconectado',
+      offline: 'Offline'
+    };
+    badge.textContent = labels[st.state] || st.state || 'offline';
+    badge.className = `status-pill ${st.state === 'connected' ? 'ok' : st.state === 'offline' ? 'err' : ''}`;
+
+    if (st.state === 'connected' && st.user) {
+      userInfo.innerHTML = `<i class="fa-brands fa-whatsapp"></i> <strong>Conectado como:</strong> ${escapeHtml(st.user.name || 'WhatsApp')} (${escapeHtml(st.user.phone || '')})`;
+      userInfo.classList.remove('hidden');
       qrWrap.classList.add('hidden');
+      stopBaileysPolling();
+    } else {
+      userInfo.classList.add('hidden');
+      if (st.qr) {
+        qrImg.src = st.qr;
+        qrWrap.classList.remove('hidden');
+      } else {
+        qrWrap.classList.add('hidden');
+      }
+      if (st.state === 'disconnected' || st.state === 'offline') {
+        stopBaileysPolling();
+      }
     }
   } catch (e) {}
+}
+
+// ==================== CHAT / CONVERSAS (KOMMO) ====================
+function initChatControls() {
+  document.getElementById('chat-search-input')?.addEventListener('input', debounce(loadChatThreads, 250));
+  document.querySelectorAll('[data-chat-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-chat-filter]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      STATE.chatFilter = btn.dataset.chatFilter;
+      loadChatThreads();
+    });
+  });
+
+  document.getElementById('chat-template-select')?.addEventListener('change', (e) => {
+    const tid = e.target.value;
+    const l = STATE.activeChatLead;
+    const tpl = STATE.templates.find(t => t.id === tid);
+    if (!tpl || !l) return;
+    let txt = (tpl.content || '')
+      .replace(/\{nome\}/g, l.name || 'sua empresa')
+      .replace(/\{categoria\}/g, l.category || 'seu segmento')
+      .replace(/\{bairro\}/g, l.neighborhood || l.city || 'sua região')
+      .replace(/\{rua\}/g, l.street || '')
+      .replace(/\{avaliacao\}/g, l.rating || '5.0')
+      .replace(/\{avaliacoes\}/g, l.reviews_count || '0');
+    document.getElementById('chat-input-text').value = txt;
+  });
+
+  document.getElementById('btn-chat-send')?.addEventListener('click', sendChatMessage);
+  document.getElementById('chat-input-text')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendChatMessage();
+    }
+  });
+
+  document.getElementById('chat-peer-status')?.addEventListener('change', async (e) => {
+    const l = STATE.activeChatLead;
+    if (!l) return;
+    await apiFetch(`/api/leads/${l.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ crm_status: e.target.value })
+    });
+    toast('Etapa atualizada!', 'success');
+    loadStats();
+    loadLeads();
+  });
+
+  document.getElementById('btn-chat-open-drawer')?.addEventListener('click', () => {
+    if (STATE.activeChatLead) openLeadDrawer(STATE.activeChatLead);
+  });
+}
+
+async function loadChatThreads() {
+  const list = document.getElementById('chat-thread-list');
+  if (!list) return;
+  const search = document.getElementById('chat-search-input')?.value || '';
+  const qs = new URLSearchParams({ filter: STATE.chatFilter, search });
+  try {
+    const res = await apiFetch(`/api/chat/threads?${qs.toString()}`);
+    const threads = await res.json();
+    STATE.chatThreads = threads;
+
+    const repliesCount = threads.filter(t => t.had_reply || t.crm_status === 'respondeu').length;
+    const badge = document.getElementById('badge-chat-replies');
+    if (badge) {
+      badge.textContent = repliesCount;
+      badge.classList.toggle('hidden', repliesCount === 0);
+    }
+
+    if (!threads.length) {
+      list.innerHTML = '<div class="chat-empty">Nenhuma conversa ativa ainda.<br><small>Envie uma abordagem pelo CRM para aparecer aqui.</small></div>';
+      return;
+    }
+
+    list.innerHTML = threads.map(t => {
+      const activeCls = STATE.activeChatLead?.id === t.id ? 'active' : '';
+      const replyTag = (t.had_reply || t.crm_status === 'respondeu')
+        ? '<span class="opp-badge opp-wa">Respondeu</span>'
+        : `<span class="status-pill" style="font-size:0.68rem">${escapeHtml(t.crm_status)}</span>`;
+      return `
+        <div class="chat-thread-item ${activeCls}" data-id="${t.id}">
+          <div class="chat-thread-top">
+            <strong>${escapeHtml(t.name)}</strong>
+            ${replyTag}
+          </div>
+          <div class="chat-thread-preview">${escapeHtml(t.last_message || t.phone || 'Contato registrado')}</div>
+        </div>
+      `;
+    }).join('');
+
+    list.querySelectorAll('.chat-thread-item').forEach(el => {
+      el.addEventListener('click', () => {
+        const t = threads.find(x => x.id === Number(el.dataset.id));
+        if (t) openChatThread(t);
+      });
+    });
+  } catch (e) {}
+}
+
+async function openChatThread(lead) {
+  STATE.activeChatLead = lead;
+  document.querySelectorAll('.chat-thread-item').forEach(el => {
+    el.classList.toggle('active', Number(el.dataset.id) === lead.id);
+  });
+  document.getElementById('chat-main-empty').classList.add('hidden');
+  document.getElementById('chat-active-pane').classList.remove('hidden');
+  document.getElementById('chat-peer-name').textContent = lead.name;
+  document.getElementById('chat-peer-meta').textContent = `${lead.phone || ''} · ${lead.category || ''} · ${lead.neighborhood || lead.city || ''}`;
+  document.getElementById('chat-peer-status').value = lead.crm_status || 'contatado';
+
+  const sel = document.getElementById('chat-template-select');
+  sel.innerHTML = '<option value="">Inserir modelo rápido...</option>' +
+    STATE.templates.map(t => `<option value="${escapeHtml(t.id)}">${escapeHtml(t.title)}</option>`).join('');
+
+  await renderActiveChatMessages(lead.id);
+}
+
+async function renderActiveChatMessages(leadId) {
+  const box = document.getElementById('chat-messages-box');
+  if (!box) return;
+  try {
+    const res = await apiFetch(`/api/leads/${leadId}/conversation`);
+    const msgs = await res.json();
+    if (!msgs.length) {
+      box.innerHTML = '<div class="chat-empty">Nenhuma mensagem trocada ainda. Envie a primeira abaixo!</div>';
+      return;
+    }
+    box.innerHTML = msgs.map(m => `
+      <div class="chat-bubble ${m.direction === 'out' ? 'out' : 'in'}">
+        <div>${escapeHtml(m.text)}</div>
+        <span class="chat-bubble-meta">${escapeHtml((m.created_at || '').slice(0, 16).replace('T', ' '))} · ${escapeHtml(m.status || '')}</span>
+      </div>
+    `).join('');
+    box.scrollTop = box.scrollHeight;
+  } catch (e) {}
+}
+
+async function sendChatMessage() {
+  const l = STATE.activeChatLead;
+  const input = document.getElementById('chat-input-text');
+  const text = (input.value || '').trim();
+  if (!l || !text) return;
+
+  input.disabled = true;
+  try {
+    const res = await apiFetch('/api/chat/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lead_id: l.id, text })
+    });
+    const d = await res.json();
+    if (d.success) {
+      input.value = '';
+      if (d.channel === 'web_1click' && d.wa_url) {
+        window.open(d.wa_url, '_blank');
+        toast('Aberto no WhatsApp Web e registrado no histórico!', 'info');
+      } else {
+        toast('Mensagem enviada!', 'success');
+      }
+      await renderActiveChatMessages(l.id);
+      loadChatThreads();
+    } else {
+      toast(d.error || 'Erro ao enviar mensagem.', 'error');
+    }
+  } finally {
+    input.disabled = false;
+    input.focus();
+  }
 }
 
 // ==================== ADMIN ====================

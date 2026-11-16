@@ -1,15 +1,6 @@
 /**
- * MapaLeads PRO - Microserviço WhatsApp (Baileys)
- * Porta 5056. Sessão própria em ./auth_session (independente de outros apps).
- *
- * Endpoints:
- *   GET  /status          -> { state, qr (dataURL|null), user }
- *   POST /connect         -> inicia/gera QR
- *   POST /logout          -> desconecta e apaga sessão
- *   POST /check           -> { phone } => { exists, jid }
- *   POST /send            -> { phone, text } => { success, jid }
- * Mensagens recebidas são encaminhadas para o Flask:
- *   POST http://127.0.0.1:5055/api/wa/incoming { phone, text, name }
+ * MapaLeads PRO - Microserviço WhatsApp (Baileys Multi-Sessão)
+ * Porta 5056. Sessões isoladas por usuário em WA_AUTH_ROOT/<session_id>.
  */
 const express = require('express');
 const qrcode = require('qrcode');
@@ -27,21 +18,40 @@ const {
 
 const PORT = process.env.WA_PORT || 5056;
 const FLASK_WEBHOOK = process.env.FLASK_WEBHOOK || 'http://127.0.0.1:5055/api/wa/incoming';
-const AUTH_DIR = path.join(__dirname, 'auth_session');
+const AUTH_ROOT = process.env.WA_AUTH_ROOT || path.join(__dirname, 'auth_sessions');
 const logger = pino({ level: 'silent' });
 
 const app = express();
 app.use(express.json({ limit: '2mb' }));
 
-let sock = null;
-let state = 'disconnected'; // disconnected | connecting | qrcode | connected
-let qrDataUrl = null;
-let user = null;
-let initializing = false;
-let reconnectTimer = null;
+// Mapa de sessões: sessionId -> { sock, state, qrDataUrl, user, initializing, reconnectTimer }
+const sessions = new Map();
 
-function cleanAuth() {
-  try { fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch (e) {}
+function getSessionId(req) {
+  const raw = req.query?.session_id || req.body?.session_id || '1';
+  return String(raw).replace(/[^a-zA-Z0-9_-]/g, '') || '1';
+}
+
+function getSession(sid) {
+  if (!sessions.has(sid)) {
+    sessions.set(sid, {
+      sock: null,
+      state: 'disconnected',
+      qrDataUrl: null,
+      user: null,
+      initializing: false,
+      reconnectTimer: null,
+    });
+  }
+  return sessions.get(sid);
+}
+
+function authDirFor(sid) {
+  return path.join(AUTH_ROOT, `user_${sid}`);
+}
+
+function cleanAuth(sid) {
+  try { fs.rmSync(authDirFor(sid), { recursive: true, force: true }); } catch (e) {}
 }
 
 function toJid(phone) {
@@ -62,34 +72,36 @@ async function forwardIncoming(payload) {
   }
 }
 
-async function initWhatsApp(forceNew = false) {
-  if (initializing) return;
-  initializing = true;
-  if (reconnectTimer) { clearTimeout(reconnectTimer); reconnectTimer = null; }
+async function initWhatsApp(sid, forceNew = false) {
+  const s = getSession(sid);
+  if (s.initializing) return;
+  s.initializing = true;
+  if (s.reconnectTimer) { clearTimeout(s.reconnectTimer); s.reconnectTimer = null; }
 
-  if (sock) {
-    try { sock.ev.removeAllListeners(); sock.end(undefined); } catch (e) {}
-    sock = null;
+  if (s.sock) {
+    try { s.sock.ev.removeAllListeners(); s.sock.end(undefined); } catch (e) {}
+    s.sock = null;
   }
-  if (forceNew) cleanAuth();
-  fs.mkdirSync(AUTH_DIR, { recursive: true });
+  if (forceNew) cleanAuth(sid);
+  const authDir = authDirFor(sid);
+  fs.mkdirSync(authDir, { recursive: true });
 
-  state = 'connecting';
-  qrDataUrl = null;
+  s.state = 'connecting';
+  s.qrDataUrl = null;
 
   try {
-    const { state: authState, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+    const { state: authState, saveCreds } = await useMultiFileAuthState(authDir);
 
     let version = [2, 3000, 1015901307];
     try {
       const res = await Promise.race([
         fetchLatestBaileysVersion(),
-        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 2500))
+        new Promise((_, rej) => setTimeout(() => rej(new Error('timeout')), 3000))
       ]);
       if (res && res.version) version = res.version;
     } catch (e) {}
 
-    sock = makeWASocket({
+    const sock = makeWASocket({
       version,
       auth: { creds: authState.creds, keys: makeCacheableSignalKeyStore(authState.keys, logger) },
       logger,
@@ -100,6 +112,7 @@ async function initWhatsApp(forceNew = false) {
       syncFullHistory: false,
       markOnlineOnConnect: false
     });
+    s.sock = sock;
 
     sock.ev.on('creds.update', saveCreds);
 
@@ -107,33 +120,34 @@ async function initWhatsApp(forceNew = false) {
       const { connection, lastDisconnect, qr } = update;
 
       if (qr) {
-        state = 'qrcode';
-        try { qrDataUrl = await qrcode.toDataURL(qr, { width: 300, margin: 1 }); } catch (e) {}
-        console.log('[WA] Novo QR Code gerado.');
+        s.state = 'qrcode';
+        try { s.qrDataUrl = await qrcode.toDataURL(qr, { width: 300, margin: 1 }); } catch (e) {}
+        console.log(`[WA:${sid}] Novo QR Code gerado.`);
       }
 
       if (connection === 'open') {
-        state = 'connected';
-        qrDataUrl = null;
+        s.state = 'connected';
+        s.qrDataUrl = null;
+        s.initializing = false;
         const id = sock.user?.id || '';
         const num = id.split(':')[0].split('@')[0];
-        user = { id, phone: num, name: sock.user?.name || sock.user?.verifiedName || 'WhatsApp' };
-        console.log(`[WA] Conectado como ${user.name} (${user.phone}).`);
+        s.user = { id, phone: num, name: sock.user?.name || sock.user?.verifiedName || 'WhatsApp' };
+        console.log(`[WA:${sid}] Conectado como ${s.user.name} (${s.user.phone}).`);
       }
 
       if (connection === 'close') {
         const code = lastDisconnect?.error?.output?.statusCode;
         const loggedOut = code === DisconnectReason.loggedOut || code === 401;
-        console.log(`[WA] Conexão fechada (código ${code}).`);
-        state = 'disconnected';
-        user = null;
-        qrDataUrl = null;
-        initializing = false;
+        console.log(`[WA:${sid}] Conexão fechada (código ${code}).`);
+        s.state = 'disconnected';
+        s.user = null;
+        s.qrDataUrl = null;
+        s.initializing = false;
         if (loggedOut) {
-          cleanAuth();
-          return; // usuário precisa clicar em "Conectar" de novo
+          cleanAuth(sid);
+          return;
         }
-        reconnectTimer = setTimeout(() => initWhatsApp(false), 3000);
+        s.reconnectTimer = setTimeout(() => initWhatsApp(sid, false), 3000);
       }
     });
 
@@ -143,52 +157,66 @@ async function initWhatsApp(forceNew = false) {
         try {
           if (!m.message || m.key.fromMe) continue;
           const jid = m.key.remoteJid || '';
-          if (!jid.endsWith('@s.whatsapp.net')) continue; // ignora grupos/status
+          if (!jid.endsWith('@s.whatsapp.net')) continue;
           const text =
             m.message.conversation ||
             m.message.extendedTextMessage?.text ||
             m.message.imageMessage?.caption ||
             m.message.buttonsResponseMessage?.selectedDisplayText ||
             '[mídia]';
-          await forwardIncoming({ phone: jid.split('@')[0], text, name: m.pushName || '' });
+          await forwardIncoming({
+            user_id: Number(sid) || 1,
+            phone: jid.split('@')[0],
+            text,
+            name: m.pushName || ''
+          });
         } catch (e) {}
       }
     });
   } catch (e) {
-    console.error('[WA] Erro ao iniciar:', e.message);
-    state = 'disconnected';
-  } finally {
-    initializing = false;
+    console.error(`[WA:${sid}] Erro ao iniciar:`, e.message);
+    s.state = 'disconnected';
+    s.initializing = false;
   }
 }
 
 // ==================== ROTAS ====================
 app.get('/status', (req, res) => {
-  res.json({ state, qr: qrDataUrl, user });
+  const sid = getSessionId(req);
+  const s = getSession(sid);
+  res.json({ state: s.state, qr: s.qrDataUrl, user: s.user, session_id: sid });
 });
 
 app.post('/connect', async (req, res) => {
-  if (state === 'connected') return res.json({ success: true, state });
-  await initWhatsApp(Boolean(req.body?.force));
-  res.json({ success: true, state });
+  const sid = getSessionId(req);
+  const s = getSession(sid);
+  if (s.state === 'connected') return res.json({ success: true, state: s.state, user: s.user });
+  initWhatsApp(sid, Boolean(req.body?.force));
+  res.json({ success: true, state: s.state });
 });
 
 app.post('/logout', async (req, res) => {
-  try { if (sock) await sock.logout(); } catch (e) {}
-  try { if (sock) { sock.ev.removeAllListeners(); sock.end(undefined); } } catch (e) {}
-  sock = null;
-  cleanAuth();
-  state = 'disconnected';
-  user = null;
-  qrDataUrl = null;
+  const sid = getSessionId(req);
+  const s = getSession(sid);
+  if (s.reconnectTimer) { clearTimeout(s.reconnectTimer); s.reconnectTimer = null; }
+  try { if (s.sock) await s.sock.logout(); } catch (e) {}
+  try { if (s.sock) { s.sock.ev.removeAllListeners(); s.sock.end(undefined); } } catch (e) {}
+  s.sock = null;
+  cleanAuth(sid);
+  s.state = 'disconnected';
+  s.user = null;
+  s.qrDataUrl = null;
+  s.initializing = false;
   res.json({ success: true });
 });
 
 app.post('/check', async (req, res) => {
-  if (state !== 'connected' || !sock) return res.status(409).json({ success: false, error: 'WhatsApp não conectado' });
+  const sid = getSessionId(req);
+  const s = getSession(sid);
+  if (s.state !== 'connected' || !s.sock) return res.status(409).json({ success: false, error: 'WhatsApp não conectado' });
   try {
     const jid = toJid(req.body?.phone);
-    const [r] = await sock.onWhatsApp(jid);
+    const [r] = await s.sock.onWhatsApp(jid);
     res.json({ success: true, exists: Boolean(r?.exists), jid: r?.jid || jid });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
@@ -196,7 +224,9 @@ app.post('/check', async (req, res) => {
 });
 
 app.post('/check-batch', async (req, res) => {
-  if (state !== 'connected' || !sock) return res.status(409).json({ success: false, error: 'WhatsApp não conectado' });
+  const sid = getSessionId(req);
+  const s = getSession(sid);
+  if (s.state !== 'connected' || !s.sock) return res.status(409).json({ success: false, error: 'WhatsApp não conectado' });
   const phones = req.body?.phones || [];
   if (!Array.isArray(phones) || phones.length === 0) {
     return res.json({ success: true, results: {} });
@@ -205,7 +235,7 @@ app.post('/check-batch', async (req, res) => {
   for (const phone of phones) {
     try {
       const jid = toJid(phone);
-      const [r] = await sock.onWhatsApp(jid);
+      const [r] = await s.sock.onWhatsApp(jid);
       results[phone] = { exists: Boolean(r?.exists), jid: r?.jid || jid };
     } catch (e) {
       results[phone] = { exists: false, error: e.message };
@@ -215,20 +245,21 @@ app.post('/check-batch', async (req, res) => {
 });
 
 app.post('/send', async (req, res) => {
-  if (state !== 'connected' || !sock) return res.status(409).json({ success: false, error: 'WhatsApp não conectado' });
+  const sid = getSessionId(req);
+  const s = getSession(sid);
+  if (s.state !== 'connected' || !s.sock) return res.status(409).json({ success: false, error: 'WhatsApp não conectado' });
   const { phone, text } = req.body || {};
   if (!phone || !text) return res.status(400).json({ success: false, error: 'phone e text são obrigatórios' });
   try {
-    const [r] = await sock.onWhatsApp(toJid(phone));
+    const [r] = await s.sock.onWhatsApp(toJid(phone));
     if (!r?.exists) return res.json({ success: false, error: 'Número não possui WhatsApp', not_on_whatsapp: true });
 
-    // Simula digitação humana proporcional ao tamanho do texto
-    await sock.presenceSubscribe(r.jid).catch(() => {});
-    await sock.sendPresenceUpdate('composing', r.jid).catch(() => {});
-    await new Promise(ok => setTimeout(ok, Math.min(8000, 1500 + text.length * 25)));
-    await sock.sendPresenceUpdate('paused', r.jid).catch(() => {});
+    await s.sock.presenceSubscribe(r.jid).catch(() => {});
+    await s.sock.sendPresenceUpdate('composing', r.jid).catch(() => {});
+    await new Promise(ok => setTimeout(ok, Math.min(4000, 900 + text.length * 15)));
+    await s.sock.sendPresenceUpdate('paused', r.jid).catch(() => {});
 
-    await sock.sendMessage(r.jid, { text });
+    await s.sock.sendMessage(r.jid, { text });
     res.json({ success: true, jid: r.jid });
   } catch (e) {
     res.status(500).json({ success: false, error: e.message });
@@ -236,7 +267,14 @@ app.post('/send', async (req, res) => {
 });
 
 app.listen(PORT, '127.0.0.1', () => {
-  console.log(`[WA] Microserviço WhatsApp MapaLeads em http://127.0.0.1:${PORT}`);
-  // Reconecta automaticamente se já houver sessão salva
-  if (fs.existsSync(path.join(AUTH_DIR, 'creds.json'))) initWhatsApp(false);
+  console.log(`[WA] Microserviço WhatsApp Multi-Sessão em http://127.0.0.1:${PORT}`);
+  fs.mkdirSync(AUTH_ROOT, { recursive: true });
+  try {
+    for (const entry of fs.readdirSync(AUTH_ROOT)) {
+      if (entry.startsWith('user_') && fs.existsSync(path.join(AUTH_ROOT, entry, 'creds.json'))) {
+        const sid = entry.replace(/^user_/, '');
+        initWhatsApp(sid, false);
+      }
+    }
+  } catch (e) {}
 });

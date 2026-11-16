@@ -149,11 +149,11 @@ def sent_today() -> int:
     return n
 
 
-def log_message(lead_id: Optional[int], phone: str, direction: str, kind: str, text: str, status: str = "ok"):
+def log_message(lead_id: Optional[int], phone: str, direction: str, kind: str, text: str, status: str = "ok", user_id: int = 1):
     conn = get_connection()
     conn.execute(
-        "INSERT INTO wa_messages (lead_id, phone, direction, kind, text, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (lead_id, phone, direction, kind, text, status, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        "INSERT INTO wa_messages (user_id, lead_id, phone, direction, kind, text, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        (user_id, lead_id, phone, direction, kind, text, status, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     )
     conn.commit()
     conn.close()
@@ -346,57 +346,66 @@ class CampaignRunner:
 
 
 # ==================== RESPOSTAS RECEBIDAS ====================
-def find_lead_by_phone(phone: str) -> Optional[Dict[str, Any]]:
+def find_lead_by_phone(phone: str, user_id: int = 1) -> Optional[Dict[str, Any]]:
     digits = re.sub(r"\D", "", phone or "")
     if not digits:
         return None
-    # WhatsApp às vezes omite o 9º dígito em números antigos — compara pelos 8 últimos
     tail = digits[-8:]
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM leads WHERE clean_phone LIKE ? ORDER BY had_contact DESC LIMIT 1", (f"%{tail}",))
+    cur.execute("SELECT * FROM leads WHERE user_id = ? AND clean_phone LIKE ? ORDER BY had_contact DESC LIMIT 1", (user_id, f"%{tail}"))
     row = cur.fetchone()
     conn.close()
     return dict(row) if row else None
 
 
-def handle_incoming(phone: str, text: str, broadcast: Callable[[str, Any], None]) -> Dict[str, Any]:
-    lead = find_lead_by_phone(phone)
+def handle_incoming(phone: str, text: str, broadcast: Callable[[str, Any, int], None], user_id: int = 1) -> Dict[str, Any]:
+    lead = find_lead_by_phone(phone, user_id=user_id)
     if not lead:
         return {"matched": False}
 
-    log_message(lead["id"], phone, "in", "reply", text)
+    log_message(lead["id"], phone, "in", "reply", text, user_id=user_id)
     result = {"matched": True, "lead_id": lead["id"], "followup_sent": False}
 
     first_reply = not lead.get("had_reply")
     fields = {"had_reply": 1}
     if lead.get("crm_status") in ("novo", "contatado"):
         fields["crm_status"] = "respondeu"
-    update_lead(lead["id"], fields)
+    update_lead(lead["id"], fields, user_id=user_id)
 
     cfg = get_config()
     if first_reply and cfg.get("auto_followup") and lead.get("whatsapp_status") == "enviado":
         tpl = get_template(cfg["template_id"])
         follow = fill_variables((tpl or {}).get("follow_up") or "", lead)
         if follow.strip():
-            time.sleep(random.uniform(8, 20))  # parece humano lendo a mensagem
-            res = wa_request("POST", "/send", {"phone": lead["clean_phone"], "text": follow}, timeout=60)
+            time.sleep(random.uniform(8, 20))
+            res = wa_request("POST", "/send", {"session_id": str(user_id), "phone": lead["clean_phone"], "text": follow}, timeout=60)
             if res.get("success"):
-                update_lead(lead["id"], {"whatsapp_status": "followup_enviado"})
-                log_message(lead["id"], lead["clean_phone"], "out", "followup", follow)
+                update_lead(lead["id"], {"whatsapp_status": "followup_enviado"}, user_id=user_id)
+                log_message(lead["id"], lead["clean_phone"], "out", "followup", follow, user_id=user_id)
                 result["followup_sent"] = True
 
-    broadcast("lead_reply", {
-        "id": lead["id"], "name": lead["name"], "text": text[:200],
-        "followup_sent": result["followup_sent"]
-    })
+    try:
+        broadcast("lead_reply", {
+            "id": lead["id"], "name": lead["name"], "text": text[:200],
+            "followup_sent": result["followup_sent"]
+        }, user_id)
+        broadcast("chat_message", {"lead_id": lead["id"], "direction": "in", "text": text}, user_id)
+    except TypeError:
+        broadcast("lead_reply", {
+            "id": lead["id"], "name": lead["name"], "text": text[:200],
+            "followup_sent": result["followup_sent"]
+        })
     return result
 
 
-def get_conversation(lead_id: int) -> List[Dict[str, Any]]:
+def get_conversation(lead_id: int, user_id: Optional[int] = None) -> List[Dict[str, Any]]:
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM wa_messages WHERE lead_id = ? ORDER BY id ASC", (lead_id,))
+    if user_id is not None:
+        cur.execute("SELECT * FROM wa_messages WHERE lead_id = ? AND user_id = ? ORDER BY id ASC", (lead_id, user_id))
+    else:
+        cur.execute("SELECT * FROM wa_messages WHERE lead_id = ? ORDER BY id ASC", (lead_id,))
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return rows

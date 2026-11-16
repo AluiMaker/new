@@ -1110,22 +1110,137 @@ def api_wa_official_webhook():
     for ev in events:
         if ev.get("type") == "incoming_message" and ev.get("lead_id"):
             broadcast_event("lead_updated", {"id": ev["lead_id"], "crm_status": "respondeu"}, user_id=ev["user_id"])
+            broadcast_event("chat_message", {"lead_id": ev["lead_id"], "direction": "in", "text": ev.get("text", "")}, user_id=ev["user_id"])
     return jsonify({"status": "ok", "processed": len(events)}), 200
 
 
-# ==================== WHATSAPP (BAILEYS LOCAL / OPCIONAL) ====================
+# ==================== CHAT / INBOX ESTILO KOMMO ====================
+
+@app.route("/api/chat/threads")
+@login_required
+def api_chat_threads():
+    uid = current_user_id()
+    filter_type = (request.args.get("filter") or "all").strip()
+    search_q = (request.args.get("search") or "").strip().lower()
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT l.*,
+                   (SELECT m.text FROM wa_messages m WHERE m.lead_id = l.id AND m.user_id = l.user_id ORDER BY m.id DESC LIMIT 1) AS last_message,
+                   (SELECT m.direction FROM wa_messages m WHERE m.lead_id = l.id AND m.user_id = l.user_id ORDER BY m.id DESC LIMIT 1) AS last_direction,
+                   (SELECT m.created_at FROM wa_messages m WHERE m.lead_id = l.id AND m.user_id = l.user_id ORDER BY m.id DESC LIMIT 1) AS last_message_at,
+                   (SELECT COUNT(*) FROM wa_messages m WHERE m.lead_id = l.id AND m.user_id = l.user_id) AS msg_count
+            FROM leads l
+            WHERE l.user_id = ?
+              AND (l.had_contact = 1 OR l.had_reply = 1 OR EXISTS (SELECT 1 FROM wa_messages m WHERE m.lead_id = l.id AND m.user_id = l.user_id))
+            ORDER BY COALESCE(last_message_at, l.updated_at) DESC, l.id DESC
+            LIMIT 250
+        """, (uid,))
+        rows = [dict(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+    threads = []
+    for r in rows:
+        if filter_type == "replied" and not r.get("had_reply") and r.get("crm_status") != "respondeu":
+            continue
+        if filter_type == "contacted" and r.get("had_reply"):
+            continue
+        if search_q:
+            hay = f"{r.get('name','')} {r.get('phone','')} {r.get('category','')} {r.get('last_message','')}".lower()
+            if search_q not in hay:
+                continue
+        threads.append(r)
+    return jsonify(threads)
+
+
+@app.route("/api/chat/send", methods=["POST"])
+@login_required
+def api_chat_send():
+    uid = current_user_id()
+    data = request.get_json(silent=True) or {}
+    lead_id = int(data.get("lead_id", 0))
+    text = (data.get("text") or "").strip()
+    channel = (data.get("channel") or "auto").strip()
+    if not lead_id or not text:
+        return jsonify({"success": False, "error": "Selecione um contato e digite a mensagem."}), 400
+
+    lead = next((l for l in get_leads(user_id=uid, limit=100000) if l["id"] == lead_id), None)
+    if not lead or not lead.get("clean_phone"):
+        return jsonify({"success": False, "error": "Lead sem telefone válido."}), 400
+
+    cfg = get_wa_user_config(uid)
+    now = time.strftime("%d/%m/%Y %H:%M")
+
+    # 1. Tenta Baileys (WhatsApp QR) se conectado ou se canal escolhido for 'baileys'
+    if channel in ("auto", "baileys"):
+        st = wa.wa_request("GET", f"/status?session_id={uid}", timeout=3)
+        if st.get("state") == "connected":
+            res = wa.wa_request("POST", "/send", {"session_id": str(uid), "phone": lead["clean_phone"], "text": text}, timeout=60)
+            if res.get("success"):
+                update_lead(lead_id, {
+                    "had_contact": 1,
+                    "contact_date": lead.get("contact_date") or now,
+                    "crm_status": "contatado" if lead["crm_status"] == "novo" else lead["crm_status"],
+                    "whatsapp_status": "enviado",
+                }, user_id=uid)
+                wa.log_message(lead_id, lead["clean_phone"], "out", "chat", text, user_id=uid)
+                broadcast_event("chat_message", {"lead_id": lead_id, "direction": "out", "text": text}, user_id=uid)
+                return jsonify({"success": True, "channel": "baileys"})
+            if channel == "baileys":
+                return jsonify(res), 400
+
+    # 2. Tenta API Oficial da Meta se configurada
+    if channel in ("auto", "official") and cfg.get("meta_phone_number_id") and cfg.get("meta_access_token"):
+        res = wa_official.send_text_message(
+            cfg["meta_phone_number_id"], cfg["meta_access_token"],
+            lead["clean_phone"], text, cfg.get("meta_api_version") or "v21.0"
+        )
+        if res.get("success"):
+            update_lead(lead_id, {
+                "had_contact": 1,
+                "contact_date": lead.get("contact_date") or now,
+                "crm_status": "contatado" if lead["crm_status"] == "novo" else lead["crm_status"],
+                "whatsapp_status": "enviado",
+            }, user_id=uid)
+            wa.log_message(lead_id, lead["clean_phone"], "out", "official_chat", text, user_id=uid)
+            broadcast_event("chat_message", {"lead_id": lead_id, "direction": "out", "text": text}, user_id=uid)
+            return jsonify({"success": True, "channel": "official"})
+        if channel == "official":
+            return jsonify(res), 400
+
+    # 3. Fallback: WhatsApp Web 1-Clique (registra e retorna link wa.me para abrir)
+    wa.log_message(lead_id, lead["clean_phone"], "out", "web_chat", text, user_id=uid)
+    update_lead(lead_id, {
+        "had_contact": 1,
+        "contact_date": lead.get("contact_date") or now,
+        "crm_status": "contatado" if lead["crm_status"] == "novo" else lead["crm_status"],
+        "whatsapp_status": "enviado",
+    }, user_id=uid)
+    broadcast_event("chat_message", {"lead_id": lead_id, "direction": "out", "text": text}, user_id=uid)
+    return jsonify({
+        "success": True,
+        "channel": "web_1click",
+        "wa_url": f"https://wa.me/{lead['clean_phone']}?text={cffi_requests.utils.quote(text)}"
+    })
+
+
+# ==================== WHATSAPP (BAILEYS MULTI-SESSÃO) ====================
 campaign = wa.CampaignRunner(broadcast_event)
 
 
 @app.route("/api/wa/status")
 @login_required
 def api_wa_status():
-    st = wa.wa_request("GET", "/status", timeout=3)
+    uid = current_user_id()
+    st = wa.wa_request("GET", f"/status?session_id={uid}", timeout=3)
     if st.get("offline"):
         started = wa.ensure_service_running()
-        st = wa.wa_request("GET", "/status", timeout=3) if started else {
+        st = wa.wa_request("GET", f"/status?session_id={uid}", timeout=3) if started else {
             "state": "offline",
-            "error": "Serviço local Baileys offline (use API Oficial da Meta ou WhatsApp Web 1-Clique)."
+            "error": "Serviço WhatsApp QR offline no momento."
         }
     return jsonify(st)
 
@@ -1133,16 +1248,18 @@ def api_wa_status():
 @app.route("/api/wa/connect", methods=["POST"])
 @login_required
 def api_wa_connect():
+    uid = current_user_id()
     wa.ensure_service_running()
     force = bool((request.get_json(silent=True) or {}).get("force"))
-    return jsonify(wa.wa_request("POST", "/connect", {"force": force}, timeout=15))
+    return jsonify(wa.wa_request("POST", "/connect", {"session_id": str(uid), "force": force}, timeout=15))
 
 
 @app.route("/api/wa/logout", methods=["POST"])
 @login_required
 def api_wa_logout():
+    uid = current_user_id()
     campaign.stop()
-    return jsonify(wa.wa_request("POST", "/logout", timeout=15))
+    return jsonify(wa.wa_request("POST", "/logout", {"session_id": str(uid)}, timeout=15))
 
 
 @app.route("/api/wa/config", methods=["GET", "POST"])
@@ -1204,7 +1321,7 @@ def api_wa_send_one():
             "error": "Este telefone já recebeu mensagem anteriormente. Confirme para reenviar."
         }), 409
 
-    res = wa.wa_request("POST", "/send", {"phone": lead["clean_phone"], "text": text}, timeout=60)
+    res = wa.wa_request("POST", "/send", {"session_id": str(uid), "phone": lead["clean_phone"], "text": text}, timeout=60)
     if res.get("success"):
         update_lead(lead_id, {
             "had_contact": 1,
@@ -1212,7 +1329,7 @@ def api_wa_send_one():
             "crm_status": "contatado" if lead["crm_status"] == "novo" else lead["crm_status"],
             "whatsapp_status": "enviado",
         }, user_id=uid)
-        wa.log_message(lead_id, lead["clean_phone"], "out", "pitch", text)
+        wa.log_message(lead_id, lead["clean_phone"], "out", "pitch", text, user_id=uid)
     return jsonify(res)
 
 
@@ -1221,7 +1338,7 @@ def api_wa_send_one():
 def api_verify_whatsapp_all():
     uid = current_user_id()
     wa.ensure_service_running()
-    st = wa.wa_request("GET", "/status", timeout=3)
+    st = wa.wa_request("GET", f"/status?session_id={uid}", timeout=3)
     if st.get("state") != "connected":
         return jsonify({
             "success": False,
@@ -1273,7 +1390,7 @@ def api_verify_whatsapp_all():
 
     for i in range(0, len(phones), batch_size):
         chunk = phones[i:i + batch_size]
-        res = wa.wa_request("POST", "/check-batch", {"phones": chunk}, timeout=60)
+        res = wa.wa_request("POST", "/check-batch", {"session_id": str(uid), "phones": chunk}, timeout=60)
         if res.get("success"):
             batch_res = res.get("results", {})
             stats = batch_verify_whatsapp(batch_res, user_id=uid)
@@ -1310,9 +1427,10 @@ def api_leads_deduplicate():
 @app.route("/api/wa/incoming", methods=["POST"])
 def api_wa_incoming():
     data = request.get_json(silent=True) or {}
+    uid = int(data.get("user_id") or 1)
     threading.Thread(
         target=wa.handle_incoming,
-        args=(data.get("phone", ""), data.get("text", ""), broadcast_event),
+        args=(data.get("phone", ""), data.get("text", ""), broadcast_event, uid),
         daemon=True
     ).start()
     return jsonify({"received": True})
@@ -1327,7 +1445,7 @@ def api_wa_activity():
 @app.route("/api/leads/<int:lead_id>/conversation")
 @login_required
 def api_lead_conversation(lead_id):
-    return jsonify(wa.get_conversation(lead_id))
+    return jsonify(wa.get_conversation(lead_id, user_id=current_user_id()))
 
 
 if __name__ == "__main__":
