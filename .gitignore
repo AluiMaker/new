@@ -1,0 +1,12 @@
+__pycache__/
+*.pyc
+*.db
+*.db-wal
+*.db-shm
+*.bak
+.env
+.secret_key
+whatsapp_service/node_modules/
+whatsapp_service/.wwebjs_auth/
+whatsapp_service/service.log
+

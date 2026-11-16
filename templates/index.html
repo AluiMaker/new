@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MapaLeads PRO — Prospecção Google, CRM & WhatsApp Oficial</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+
+  <!-- Leaflet + MarkerCluster -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" crossorigin="">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" crossorigin="">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js" crossorigin=""></script>
+
+  <!-- Chart.js & SortableJS -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+
+  <link rel="stylesheet" href="/static/css/style.css?v=4.0">
+</head>
+<body>
+  <div class="app-shell">
+    <!-- ==================== SIDEBAR ==================== -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <div class="brand">
+          <div class="brand-icon"><i class="fa-solid fa-location-crosshairs"></i></div>
+          <div>
+            <span class="brand-name">MapaLeads <span class="brand-tag">PRO</span></span>
+            <span class="brand-sub">Prospecção & CRM</span>
+          </div>
+        </div>
+        <button class="icon-btn mobile-only" id="btn-close-sidebar" aria-label="Fechar menu">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <nav class="sidebar-nav">
+        <div class="nav-group-label">Principal</div>
+        <button class="nav-item active" data-tab="tab-dashboard">
+          <i class="fa-solid fa-chart-pie"></i>
+          <span>Visão Geral</span>
+        </button>
+        <button class="nav-item" data-tab="tab-search">
+          <i class="fa-solid fa-magnifying-glass-location"></i>
+          <span>Buscar Empresas</span>
+          <span class="nav-dot hidden" id="nav-search-dot"></span>
+        </button>
+        <button class="nav-item" data-tab="tab-map">
+          <i class="fa-solid fa-map-location-dot"></i>
+          <span>Mapa de Oportunidades</span>
+        </button>
+
+        <div class="nav-group-label">Vendas & Prospecção</div>
+        <button class="nav-item" data-tab="tab-crm">
+          <i class="fa-solid fa-table-columns"></i>
+          <span>CRM & Pipeline</span>
+          <span class="nav-badge" id="badge-crm-novo">0</span>
+        </button>
+        <button class="nav-item" data-tab="tab-templates">
+          <i class="fa-solid fa-message"></i>
+          <span>Modelos de Copy</span>
+        </button>
+
+        <div class="nav-group-label">Sistema</div>
+        <button class="nav-item" data-tab="tab-settings">
+          <i class="fa-brands fa-whatsapp"></i>
+          <span>WhatsApp & Conta</span>
+        </button>
+        {% if current_user and current_user.role == 'admin' %}
+        <button class="nav-item" data-tab="tab-admin">
+          <i class="fa-solid fa-shield-halved"></i>
+          <span>Painel Admin</span>
+        </button>
+        {% endif %}
+      </nav>
+
+      <div class="sidebar-footer">
+        <div class="user-card">
+          <div class="user-avatar">{{ (current_user.name[0] if current_user and current_user.name else 'U')|upper }}</div>
+          <div class="user-meta">
+            <strong id="sidebar-user-name">{{ current_user.name if current_user else 'Usuário' }}</strong>
+            <span>{{ current_user.company_name or current_user.email if current_user else '' }}</span>
+          </div>
+          <a href="/logout" class="icon-btn" title="Sair da conta"><i class="fa-solid fa-right-from-bracket"></i></a>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ==================== MAIN AREA ==================== -->
+    <div class="main-area">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="icon-btn mobile-only" id="btn-open-sidebar" aria-label="Abrir menu">
+            <i class="fa-solid fa-bars"></i>
+          </button>
+          <div>
+            <h1 class="page-title" id="topbar-title">Visão Geral</h1>
+            <p class="page-subtitle" id="topbar-subtitle">Acompanhe suas oportunidades de venda e resultados no Google</p>
+          </div>
+        </div>
+
+        <div class="topbar-actions">
+          <div class="live-pill hidden" id="topbar-live-pill">
+            <span class="pulse-dot"></span>
+            <span id="topbar-live-text">Buscando...</span>
+          </div>
+          <button class="btn btn-outline btn-sm" id="btn-export-csv">
+            <i class="fa-solid fa-file-csv"></i> Exportar Excel/CSV
+          </button>
+          <button class="btn btn-primary btn-sm" onclick="switchTab('tab-search')">
+            <i class="fa-solid fa-plus"></i> Nova Busca
+          </button>
+        </div>
+      </header>
+
+      <main class="content-area">
+        <!-- ==================== 1. DASHBOARD ==================== -->
+        <section class="tab-view active" id="tab-dashboard">
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <div class="kpi-icon bg-blue"><i class="fa-solid fa-building"></i></div>
+              <div class="kpi-body">
+                <span class="kpi-label">Empresas Captadas</span>
+                <strong class="kpi-value" id="kpi-total">0</strong>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon bg-amber"><i class="fa-solid fa-globe"></i></div>
+              <div class="kpi-body">
+                <span class="kpi-label">Sem Site / Só Rede Social</span>
+                <strong class="kpi-value" id="kpi-no-site">0</strong>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon bg-purple"><i class="fa-solid fa-star-half-stroke"></i></div>
+              <div class="kpi-body">
+                <span class="kpi-label">Poucas Avaliações (&lt; 50)</span>
+                <strong class="kpi-value" id="kpi-low-reviews">0</strong>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon bg-emerald"><i class="fa-brands fa-whatsapp"></i></div>
+              <div class="kpi-body">
+                <span class="kpi-label">Contatados / Responderam</span>
+                <strong class="kpi-value"><span id="kpi-contacted">0</span> <small class="text-muted">/ <span id="kpi-replied">0</span></small></strong>
+              </div>
+            </div>
+            <div class="kpi-card highlight-card">
+              <div class="kpi-icon bg-emerald-solid"><i class="fa-solid fa-sack-dollar"></i></div>
+              <div class="kpi-body">
+                <span class="kpi-label">Vendas Fechadas</span>
+                <strong class="kpi-value text-emerald" id="kpi-sales">R$ 0,00</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="dashboard-grid">
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h3>Oportunidades por Serviço</h3>
+                  <p class="card-sub">Potencial de venda identificado automaticamente nos leads</p>
+                </div>
+              </div>
+              <div class="chart-box">
+                <canvas id="chart-opportunities"></canvas>
+              </div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h3>Funil de Vendas (CRM)</h3>
+                  <p class="card-sub">Distribuição atual dos seus leads</p>
+                </div>
+              </div>
+              <div class="chart-box">
+                <canvas id="chart-funnel"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h3>Atalhos Rápidos por Oferta</h3>
+                <p class="card-sub">Filtre o CRM direto para o serviço que você quer vender hoje</p>
+              </div>
+            </div>
+            <div class="offer-cards-grid">
+              <button class="offer-card" onclick="openCrmWithOpportunity('nfc_google')">
+                <div class="offer-icon bg-purple"><i class="fa-solid fa-wifi"></i></div>
+                <div>
+                  <strong>Plaquinhas NFC + QR Code</strong>
+                  <span>Google Avaliações, Instagram, Pix & Wi-Fi</span>
+                </div>
+              </button>
+              <button class="offer-card" onclick="openCrmWithOpportunity('whatsapp_biz')">
+                <div class="offer-icon bg-emerald"><i class="fa-brands fa-whatsapp"></i></div>
+                <div>
+                  <strong>WhatsApp Business</strong>
+                  <span>Configuração profissional, catálogo & respostas</span>
+                </div>
+              </button>
+              <button class="offer-card" onclick="openCrmWithOpportunity('cardapio_digital')">
+                <div class="offer-icon bg-amber"><i class="fa-solid fa-utensils"></i></div>
+                <div>
+                  <strong>Cardápio Digital</strong>
+                  <span>Restaurantes, bares, pizzarias e cafeterias</span>
+                </div>
+              </button>
+              <button class="offer-card" onclick="openCrmWithOpportunity('biossite')">
+                <div class="offer-icon bg-blue"><i class="fa-solid fa-window-maximize"></i></div>
+                <div>
+                  <strong>Biossites & Landing Pages</strong>
+                  <span>Empresas sem site ou usando apenas Instagram</span>
+                </div>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== 2. BUSCAR EMPRESAS ==================== -->
+        <section class="tab-view" id="tab-search">
+          <div class="search-layout">
+            <div class="card search-config-card">
+              <div class="card-header">
+                <div>
+                  <h3>Nova Busca no Google</h3>
+                  <p class="card-sub">Escolha o local e o tipo de empresa para captar contatos comerciais reais</p>
+                </div>
+              </div>
+
+              <div class="form-grid">
+                <div class="field col-span-2 relative">
+                  <label>1. Onde buscar? (Cidade, Bairro ou Rua)</label>
+                  <div class="input-icon-wrap">
+                    <i class="fa-solid fa-location-dot"></i>
+                    <input type="text" id="search-location-input" placeholder="Ex: Av. Paulista São Paulo, Savassi Belo Horizonte, Campinas SP..." autocomplete="off">
+                  </div>
+                  <div class="autocomplete-dropdown hidden" id="location-suggestions"></div>
+                  <div class="selected-loc-badge hidden" id="selected-location-badge"></div>
+                </div>
+
+                <div class="field">
+                  <label>2. Modo de Busca</label>
+                  <select id="search-mode">
+                    <option value="all">Varredura Completa (Todos os Negócios)</option>
+                    <option value="single">Nicho Específico (Ex: Pizzaria, Clínica)</option>
+                    <option value="multi">Múltiplos Segmentos Selecionados</option>
+                  </select>
+                </div>
+
+                <div class="field" id="wrap-niche">
+                  <label>3. Segmento / Palavra-chave</label>
+                  <input type="text" id="search-niche" placeholder="Ex: Restaurantes, Barbearias, Dentistas...">
+                </div>
+
+                <div class="field">
+                  <label>Meta de Empresas</label>
+                  <select id="search-limit">
+                    <option value="25">25 empresas (Rápido)</option>
+                    <option value="50" selected>50 empresas (Recomendado)</option>
+                    <option value="100">100 empresas (Profundo)</option>
+                    <option value="200">200 empresas (Máximo)</option>
+                  </select>
+                </div>
+
+                <div class="field">
+                  <label>Foco da Oferta (Opcional)</label>
+                  <select id="search-offer-focus">
+                    <option value="all">Todas as Oportunidades</option>
+                    <option value="nfc">Plaquinha NFC + QR Code</option>
+                    <option value="whatsapp">WhatsApp Business</option>
+                    <option value="cardapio">Cardápio Digital</option>
+                    <option value="biossite">Biossite & Landing Page</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="multi-segments-box hidden" id="multi-segments-box">
+                <label class="small-label">Selecione os segmentos:</label>
+                <div class="segments-chips" id="segments-chips"></div>
+              </div>
+
+              <div class="search-actions">
+                <button class="btn btn-primary btn-lg" id="btn-start-search">
+                  <i class="fa-solid fa-play"></i> Iniciar Busca no Google
+                </button>
+                <button class="btn btn-danger btn-lg hidden" id="btn-stop-search">
+                  <i class="fa-solid fa-stop"></i> Parar Busca
+                </button>
+                <label class="checkbox-inline" title="Abre a janela do navegador durante a extração (apenas local)">
+                  <input type="checkbox" id="chk-visible-browser">
+                  <span>Mostrar navegador</span>
+                </label>
+              </div>
+            </div>
+
+            <div class="card search-live-card">
+              <div class="card-header">
+                <div>
+                  <h3>Progresso em Tempo Real</h3>
+                  <p class="card-sub" id="search-status-text">Aguardando início da busca...</p>
+                </div>
+                <span class="pill-counter" id="live-found-count">0 encontrados</span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill" id="search-progress-bar" style="width: 0%"></div>
+              </div>
+              <div class="live-log-box" id="live-log-box">
+                <div class="log-empty">Os logs e empresas encontradas aparecerão aqui em tempo real.</div>
+              </div>
+              <div class="live-leads-list" id="live-leads-list"></div>
+            </div>
+          </div>
+
+          <div class="card" style="margin-top: 20px;">
+            <div class="card-header">
+              <div>
+                <h3>Buscas Recentes</h3>
+                <p class="card-sub">Histórico das últimas regiões pesquisadas na sua conta</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Busca</th>
+                    <th>Localização</th>
+                    <th>Encontrados</th>
+                    <th>Sem Site</th>
+                    <th>Data</th>
+                  </tr>
+                </thead>
+                <tbody id="search-history-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== 3. MAPA VISUAL ==================== -->
+        <section class="tab-view" id="tab-map">
+          <div class="card map-card">
+            <div class="map-toolbar">
+              <div class="map-toolbar-info">
+                <strong>Mapa de Oportunidades</strong>
+                <span>Clique em qualquer rua do mapa para selecionar o local de busca ou clique em um pin para abrir o lead.</span>
+              </div>
+              <div class="map-toolbar-actions">
+                <button class="btn btn-outline btn-sm" id="btn-map-center">
+                  <i class="fa-solid fa-crosshairs"></i> Centralizar Pins
+                </button>
+                <button class="btn btn-primary btn-sm hidden" id="btn-map-search-pin">
+                  <i class="fa-solid fa-magnifying-glass"></i> Buscar nesta Rua
+                </button>
+              </div>
+            </div>
+            <div id="leaflet-map"></div>
+          </div>
+        </section>
+
+        <!-- ==================== 4. CRM & PIPELINE ==================== -->
+        <section class="tab-view" id="tab-crm">
+          <div class="crm-toolbar card">
+            <div class="crm-filters">
+              <div class="input-icon-wrap compact">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="text" id="crm-search-input" placeholder="Buscar empresa, categoria, bairro...">
+              </div>
+              <select id="crm-filter-opportunity">
+                <option value="all">Todas as Oportunidades</option>
+                <option value="nfc_google">Plaquinha NFC + QR (Poucas Avaliações)</option>
+                <option value="whatsapp_biz">WhatsApp Business</option>
+                <option value="cardapio_digital">Cardápio Digital (Gastronomia)</option>
+                <option value="biossite">Biossite / Landing Page (Sem Site)</option>
+              </select>
+              <select id="crm-filter-website">
+                <option value="all">Todos os Sites</option>
+                <option value="no_website">Apenas Sem Site</option>
+                <option value="social_or_none">Sem Site ou Só Rede Social</option>
+                <option value="official">Com Site Oficial</option>
+              </select>
+            </div>
+            <div class="crm-view-switch">
+              <button class="btn btn-outline btn-sm" id="btn-dedup-leads" title="Remover leads duplicados">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Limpar Duplicados
+              </button>
+              <div class="segmented">
+                <button class="seg-btn active" id="btn-view-kanban" onclick="setCrmView('kanban')">
+                  <i class="fa-solid fa-table-columns"></i> Kanban
+                </button>
+                <button class="seg-btn" id="btn-view-table" onclick="setCrmView('table')">
+                  <i class="fa-solid fa-list"></i> Lista
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Kanban View -->
+          <div class="kanban-board" id="crm-kanban-view">
+            <div class="kanban-col" data-status="novo">
+              <div class="kanban-col-head">
+                <span><span class="dot dot-slate"></span> Novos Leads</span>
+                <span class="col-count" id="cnt-novo">0</span>
+              </div>
+              <div class="kanban-list" id="col-novo"></div>
+            </div>
+            <div class="kanban-col" data-status="contatado">
+              <div class="kanban-col-head">
+                <span><span class="dot dot-blue"></span> Contatado</span>
+                <span class="col-count" id="cnt-contatado">0</span>
+              </div>
+              <div class="kanban-list" id="col-contatado"></div>
+            </div>
+            <div class="kanban-col" data-status="respondeu">
+              <div class="kanban-col-head">
+                <span><span class="dot dot-amber"></span> Respondeu</span>
+                <span class="col-count" id="cnt-respondeu">0</span>
+              </div>
+              <div class="kanban-list" id="col-respondeu"></div>
+            </div>
+            <div class="kanban-col" data-status="negociacao">
+              <div class="kanban-col-head">
+                <span><span class="dot dot-purple"></span> Proposta / Reunião</span>
+                <span class="col-count" id="cnt-negociacao">0</span>
+              </div>
+              <div class="kanban-list" id="col-negociacao"></div>
+            </div>
+            <div class="kanban-col" data-status="fechado">
+              <div class="kanban-col-head">
+                <span><span class="dot dot-emerald"></span> Venda Fechada</span>
+                <span class="col-count" id="cnt-fechado">0</span>
+              </div>
+              <div class="kanban-list" id="col-fechado"></div>
+            </div>
+          </div>
+
+          <!-- Table View -->
+          <div class="card hidden" id="crm-table-view">
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Empresa</th>
+                    <th>Telefone</th>
+                    <th>Oportunidades</th>
+                    <th>Avaliação</th>
+                    <th>Etapa CRM</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="crm-table-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== 5. MODELOS DE COPY ==================== -->
+        <section class="tab-view" id="tab-templates">
+          <div class="templates-layout">
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h3>Seus Modelos de Abordagem</h3>
+                  <p class="card-sub">Prontos para Plaquinhas NFC, Cardápio Digital, WhatsApp Business e Biossites</p>
+                </div>
+                <button class="btn btn-primary btn-sm" id="btn-new-template">
+                  <i class="fa-solid fa-plus"></i> Novo Modelo
+                </button>
+              </div>
+              <div class="templates-list" id="templates-list"></div>
+            </div>
+
+            <div class="card">
+              <div class="card-header">
+                <div>
+                  <h3 id="tpl-editor-heading">Editar Modelo</h3>
+                  <p class="card-sub">Use variáveis: <code>{nome}</code>, <code>{categoria}</code>, <code>{bairro}</code>, <code>{avaliacao}</code>, <code>{avaliacoes}</code></p>
+                </div>
+              </div>
+              <form id="form-template-editor" class="form-stack">
+                <input type="hidden" id="tpl-id">
+                <div class="field">
+                  <label>Título do Modelo</label>
+                  <input type="text" id="tpl-title" required>
+                </div>
+                <div class="grid-2">
+                  <div class="field">
+                    <label>Produto / Oferta</label>
+                    <select id="tpl-product">
+                      <option value="nfc">Plaquinha NFC + QR Code</option>
+                      <option value="cardapio">Cardápio Digital</option>
+                      <option value="whatsapp">WhatsApp Business</option>
+                      <option value="biossite">Biossite / Landing Page</option>
+                      <option value="combo">Combo Presença Local</option>
+                      <option value="geral">Geral</option>
+                    </select>
+                  </div>
+                  <div class="field">
+                    <label>Template Meta (Opcional - API Oficial)</label>
+                    <input type="text" id="tpl-meta-name" placeholder="Ex: abordagem_nfc_v1">
+                  </div>
+                </div>
+                <div class="field">
+                  <label>Mensagem Principal</label>
+                  <textarea id="tpl-content" rows="6" required></textarea>
+                </div>
+                <div class="field">
+                  <label>Mensagem de Follow-up</label>
+                  <textarea id="tpl-follow-up" rows="3"></textarea>
+                </div>
+                <div class="form-actions">
+                  <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check"></i> Salvar Modelo</button>
+                  <button type="button" class="btn btn-outline text-danger hidden" id="btn-delete-template"><i class="fa-solid fa-trash"></i> Excluir</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== 6. WHATSAPP & CONTA ==================== -->
+        <section class="tab-view" id="tab-settings">
+          <div class="settings-tabs">
+            <button class="seg-btn active" onclick="setSettingsSubtab('official')">
+              <i class="fa-solid fa-circle-check text-emerald"></i> API Oficial WhatsApp (Meta) <span class="badge-beta">BETA</span>
+            </button>
+            <button class="seg-btn" onclick="setSettingsSubtab('baileys')">
+              <i class="fa-solid fa-qrcode"></i> WhatsApp QR (Local)
+            </button>
+            <button class="seg-btn" onclick="setSettingsSubtab('account')">
+              <i class="fa-solid fa-user-gear"></i> Minha Conta
+            </button>
+          </div>
+
+          <!-- Official Meta Cloud API -->
+          <div class="card settings-pane" id="pane-official">
+            <div class="card-header">
+              <div>
+                <h3>Integração API Oficial do WhatsApp (Meta Cloud API) <span class="badge-beta">BETA</span></h3>
+                <p class="card-sub">Conecte seu número oficial da Meta com 1 clique ou siga o passo a passo abaixo para configurar sozinho.</p>
+              </div>
+              <span class="status-pill" id="meta-conn-badge">Não testado</span>
+            </div>
+
+            <!-- Conexão Automática 1-Clique (Embedded Signup estilo Kommo) -->
+            <div class="info-banner" style="background:#eff6ff; border-color:#bfdbfe; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+              <div>
+                <strong style="font-size:0.92rem; color:#1e3a8a;"><i class="fa-brands fa-meta"></i> Conexão Automática com a Meta (1-Clique) <span class="badge-beta">BETA</span></strong>
+                <p style="margin-top:3px; color:#334155;" id="meta-embedded-status-text">
+                  Abre a janela oficial do Facebook/Meta para o cliente escolher a conta e vincular o número e webhook automaticamente.
+                </p>
+              </div>
+              <button type="button" class="btn btn-primary" id="btn-meta-embedded-signup" style="background:#1877f2;">
+                <i class="fa-brands fa-facebook"></i> Conectar com Facebook / Meta
+              </button>
+            </div>
+
+            <!-- Passo a Passo Visual para o Usuário -->
+            <div class="steps-guide">
+              <div class="steps-guide-title">
+                <i class="fa-solid fa-list-ol text-primary"></i>
+                Passo a passo para conectar sua API Oficial do WhatsApp sozinho
+              </div>
+              <div class="steps-grid">
+                <div class="step-item">
+                  <span class="step-num">1</span>
+                  <div>
+                    <strong>Prepare sua conta Meta &amp; Número</strong>
+                    <p>Tenha acesso ao <strong>Meta Business Suite</strong> (Portfólio Empresarial) e um número de telefone que <strong>não esteja ativo</strong> no app comum do WhatsApp (ou pronto para migrar).</p>
+                  </div>
+                </div>
+                <div class="step-item">
+                  <span class="step-num">2</span>
+                  <div>
+                    <strong>Conexão Automática ou Manual</strong>
+                    <p>Clique em <strong>"Conectar com Facebook / Meta"</strong> acima e siga a janela. Se preferir configurar manual, acesse <strong>developers.facebook.com</strong> → Crie um App tipo <em>Empresa</em> → Adicione <em>WhatsApp</em> e copie o <strong>Phone Number ID</strong>, <strong>WABA ID</strong> e <strong>Access Token</strong>.</p>
+                  </div>
+                </div>
+                <div class="step-item">
+                  <span class="step-num">3</span>
+                  <div>
+                    <strong>Configure o Webhook (para receber respostas)</strong>
+                    <p>Em <em>WhatsApp → Configuração → Webhook</em> no painel da Meta, cole a <strong>Webhook URL</strong> e o <strong>Verify Token</strong> exibidos abaixo, e assine o evento <code>messages</code>.</p>
+                  </div>
+                </div>
+                <div class="step-item">
+                  <span class="step-num">4</span>
+                  <div>
+                    <strong>Teste e comece a enviar</strong>
+                    <p>Clique em <strong>"Salvar Configurações"</strong> e depois em <strong>"Testar Conexão"</strong>. Importante: para iniciar conversa com novos leads pela API Oficial, use um Template aprovado pela Meta (ou use o <strong>WhatsApp Web 1-Clique</strong> gratuitamente).</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <details style="margin-top: 16px;">
+              <summary style="cursor:pointer; font-weight:600; font-size:0.86rem; color:#475569; padding:8px 0;">
+                <i class="fa-solid fa-sliders"></i> Configuração Manual / Avançada (Webhook & Tokens)
+              </summary>
+
+              <div class="info-banner" style="margin-top: 10px;">
+                <i class="fa-solid fa-circle-info"></i>
+                <div>
+                  <strong>Webhook URL para configurar no Meta Developers:</strong>
+                  <div class="webhook-copy-row">
+                    <code id="meta-webhook-url"></code>
+                    <button type="button" class="btn btn-outline btn-xs" onclick="copyWebhookUrl()">Copiar URL</button>
+                  </div>
+                </div>
+              </div>
+
+              <form id="form-meta-config" class="form-grid" style="margin-top: 16px;">
+                <div class="field">
+                  <label>Modo Padrão de Envio</label>
+                  <select id="meta-mode">
+                    <option value="web_1click">WhatsApp Web (1-Clique Seguro)</option>
+                    <option value="official_api">API Oficial do WhatsApp (Meta Cloud API)</option>
+                    <option value="baileys">Baileys (Local QR Code)</option>
+                  </select>
+                </div>
+                <div class="field">
+                  <label>Versão da Graph API</label>
+                  <input type="text" id="meta-api-version" value="v21.0">
+                </div>
+                <div class="field">
+                  <label>Phone Number ID</label>
+                  <input type="text" id="meta-phone-number-id" placeholder="Ex: 123456789012345">
+                </div>
+                <div class="field">
+                  <label>WhatsApp Business Account ID (WABA ID)</label>
+                  <input type="text" id="meta-waba-id" placeholder="Ex: 987654321098765">
+                </div>
+                <div class="field col-span-2">
+                  <label>Access Token Permanente (System User Token)</label>
+                  <input type="password" id="meta-access-token" placeholder="EAAG...">
+                </div>
+                <div class="field">
+                  <label>Verify Token (Webhook)</label>
+                  <input type="text" id="meta-verify-token" value="mapaleads_webhook_2026">
+                </div>
+                <div class="field">
+                  <label>Template Padrão Meta (Opcional)</label>
+                  <input type="text" id="meta-default-template" placeholder="Ex: hello_world">
+                </div>
+                <div class="field col-span-2 form-actions">
+                  <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Salvar Configurações</button>
+                  <button type="button" class="btn btn-outline" id="btn-test-meta"><i class="fa-solid fa-plug"></i> Testar Conexão</button>
+                  <button type="button" class="btn btn-outline" id="btn-sync-meta-templates"><i class="fa-solid fa-rotate"></i> Listar Templates Aprovados</button>
+                </div>
+              </form>
+            </details>
+
+            <div id="meta-templates-result" class="hidden" style="margin-top: 16px;"></div>
+          </div>
+
+          <!-- Baileys Local -->
+          <div class="card settings-pane hidden" id="pane-baileys">
+            <div class="card-header">
+              <div>
+                <h3>Conexão Local via QR Code (Baileys)</h3>
+                <p class="card-sub">Opcional para uso local no computador. Em servidores online, recomendamos a API Oficial da Meta ou WhatsApp Web 1-Clique.</p>
+              </div>
+              <span class="status-pill" id="baileys-status-badge">Verificando...</span>
+            </div>
+            <div class="baileys-box">
+              <div id="baileys-qr-wrap" class="hidden">
+                <img id="baileys-qr-img" alt="QR Code WhatsApp">
+                <p>Escaneie com o WhatsApp do seu celular</p>
+              </div>
+              <div class="form-actions">
+                <button class="btn btn-primary" id="btn-baileys-connect"><i class="fa-solid fa-qrcode"></i> Gerar QR / Conectar</button>
+                <button class="btn btn-outline text-danger" id="btn-baileys-logout"><i class="fa-solid fa-power-off"></i> Desconectar</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Minha Conta -->
+          <div class="card settings-pane hidden" id="pane-account">
+            <div class="card-header">
+              <div>
+                <h3>Dados da Sua Conta</h3>
+                <p class="card-sub">Atualize seu nome, empresa ou senha de acesso</p>
+              </div>
+            </div>
+            <form id="form-my-account" class="form-grid">
+              <div class="field">
+                <label>Seu Nome</label>
+                <input type="text" id="acc-name" value="{{ current_user.name if current_user else '' }}">
+              </div>
+              <div class="field">
+                <label>Empresa / Agência</label>
+                <input type="text" id="acc-company" value="{{ current_user.company_name if current_user else '' }}">
+              </div>
+              <div class="field">
+                <label>E-mail</label>
+                <input type="email" value="{{ current_user.email if current_user else '' }}" disabled>
+              </div>
+              <div class="field">
+                <label>Nova Senha (deixe em branco para manter)</label>
+                <input type="password" id="acc-password" placeholder="Mínimo 6 caracteres">
+              </div>
+              <div class="field col-span-2">
+                <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- ==================== 7. PAINEL ADMIN ==================== -->
+        {% if current_user and current_user.role == 'admin' %}
+        <section class="tab-view" id="tab-admin">
+          <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+              <div>
+                <h3>Criar Nova Conta de Cliente</h3>
+                <p class="card-sub">Cadastre novos usuários para acessarem o sistema com suas próprias contas</p>
+              </div>
+            </div>
+            <form id="form-admin-create-user" class="form-grid">
+              <div class="field"><label>Nome</label><input type="text" name="name" required></div>
+              <div class="field"><label>E-mail</label><input type="email" name="email" required></div>
+              <div class="field"><label>Empresa</label><input type="text" name="company_name"></div>
+              <div class="field"><label>Senha Inicial</label><input type="password" name="password" minlength="6" required></div>
+              <div class="field">
+                <label>Plano</label>
+                <select name="plan">
+                  <option value="starter">Starter</option>
+                  <option value="pro" selected>PRO</option>
+                  <option value="agency">Agency</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Perfil</label>
+                <select name="role">
+                  <option value="user" selected>Cliente</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              </div>
+              <div class="field col-span-2">
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-user-plus"></i> Criar Usuário</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h3>Contas Cadastradas</h3>
+                <p class="card-sub">Gerencie acessos, planos e volume de leads por cliente</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Nome / Empresa</th>
+                    <th>E-mail</th>
+                    <th>Plano</th>
+                    <th>Leads</th>
+                    <th>Status</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-users-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+        {% endif %}
+      </main>
+    </div>
+  </div>
+
+  <!-- ==================== SLIDE-OVER LEAD DRAWER ==================== -->
+  <div class="drawer-backdrop hidden" id="drawer-backdrop" onclick="closeLeadDrawer()"></div>
+  <aside class="lead-drawer hidden" id="lead-drawer">
+    <div class="drawer-header">
+      <div>
+        <h2 id="drawer-lead-name">Nome da Empresa</h2>
+        <span class="drawer-sub" id="drawer-lead-cat">Categoria · Bairro</span>
+      </div>
+      <button class="icon-btn" onclick="closeLeadDrawer()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+
+    <div class="drawer-body">
+      <div class="drawer-badges" id="drawer-opps"></div>
+
+      <div class="drawer-info-grid">
+        <div><small>Telefone / WhatsApp</small><strong id="drawer-phone">-</strong></div>
+        <div><small>Avaliação Google</small><strong id="drawer-rating">-</strong></div>
+        <div class="col-span-2"><small>Endereço</small><span id="drawer-address">-</span></div>
+        <div class="col-span-2"><small>Site / Link</small><span id="drawer-website">-</span></div>
+      </div>
+
+      <div class="drawer-section">
+        <label>Etapa no CRM & Oferta Principal</label>
+        <div class="grid-2">
+          <select id="drawer-crm-status">
+            <option value="novo">1. Novo Lead</option>
+            <option value="contatado">2. Contatado</option>
+            <option value="respondeu">3. Respondeu</option>
+            <option value="negociacao">4. Proposta / Reunião</option>
+            <option value="fechado">5. Venda Fechada</option>
+          </select>
+          <select id="drawer-product-interest">
+            <option value="">Oferta (Opcional)</option>
+            <option value="nfc">Plaquinha NFC + QR</option>
+            <option value="whatsapp">WhatsApp Business</option>
+            <option value="cardapio">Cardápio Digital</option>
+            <option value="biossite">Biossite / Landing Page</option>
+            <option value="combo">Combo Completo</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="drawer-section">
+        <label>Enviar Abordagem no WhatsApp</label>
+        <select id="drawer-template-select" style="margin-bottom: 8px;"></select>
+        <textarea id="drawer-message-text" rows="5" placeholder="Escolha um modelo acima ou escreva sua mensagem..."></textarea>
+        <div class="drawer-send-actions">
+          <button class="btn btn-emerald" id="btn-drawer-wa-web">
+            <i class="fa-brands fa-whatsapp"></i> WhatsApp Web (1-Clique)
+          </button>
+          <button class="btn btn-primary" id="btn-drawer-wa-official">
+            <i class="fa-solid fa-paper-plane"></i> Enviar API Oficial <span class="badge-beta">BETA</span>
+          </button>
+          <button class="btn btn-outline" id="btn-drawer-copy" title="Copiar texto">
+            <i class="fa-regular fa-copy"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="drawer-section">
+        <label>Registrar Venda (R$)</label>
+        <div class="sale-row">
+          <input type="number" id="drawer-sale-value" placeholder="Ex: 297.00" step="0.01" min="0">
+          <button class="btn btn-emerald btn-sm" id="btn-drawer-save-sale">Fechar Venda</button>
+        </div>
+      </div>
+
+      <div class="drawer-section">
+        <label>Anotações Internas</label>
+        <textarea id="drawer-notes" rows="3" placeholder="Observações sobre este cliente..."></textarea>
+        <div class="drawer-footer-actions">
+          <button class="btn btn-primary btn-sm" id="btn-drawer-save-notes">Salvar Alterações</button>
+          <button class="btn btn-outline btn-sm text-danger" id="btn-drawer-delete">Excluir Lead</button>
+        </div>
+      </div>
+
+      <div class="drawer-section">
+        <label>Histórico de Mensagens</label>
+        <div class="conv-list" id="drawer-conversation"></div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <script>
+    window.CURRENT_USER = {{ current_user | tojson if current_user else 'null' }};
+  </script>
+  <script src="/static/js/app.js?v=4.0"></script>
+</body>
+</html>
