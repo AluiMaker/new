@@ -28,12 +28,15 @@ from database import (
     upsert_academy_lesson, delete_academy_lesson,
     has_pro_sales_access, get_sales_academy_for_user,
     get_sales_academy_course_by_slug, set_sales_academy_progress,
-    upsert_sales_academy_course, delete_sales_academy_course
+    upsert_sales_academy_course, delete_sales_academy_course,
+    get_ig_config, save_ig_config, list_ig_queue, add_ig_queue_item,
+    delete_ig_queue_item, list_ig_history
 )
 from scraper_engine import GoogleMapsScraper, DEFAULT_SEGMENTS, SWEEP_ALL_TERMS
 from exporter import export_to_csv_bytes, export_to_json_bytes
 import wa_automation as wa
 import wa_official
+import ig_autoposter
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config["TEMPLATES_AUTO_RELOAD"] = True
@@ -2029,6 +2032,135 @@ def api_admin_sales_academy_detail(course_id):
     return jsonify({"success": True, "id": course_id})
 
 
+# ==================== INSTAGRAM AUTO-POSTER 24H ====================
+@app.route("/ig-media/<filename>")
+def serve_ig_media(filename):
+    safe_name = os.path.basename(filename)
+    full_path = os.path.join(ig_autoposter.get_ig_media_dir(), safe_name)
+    if not os.path.isfile(full_path):
+        return ("Not found", 404)
+    mime = "video/mp4" if safe_name.lower().endswith(".mp4") else "image/jpeg"
+    return send_file(full_path, mimetype=mime)
+
+
+@app.route("/api/admin/instagram/config", methods=["GET", "POST"])
+@admin_required
+def api_admin_ig_config():
+    if request.method == "GET":
+        cfg = get_ig_config()
+        tok = cfg.get("ig_access_token") or ""
+        cfg["ig_access_token_masked"] = f"****{tok[-6:]}" if len(tok) > 8 else ("****" if tok else "")
+        cfg["has_token"] = bool(tok)
+        cfg.pop("ig_access_token", None)
+        return jsonify({
+            "config": cfg,
+            "queue": list_ig_queue(status="pending"),
+            "history": list_ig_history(limit=20),
+        })
+
+    data = request.get_json(silent=True) or {}
+    tok = (data.get("ig_access_token") or "").strip()
+    exchanged = False
+    if tok and not tok.startswith("****"):
+        long_tok = ig_autoposter.try_exchange_long_lived_token(tok)
+        if long_tok:
+            data["ig_access_token"] = long_tok
+            exchanged = True
+    cfg = save_ig_config(data)
+    cfg.pop("ig_access_token", None)
+    return jsonify({"success": True, "exchanged_long_lived": exchanged, "config": cfg})
+
+
+@app.route("/api/admin/instagram/discover", methods=["POST"])
+@admin_required
+def api_admin_ig_discover():
+    data = request.get_json(silent=True) or {}
+    tok = (data.get("access_token") or "").strip()
+    if not tok or tok.startswith("****"):
+        tok = get_ig_config().get("ig_access_token") or ""
+    long_tok = ig_autoposter.try_exchange_long_lived_token(tok) if tok else None
+    use_tok = long_tok or tok
+    res = ig_autoposter.discover_instagram_accounts(use_tok)
+    if res.get("success") and res.get("accounts"):
+        first = res["accounts"][0]
+        save_ig_config({
+            "ig_user_id": first["ig_user_id"],
+            "ig_username": first.get("username", ""),
+            "ig_access_token": use_tok,
+        })
+        res["exchanged_long_lived"] = bool(long_tok)
+    return jsonify(res)
+
+
+@app.route("/api/admin/instagram/insights")
+@admin_required
+def api_admin_ig_insights():
+    cfg = get_ig_config()
+    if not cfg.get("ig_user_id") or not cfg.get("ig_access_token"):
+        return jsonify({"success": False, "not_configured": True, "error": "Instagram ainda não conectado."})
+    res = ig_autoposter.get_ig_profile_and_media(cfg["ig_user_id"], cfg["ig_access_token"], limit=12)
+    return jsonify(res)
+
+
+@app.route("/api/admin/instagram/preview", methods=["POST"])
+@admin_required
+def api_admin_ig_preview():
+    data = request.get_json(silent=True) or {}
+    cfg = get_ig_config()
+    mode = data.get("mode") or "generate"
+    if mode == "generate":
+        idx = int(data.get("angle_idx") if data.get("angle_idx") is not None else (int(cfg.get("rotation_index") or 0)))
+        fname = f"ig_preview_{int(time.time())}.jpg"
+        gen = ig_autoposter.generate_daily_creative_jpg(
+            fname,
+            angle_idx=idx,
+            custom_headline=data.get("headline", ""),
+            custom_sub=data.get("sub", ""),
+            custom_kicker=data.get("kicker", ""),
+        )
+        return jsonify({
+            "success": True,
+            "media_type": "IMAGE",
+            "media_url": gen["rel_url"],
+            "caption": gen["caption"],
+            "topic": gen["topic"],
+            "next_angle_idx": (idx + 1) % len(ig_autoposter.DAILY_ANGLES),
+        })
+    asset = ig_autoposter.prepare_next_post_asset(mode, int(cfg.get("rotation_index") or 0))
+    return jsonify({"success": True, "media_url": asset["rel_url"], **{k: asset[k] for k in ("media_type", "caption", "topic")}})
+
+
+@app.route("/api/admin/instagram/queue", methods=["POST"])
+@admin_required
+def api_admin_ig_queue_add():
+    data = request.get_json(silent=True) or {}
+    murl = (data.get("media_url") or "").strip()
+    cap = (data.get("caption") or "").strip()
+    if not murl:
+        return jsonify({"success": False, "error": "Gere ou informe uma mídia antes de colocar na fila."}), 400
+    qid = add_ig_queue_item(murl, cap, media_type=data.get("media_type", "IMAGE"), topic=data.get("topic", ""))
+    return jsonify({"success": True, "id": qid, "queue": list_ig_queue(status="pending")})
+
+
+@app.route("/api/admin/instagram/queue/<int:item_id>", methods=["DELETE"])
+@admin_required
+def api_admin_ig_queue_delete(item_id):
+    return jsonify({"success": delete_ig_queue_item(item_id), "queue": list_ig_queue(status="pending")})
+
+
+@app.route("/api/admin/instagram/post-now", methods=["POST"])
+@admin_required
+def api_admin_ig_post_now():
+    data = request.get_json(silent=True) or {}
+    res = ig_autoposter.execute_post_now(
+        rel_or_url=data.get("media_url"),
+        caption=data.get("caption"),
+        media_type=data.get("media_type", "IMAGE"),
+        queue_item_id=data.get("queue_item_id"),
+    )
+    return jsonify({**res, "queue": list_ig_queue(status="pending"), "history": list_ig_history(limit=20)})
+
+
 def _maintenance_loop():
     """Limpeza automática de contas de teste abandonadas e backup diário do SQLite."""
     while True:
@@ -2053,6 +2185,7 @@ def _maintenance_loop():
 
 
 threading.Thread(target=_maintenance_loop, daemon=True).start()
+threading.Thread(target=ig_autoposter.autoposter_background_loop, daemon=True).start()
 
 
 if __name__ == "__main__":
