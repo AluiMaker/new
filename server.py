@@ -414,6 +414,21 @@ def landing_page():
     return render_template("landing.html", site_cfg=site_cfg)
 
 
+@app.route("/privacidade")
+def privacy_page():
+    return render_template("legal.html", doc="privacidade", title="Política de Privacidade", site_cfg=get_site_settings())
+
+
+@app.route("/termos")
+def terms_page():
+    return render_template("legal.html", doc="termos", title="Termos de Serviço", site_cfg=get_site_settings())
+
+
+@app.route("/exclusao-dados")
+def data_deletion_page():
+    return render_template("legal.html", doc="exclusao", title="Exclusão de Dados do Usuário", site_cfg=get_site_settings())
+
+
 @app.route("/app")
 @login_required
 def app_dashboard():

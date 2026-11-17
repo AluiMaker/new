@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }} — MapaLeads PRO</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; color: #0f172a; background: #f8fafc; margin: 0; line-height: 1.7; }
+    .top { background: #0f172a; color: #fff; padding: 18px 22px; }
+    .top-inner { max-width: 860px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+    .top a { color: #fff; text-decoration: none; font-weight: 700; }
+    .wrap { max-width: 860px; margin: 36px auto; background: #fff; border: 1px solid #e2e8f0; border-radius: 16px; padding: 36px; }
+    h1 { font-size: 1.75rem; margin-bottom: 6px; }
+    h2 { font-size: 1.12rem; margin-top: 24px; margin-bottom: 8px; color: #1e293b; }
+    p, li { color: #475569; font-size: 0.95rem; }
+    .meta { font-size: 0.84rem; color: #64748b; margin-bottom: 22px; }
+    .links { margin-top: 28px; padding-top: 18px; border-top: 1px solid #e2e8f0; display: flex; gap: 18px; flex-wrap: wrap; font-size: 0.88rem; }
+    .links a { color: #2563eb; text-decoration: none; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="top">
+    <div class="top-inner">
+      <a href="/vendas">MapaLeads PRO</a>
+      <a href="/login" style="font-size:0.88rem; background:#2563eb; padding:8px 14px; border-radius:8px;">Acessar Painel</a>
+    </div>
+  </div>
+  <div class="wrap">
+    <h1>{{ title }}</h1>
+    <div class="meta">Última atualização: 17/11/2026 · Domínio oficial: https://mapaleadspro.online</div>
+
+    {% if doc == 'privacidade' %}
+      <p>O <strong>MapaLeads PRO</strong> respeita a sua privacidade e atua em conformidade com a Lei Geral de Proteção de Dados (LGPD - Lei nº 13.709/2018) e as Políticas da Plataforma Meta.</p>
+      <h2>1. Dados Coletados</h2>
+      <p>Coletamos apenas os dados necessários para autenticação e operação da conta do assinante (nome, e-mail, nome da empresa e informações técnicas de integração vinculadas voluntariamente pelo usuário, como Phone Number ID, WABA ID e tokens OAuth autorizados da Meta Cloud API).</p>
+      <h2>2. Uso das Informações e Permissões da Meta</h2>
+      <p>As permissões concedidas via <em>Facebook Login for Business</em> (como <code>whatsapp_business_management</code> e <code>whatsapp_business_messaging</code>) são utilizadas exclusivamente dentro da conta isolada do próprio cliente para enviar, receber e gerenciar conversas e modelos de mensagem no WhatsApp Business oficial dentro do painel MapaLeads PRO.</p>
+      <h2>3. Compartilhamento e Segurança</h2>
+      <p>Não vendemos nem compartilhamos tokens, listas de leads ou históricos de atendimento entre contas diferentes. Cada assinante opera em ambiente isolado no banco de dados com tráfego criptografado via HTTPS.</p>
+      <h2>4. Exclusão e Contato</h2>
+      <p>Você pode revogar o acesso ou solicitar a remoção completa dos dados e tokens seguindo as instruções em <a href="/exclusao-dados">Instruções para Exclusão de Dados</a>.</p>
+    {% elif doc == 'termos' %}
+      <p>Ao criar uma conta ou assinar qualquer plano do <strong>MapaLeads PRO</strong>, você concorda com os termos abaixo:</p>
+      <h2>1. Objeto do Serviço</h2>
+      <p>O MapaLeads PRO é uma plataforma SaaS de prospecção B2B comercial com CRM Kanban, Chat integrado e conexão opcional com WhatsApp QR Code e WhatsApp Cloud API oficial da Meta.</p>
+      <h2>2. Responsabilidade de Uso e Anti-Spam</h2>
+      <p>O assinante é integralmente responsável pelo conteúdo das mensagens enviadas e pelo cumprimento das Políticas Comerciais e de Mensagens do WhatsApp/Meta e da LGPD, sendo vedado o uso para spam em massa, fraudes ou atividades ilícitas.</p>
+      <h2>3. Planos, Limites e Cancelamento</h2>
+      <p>Cada plano possui seu respectivo limite de leads salvos no programa (Teste Grátis: 25, Starter: 500, PRO: 2.000, Enterprise: sob consulta). A assinatura mensal é recorrente e pode ser cancelada a qualquer momento pela plataforma Kiwify, sem multas.</p>
+    {% else %}
+      <p>Para desconectar sua conta do WhatsApp / Meta ou solicitar a exclusão definitiva dos seus dados no <strong>MapaLeads PRO</strong>:</p>
+      <h2>Passo 1 — Revogar acesso da Meta</h2>
+      <p>Acesse as configurações da sua Conta Meta / Facebook em <em>Configurações e Privacidade → Configurações → Integrações Comerciais</em> e remova o aplicativo <strong>MapaLeads PRO</strong>.</p>
+      <h2>Passo 2 — Solicitar exclusão dos registros no servidor</h2>
+      <p>Caso deseje a remoção permanente da sua conta, tokens salvos e histórico de conversas armazenados em nossos servidores, entre em contato informando o e-mail de cadastro através do nosso canal oficial{% if site_cfg.support_whatsapp_digits %} pelo WhatsApp <a href="https://wa.me/{{ site_cfg.support_whatsapp_digits }}" target="_blank">+{{ site_cfg.support_whatsapp_digits }}</a>{% endif %}.</p>
+      <p>A remoção definitiva é processada em até 48 horas úteis após a solicitação.</p>
+    {% endif %}
+
+    <div class="links">
+      <a href="/privacidade">Política de Privacidade</a>
+      <a href="/termos">Termos de Serviço</a>
+      <a href="/exclusao-dados">Exclusão de Dados</a>
+      <a href="/vendas">Voltar para Página Inicial</a>
+    </div>
+  </div>
+</body>
+</html>
