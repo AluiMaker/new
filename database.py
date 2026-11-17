@@ -516,13 +516,34 @@ def reset_user_templates(user_id: int):
 PLAN_DEFAULTS = {
     "trial": {"max_leads": 25, "days": 3, "status": "trial", "label": "Teste Grátis (3 dias · 25 leads)"},
     "starter": {"max_leads": 500, "days": 30, "status": "active", "label": "Starter (500 leads/mês)"},
-    "pro": {"max_leads": 0, "days": 30, "status": "active", "label": "PRO (Ilimitado)"},
-    "agency": {"max_leads": 0, "days": 30, "status": "active", "label": "Agency (Ilimitado)"},
+    "pro": {"max_leads": 2000, "days": 30, "status": "active", "label": "PRO (2.000 leads/mês)"},
+    "enterprise": {"max_leads": 0, "days": 30, "status": "active", "label": "Enterprise (Ilimitado)"},
+    "agency": {"max_leads": 0, "days": 30, "status": "active", "label": "Enterprise (Ilimitado)"},
 }
 
 
+def normalize_plan_name(plan: Optional[str]) -> str:
+    p = (plan or "trial").strip().lower()
+    if p in ("agency", "ent", "custom"):
+        return "enterprise"
+    if p in PLAN_DEFAULTS:
+        return p
+    return "trial"
+
+
 def get_plan_defaults(plan: str) -> Dict[str, Any]:
-    return PLAN_DEFAULTS.get((plan or "trial").lower(), PLAN_DEFAULTS["trial"])
+    return PLAN_DEFAULTS.get(normalize_plan_name(plan), PLAN_DEFAULTS["trial"])
+
+
+def _count_user_quota_leads(cursor, user_id: int, plan: str) -> int:
+    """Conta leads para cota: total no Trial, ou últimos 30 dias nos planos mensais."""
+    p = normalize_plan_name(plan)
+    if p == "trial":
+        cursor.execute("SELECT COUNT(*) FROM leads WHERE user_id = ?", (user_id,))
+    else:
+        cutoff = (datetime.now() - timedelta(days=30)).isoformat()
+        cursor.execute("SELECT COUNT(*) FROM leads WHERE user_id = ? AND created_at >= ?", (user_id, cutoff))
+    return int(cursor.fetchone()[0] or 0)
 
 
 def count_recent_signups_by_ip(ip: str, hours: int = 24) -> int:
@@ -555,7 +576,8 @@ def create_user(
     if not password or len(password) < 6:
         return None, "A senha deve ter pelo menos 6 caracteres."
 
-    p_cfg = get_plan_defaults(plan)
+    plan_norm = normalize_plan_name(plan)
+    p_cfg = get_plan_defaults(plan_norm)
     sub_status = "active" if role == "admin" else p_cfg["status"]
     use_days = days if days is not None else p_cfg["days"]
     use_max_leads = max_leads if max_leads is not None else (0 if role == "admin" else p_cfg["max_leads"])
@@ -578,7 +600,7 @@ def create_user(
                 generate_password_hash(password),
                 company_name.strip(),
                 role,
-                plan,
+                plan_norm,
                 sub_status,
                 expires_at,
                 use_max_leads,
@@ -650,16 +672,16 @@ def get_user_access_status(user_id: int) -> Dict[str, Any]:
     if not user or not user.get("is_active"):
         return {"active": False, "reason": "inactive", "days_left": 0, "leads_count": 0, "max_leads": 0, "plan": "none"}
 
+    plan_name = normalize_plan_name(user.get("plan"))
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT COUNT(*) FROM leads WHERE user_id = ?", (user_id,))
-        leads_count = int(cur.fetchone()[0] or 0)
+        leads_count = _count_user_quota_leads(cur, user_id, plan_name)
     finally:
         conn.close()
 
     if user.get("role") == "admin":
-        return {"active": True, "reason": "admin", "days_left": 9999, "leads_count": leads_count, "max_leads": 0, "plan": user.get("plan", "agency"), "subscription_status": "active"}
+        return {"active": True, "reason": "admin", "days_left": 9999, "leads_count": leads_count, "max_leads": 0, "plan": plan_name or "enterprise", "subscription_status": "active"}
 
     sub_status = (user.get("subscription_status") or "active").lower()
     if sub_status in ("suspended", "expired", "canceled"):
@@ -726,7 +748,8 @@ def extend_user_subscription(user_id: int, days: int = 30, plan: Optional[str] =
             pass
 
     new_exp = (base + timedelta(days=int(days))).isoformat()
-    new_plan = plan or (user.get("plan") if user.get("plan") != "trial" else "pro")
+    raw_plan = plan or (user.get("plan") if user.get("plan") != "trial" else "starter")
+    new_plan = normalize_plan_name(raw_plan)
     p_cfg = get_plan_defaults(new_plan)
     use_max = max_leads if max_leads is not None else p_cfg["max_leads"]
 
@@ -741,6 +764,7 @@ def extend_user_subscription(user_id: int, days: int = 30, plan: Optional[str] =
 
 
 def list_users() -> List[Dict[str, Any]]:
+    cutoff_30d = (datetime.now() - timedelta(days=30)).isoformat()
     conn = get_connection()
     cur = conn.cursor()
     try:
@@ -748,10 +772,11 @@ def list_users() -> List[Dict[str, Any]]:
             SELECT u.id, u.name, u.email, u.company_name, u.role, u.plan, u.is_active,
                    u.subscription_status, u.plan_expires_at, u.max_leads,
                    u.created_at, u.last_login_at,
-                   (SELECT COUNT(*) FROM leads l WHERE l.user_id = u.id) as leads_count
+                   (SELECT COUNT(*) FROM leads l WHERE l.user_id = u.id) as leads_count,
+                   (SELECT COUNT(*) FROM leads l WHERE l.user_id = u.id AND l.created_at >= ?) as leads_30d_count
             FROM users u
             ORDER BY u.id ASC
-        """)
+        """, (cutoff_30d,))
         return [dict(r) for r in cur.fetchall()]
     finally:
         conn.close()
@@ -908,7 +933,9 @@ def get_admin_dashboard_stats() -> Dict[str, Any]:
 def get_site_settings() -> Dict[str, str]:
     defaults = {
         "checkout_url": os.environ.get("CHECKOUT_URL", ""),
-        "plan_pro_price": os.environ.get("PLAN_PRO_PRICE", "R$ 37"),
+        "checkout_pro_url": os.environ.get("CHECKOUT_PRO_URL", ""),
+        "plan_starter_price": os.environ.get("PLAN_STARTER_PRICE", "R$ 37"),
+        "plan_pro_price": os.environ.get("PLAN_PRO_PRICE", "R$ 79"),
         "support_whatsapp": os.environ.get("SUPPORT_WHATSAPP", ""),
     }
     conn = get_connection()
@@ -922,8 +949,20 @@ def get_site_settings() -> Dict[str, str]:
                 for k, v in saved.items():
                     if k in defaults and v is not None:
                         defaults[k] = str(v)
+                # Migração suave caso o DB tenha sido salvo antes da separação Starter/PRO
+                if "plan_starter_price" not in saved and saved.get("plan_pro_price") in ("R$ 37", "37"):
+                    defaults["plan_starter_price"] = "R$ 37"
+                    defaults["plan_pro_price"] = "R$ 79"
             except Exception:
                 pass
+        wa_digits = "".join(c for c in defaults.get("support_whatsapp", "") if c.isdigit())
+        defaults["support_whatsapp_digits"] = wa_digits
+        if wa_digits:
+            from urllib.parse import quote
+            msg = quote("Olá! Tenho interesse no plano Enterprise do MapaLeads PRO para fechamento personalizado.")
+            defaults["enterprise_wa_url"] = f"https://wa.me/{wa_digits}?text={msg}"
+        else:
+            defaults["enterprise_wa_url"] = ""
         return defaults
     finally:
         conn.close()
@@ -931,7 +970,7 @@ def get_site_settings() -> Dict[str, str]:
 
 def save_site_settings(data: Dict[str, Any]) -> Dict[str, str]:
     curr = get_site_settings()
-    for k in ("checkout_url", "plan_pro_price", "support_whatsapp"):
+    for k in ("checkout_url", "checkout_pro_url", "plan_starter_price", "plan_pro_price", "support_whatsapp"):
         if k in data:
             curr[k] = str(data[k] or "").strip()
     conn = get_connection()
@@ -1221,12 +1260,11 @@ def upsert_lead(lead_data: Dict[str, Any], user_id: int = 1) -> Tuple[int, bool]
         conn.close()
         return lead_id, False
     else:
-        # Garante respeito ao limite de leads do plano (ex: 25 leads no Teste Grátis)
-        cursor.execute("SELECT role, max_leads FROM users WHERE id = ?", (user_id,))
+        # Garante respeito ao limite de leads do plano (25 no Trial; mensal nos planos Starter/PRO)
+        cursor.execute("SELECT role, plan, max_leads FROM users WHERE id = ?", (user_id,))
         urow = cursor.fetchone()
         if urow and urow["role"] != "admin" and int(urow["max_leads"] or 0) > 0:
-            cursor.execute("SELECT COUNT(*) FROM leads WHERE user_id = ?", (user_id,))
-            curr_cnt = int(cursor.fetchone()[0] or 0)
+            curr_cnt = _count_user_quota_leads(cursor, user_id, urow["plan"] or "trial")
             if curr_cnt >= int(urow["max_leads"]):
                 conn.close()
                 return 0, False

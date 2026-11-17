@@ -1433,12 +1433,14 @@ function initAdminControls() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         checkout_url: document.getElementById('site-checkout-url').value,
+        plan_starter_price: document.getElementById('site-starter-price').value,
+        checkout_pro_url: document.getElementById('site-checkout-pro-url').value,
         plan_pro_price: document.getElementById('site-pro-price').value,
         support_whatsapp: document.getElementById('site-support-wa').value,
       })
     });
     const d = await res.json();
-    if (d.success) toast('Página de vendas e link Kiwify atualizados!', 'success');
+    if (d.success) toast('Página de vendas, planos Kiwify e WhatsApp comercial atualizados!', 'success');
   });
 
   document.getElementById('form-admin-create-user')?.addEventListener('submit', async (e) => {
@@ -1474,10 +1476,14 @@ async function loadAdminUsers() {
       const sd = await sr.json();
       if (sd.success && sd.settings) {
         const cu = document.getElementById('site-checkout-url');
+        const sp = document.getElementById('site-starter-price');
+        const cpu = document.getElementById('site-checkout-pro-url');
         const pp = document.getElementById('site-pro-price');
         const sw = document.getElementById('site-support-wa');
         if (cu) cu.value = sd.settings.checkout_url || '';
-        if (pp) pp.value = sd.settings.plan_pro_price || 'R$ 97';
+        if (sp) sp.value = sd.settings.plan_starter_price || 'R$ 37';
+        if (cpu) cpu.value = sd.settings.checkout_pro_url || '';
+        if (pp) pp.value = sd.settings.plan_pro_price || 'R$ 79';
         if (sw) sw.value = sd.settings.support_whatsapp || '';
       }
     } catch (e) {}
@@ -1531,20 +1537,24 @@ function renderAdminUsersTable() {
 
   tb.innerHTML = filtered.length ? filtered.map(u => {
     const exp = u.plan_expires_at ? u.plan_expires_at.slice(0, 10) : (u.role === 'admin' ? 'Vitalício' : '-');
-    const limitStr = u.max_leads > 0 ? ` / ${u.max_leads}` : '';
+    const isTrialPlan = (u.plan || 'trial') === 'trial';
+    const usedQuota = isTrialPlan ? (u.leads_count || 0) : (u.leads_30d_count ?? u.leads_count ?? 0);
+    const limitStr = u.max_leads > 0 ? ` / ${u.max_leads}` : ' / ilimitado';
     const subSt = u.subscription_status || 'active';
     const isOk = u.is_active && subSt !== 'expired' && subSt !== 'suspended';
+    const targetPlan = isTrialPlan ? 'starter' : (u.plan || 'starter');
     return `
     <tr>
       <td>#${u.id}</td>
       <td><strong>${escapeHtml(u.name)}</strong><div class="text-muted" style="font-size:0.75rem">${escapeHtml(u.company_name || '')}</div></td>
       <td>${escapeHtml(u.email)}</td>
-      <td><span class="status-pill">${escapeHtml(u.plan)}</span></td>
+      <td><span class="status-pill">${escapeHtml(u.plan === 'agency' ? 'enterprise' : u.plan)}</span></td>
       <td>${escapeHtml(exp)}</td>
-      <td>${u.leads_count || 0}${limitStr}</td>
+      <td>${usedQuota}${limitStr}</td>
       <td><span class="status-pill ${isOk ? 'ok' : 'err'}">${u.is_active ? escapeHtml(subSt) : 'bloqueada'}</span></td>
       <td style="display:flex; gap:6px; flex-wrap:wrap;">
-        <button class="btn btn-emerald btn-xs" onclick="renewUser(${u.id}, 30)">+30d</button>
+        <button class="btn btn-emerald btn-xs" onclick="renewUser(${u.id}, 30, '${escapeHtml(targetPlan)}')">+30d (${escapeHtml(targetPlan)})</button>
+        <button class="btn btn-outline btn-xs" onclick="renewUser(${u.id}, 30, 'pro')">PRO</button>
         <button class="btn btn-outline btn-xs" onclick="toggleUserActive(${u.id}, ${u.is_active ? 0 : 1})">
           ${u.is_active ? 'Bloquear' : 'Liberar'}
         </button>
@@ -1553,15 +1563,15 @@ function renderAdminUsersTable() {
   }).join('') : '<tr><td colspan="8" class="text-muted">Nenhuma conta encontrada nesse filtro.</td></tr>';
 }
 
-async function renewUser(uid, days = 30) {
+async function renewUser(uid, days = 30, plan = 'starter') {
   const res = await apiFetch(`/api/admin/users/${uid}/renew`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ days, plan: 'pro' })
+    body: JSON.stringify({ days, plan })
   });
   const d = await res.json();
   if (d.success) {
-    toast(`Assinatura renovada por +${days} dias (Plano PRO)!`, 'success');
+    toast(`Assinatura renovada por +${days} dias (Plano ${String(plan).toUpperCase()})!`, 'success');
     loadAdminUsers();
   }
 }

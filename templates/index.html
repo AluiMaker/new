@@ -119,10 +119,16 @@
         </div>
 
         <div class="topbar-actions">
-          {% if access_status and access_status.plan == 'trial' and access_status.active %}
+          {% if access_status and access_status.active and current_user and current_user.role != 'admin' %}
           <div class="live-pill" style="background:#fffbeb; color:#b45309; border-color:#fde68a;">
             <i class="fa-solid fa-clock"></i>
+            {% if access_status.plan == 'trial' %}
             <span>Teste: {{ access_status.days_left }}d · {{ access_status.leads_count }}/{{ access_status.max_leads }} leads</span>
+            {% elif access_status.max_leads > 0 %}
+            <span>{{ access_status.plan|upper }}: {{ access_status.leads_count }}/{{ access_status.max_leads }} leads/mês · {{ access_status.days_left }}d</span>
+            {% else %}
+            <span>{{ access_status.plan|upper }}: Ilimitado · {{ access_status.days_left }}d</span>
+            {% endif %}
           </div>
           {% endif %}
           <div class="live-pill hidden" id="topbar-live-pill">
@@ -865,28 +871,36 @@
           <div class="card" style="margin-bottom: 20px;">
             <div class="card-header">
               <div>
-                <h3>Página de Vendas &amp; Checkout Kiwify</h3>
-                <p class="card-sub">Configure o link do checkout da Kiwify e o preço exibido na sua página de vendas</p>
+                <h3>Página de Vendas, Checkouts Kiwify &amp; Comercial</h3>
+                <p class="card-sub">Configure os links da Kiwify (Starter e PRO), os preços exibidos e o WhatsApp do Enterprise</p>
               </div>
               <a href="/vendas" target="_blank" class="btn btn-outline btn-sm">
                 <i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir Página de Vendas
               </a>
             </div>
             <form id="form-admin-site-settings" class="form-grid">
+              <div class="field">
+                <label>Checkout Kiwify · Plano Starter (500 leads/mês)</label>
+                <input type="text" id="site-checkout-url" placeholder="https://pay.kiwify.com.br/seu-starter">
+              </div>
+              <div class="field">
+                <label>Preço Exibido (Starter)</label>
+                <input type="text" id="site-starter-price" placeholder="R$ 37">
+              </div>
+              <div class="field">
+                <label>Checkout Kiwify · Plano PRO (2.000 leads/mês)</label>
+                <input type="text" id="site-checkout-pro-url" placeholder="https://pay.kiwify.com.br/seu-pro">
+              </div>
+              <div class="field">
+                <label>Preço Exibido (PRO)</label>
+                <input type="text" id="site-pro-price" placeholder="R$ 79">
+              </div>
               <div class="field col-span-2">
-                <label>Link do Checkout (Kiwify / Cakto / Mercado Pago)</label>
-                <input type="text" id="site-checkout-url" placeholder="https://pay.kiwify.com.br/seu-produto">
-              </div>
-              <div class="field">
-                <label>Preço Exibido (Plano PRO)</label>
-                <input type="text" id="site-pro-price" placeholder="R$ 97">
-              </div>
-              <div class="field">
-                <label>WhatsApp de Suporte (só números com DDI, ex: 5531999998888)</label>
+                <label>WhatsApp Comercial (Enterprise &amp; Suporte · só números com DDI, ex: 5531999998888)</label>
                 <input type="text" id="site-support-wa" placeholder="5531999998888">
               </div>
               <div class="field col-span-2">
-                <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-floppy-disk"></i> Salvar Página de Vendas</button>
+                <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-floppy-disk"></i> Salvar Planos &amp; Página de Vendas</button>
               </div>
             </form>
           </div>
@@ -908,8 +922,8 @@
                 <select name="plan">
                   <option value="trial">Teste Grátis (3 dias · 25 leads)</option>
                   <option value="starter">Starter (500 leads/mês)</option>
-                  <option value="pro" selected>PRO (Ilimitado)</option>
-                  <option value="agency">Agency (Ilimitado)</option>
+                  <option value="pro" selected>PRO (2.000 leads/mês)</option>
+                  <option value="enterprise">Enterprise (Ilimitado)</option>
                 </select>
               </div>
               <div class="field">
@@ -1003,8 +1017,14 @@
         Seu acesso ao <strong>MapaLeads PRO</strong> expirou. Renove seu plano para liberar novas buscas no Google, disparos no WhatsApp e exportações.
       </p>
       <div style="display:flex; flex-direction:column; gap:10px;">
-        {% if checkout_url %}
-        <a href="{{ checkout_url }}" target="_blank" class="btn btn-emerald btn-lg"><i class="fa-solid fa-crown"></i> Renovar Assinatura Agora</a>
+        {% if site_cfg and site_cfg.checkout_url %}
+        <a href="{{ site_cfg.checkout_url }}" target="_blank" class="btn btn-outline btn-lg" style="border-color:#2563eb; color:#2563eb;"><i class="fa-solid fa-rocket"></i> Assinar Starter ({{ site_cfg.plan_starter_price or 'R$ 37' }}/mês · 500 leads)</a>
+        {% endif %}
+        {% if site_cfg and site_cfg.checkout_pro_url %}
+        <a href="{{ site_cfg.checkout_pro_url }}" target="_blank" class="btn btn-emerald btn-lg"><i class="fa-solid fa-crown"></i> Assinar Plano PRO ({{ site_cfg.plan_pro_price or 'R$ 79' }}/mês · 2.000 leads)</a>
+        {% endif %}
+        {% if site_cfg and site_cfg.enterprise_wa_url %}
+        <a href="{{ site_cfg.enterprise_wa_url }}" target="_blank" class="btn btn-outline btn-lg"><i class="fa-brands fa-whatsapp"></i> Plano Enterprise (WhatsApp Comercial)</a>
         {% endif %}
         <a href="/logout" class="btn btn-outline">Sair da Conta</a>
       </div>

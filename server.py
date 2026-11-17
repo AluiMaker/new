@@ -21,7 +21,7 @@ from database import (
     list_users, update_user, get_wa_user_config, save_wa_user_config,
     get_user_access_status, extend_user_subscription, count_recent_signups_by_ip,
     cleanup_expired_trials, log_billing_event, complete_first_access, get_admin_dashboard_stats,
-    get_site_settings, save_site_settings
+    get_site_settings, save_site_settings, normalize_plan_name
 )
 from scraper_engine import GoogleMapsScraper, DEFAULT_SEGMENTS, SWEEP_ALL_TERMS
 from exporter import export_to_csv_bytes, export_to_json_bytes
@@ -350,7 +350,7 @@ def app_dashboard():
     user = get_user_by_id(uid)
     access_status = get_user_access_status(uid)
     site_cfg = get_site_settings()
-    return render_template("index.html", current_user=user, access_status=access_status, checkout_url=site_cfg.get("checkout_url", ""))
+    return render_template("index.html", current_user=user, access_status=access_status, checkout_url=site_cfg.get("checkout_url", ""), site_cfg=site_cfg)
 
 
 @app.route("/")
@@ -361,7 +361,7 @@ def index():
         if user and user.get("is_active"):
             access_status = get_user_access_status(uid)
             site_cfg = get_site_settings()
-            return render_template("index.html", current_user=user, access_status=access_status, checkout_url=site_cfg.get("checkout_url", ""))
+            return render_template("index.html", current_user=user, access_status=access_status, checkout_url=site_cfg.get("checkout_url", ""), site_cfg=site_cfg)
     site_cfg = get_site_settings()
     return render_template("landing.html", site_cfg=site_cfg)
 
@@ -541,6 +541,35 @@ def first_access_page():
     return redirect(url_for("index"))
 
 
+def _detect_webhook_plan(req, payload: Dict[str, Any]) -> str:
+    """Identifica qual plano (starter, pro ou enterprise) foi contratado via query ?plan= ou payload Kiwify."""
+    explicit = (req.args.get("plan") or payload.get("plan") or "").strip().lower()
+    if explicit:
+        return normalize_plan_name(explicit)
+
+    product = payload.get("Product") or payload.get("product") or {}
+    sub = payload.get("Subscription") or payload.get("subscription") or {}
+    sub_plan = sub.get("plan") if isinstance(sub.get("plan"), dict) else {}
+    hints = " ".join(
+        str(x or "")
+        for x in (
+            product.get("product_name"),
+            product.get("name"),
+            sub_plan.get("name"),
+            payload.get("product_name"),
+            payload.get("offer_name"),
+        )
+    ).lower()
+
+    if "enterprise" in hints or "agency" in hints or "ilimit" in hints or "agência" in hints:
+        return "enterprise"
+    if "starter" in hints or "500" in hints or "basico" in hints or "básico" in hints:
+        return "starter"
+    if "pro" in hints or "2000" in hints or "2.000" in hints:
+        return "pro"
+    return "starter"
+
+
 @app.route("/api/billing/webhook", methods=["POST"])
 @app.route("/api/billing/webhook/<gateway>", methods=["POST"])
 def api_billing_webhook(gateway="kiwify"):
@@ -583,7 +612,7 @@ def api_billing_webhook(gateway="kiwify"):
     phone_digits = "".join(c for c in str(customer.get("mobile") or customer.get("phone") or "") if c.isdigit())[-4:]
     hint = ",".join([x for x in (cpf_digits, phone_digits) if x])
 
-    plan = str(payload.get("plan") or "pro").lower()
+    plan = _detect_webhook_plan(request, payload)
     days = int(payload.get("days") or 30)
 
     if not email:
