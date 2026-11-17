@@ -125,6 +125,11 @@
       position: relative;
       aspect-ratio: 16 / 9;
     }
+    .hero-img-wrap.is-mobile-vsl {
+      aspect-ratio: 9 / 16;
+      max-width: 360px;
+      margin: 0 auto;
+    }
     .hero-img-wrap video { width: 100%; height: 100%; display: block; object-fit: cover; }
     .vsl-play-overlay {
       position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
@@ -381,7 +386,7 @@
       </div>
 
       <div class="hero-visual">
-        <div class="hero-img-wrap">
+        <div class="hero-img-wrap" id="hero-vsl-frame">
           <video id="hero-vsl-video" src="/static/video/vsl-mapaleads.mp4" poster="/static/img/sales/saas-hero.jpg" preload="metadata" playsinline controls></video>
           <button type="button" id="vsl-play-overlay" class="vsl-play-overlay" onclick="playHeroVsl()" aria-label="Assistir apresentação em vídeo">
             <span class="vsl-play-btn"><i class="fa-solid fa-play"></i></span>
@@ -757,6 +762,21 @@
   </footer>
 
   <script>
+    (function syncResponsiveVsl() {
+      var v = document.getElementById('hero-vsl-video');
+      var frame = document.getElementById('hero-vsl-frame');
+      if (!v || !frame) return;
+      function applyVslSource() {
+        var isMob = window.innerWidth <= 768;
+        var targetSrc = isMob ? '/static/video/vsl-mapaleads-mobile.mp4' : '/static/video/vsl-mapaleads.mp4';
+        if (v.getAttribute('src') !== targetSrc && v.paused) {
+          v.setAttribute('src', targetSrc);
+        }
+        frame.classList.toggle('is-mobile-vsl', isMob);
+      }
+      applyVslSource();
+      window.addEventListener('resize', applyVslSource);
+    })();
     function playHeroVsl() {
       var v = document.getElementById('hero-vsl-video');
       var o = document.getElementById('vsl-play-overlay');

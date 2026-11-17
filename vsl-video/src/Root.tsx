@@ -11,6 +11,16 @@ export const RemotionRoot: React.FC = () => {
         fps={30}
         width={1920}
         height={1080}
+        defaultProps={{ mobile: false }}
+      />
+      <Composition
+        id="MapaLeadsVSLMobile"
+        component={MapaLeadsVSL}
+        durationInFrames={TOTAL_VSL_FRAMES}
+        fps={30}
+        width={1080}
+        height={1920}
+        defaultProps={{ mobile: true }}
       />
     </>
   );

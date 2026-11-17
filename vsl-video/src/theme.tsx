@@ -1,7 +1,9 @@
 import React from "react";
 import { loadFont as loadJakarta } from "@remotion/google-fonts/PlusJakartaSans";
 import { loadFont as loadInter } from "@remotion/google-fonts/Inter";
-import { AbsoluteFill, Easing, interpolate, spring, useCurrentFrame, useVideoConfig } from "remotion";
+import { AbsoluteFill, Easing, Sequence, interpolate, spring, staticFile, useCurrentFrame, useVideoConfig } from "remotion";
+import { Audio } from "@remotion/media";
+import { VO_DATA } from "./voData";
 
 export const { fontFamily: FONT_DISPLAY } = loadJakarta("normal", {
   weights: ["700", "800"],
@@ -29,6 +31,10 @@ export const COLORS = {
   border: "rgba(148, 163, 184, 0.22)",
 };
 
+export interface SceneProps {
+  mobile?: boolean;
+}
+
 export const TechBackdrop: React.FC<{ accent?: "blue" | "emerald" | "red" }> = ({ accent = "blue" }) => {
   const frame = useCurrentFrame();
   const driftX = interpolate(frame, [0, 400], [0, 60], { extrapolateRight: "extend" });
@@ -36,8 +42,8 @@ export const TechBackdrop: React.FC<{ accent?: "blue" | "emerald" | "red" }> = (
     accent === "emerald"
       ? "rgba(16, 185, 129, 0.24)"
       : accent === "red"
-      ? "rgba(239, 68, 68, 0.20)"
-      : "rgba(37, 99, 235, 0.26)";
+      ? "rgba(239, 68, 68, 0.22)"
+      : "rgba(37, 99, 235, 0.28)";
 
   return (
     <AbsoluteFill
@@ -55,46 +61,95 @@ export const TechBackdrop: React.FC<{ accent?: "blue" | "emerald" | "red" }> = (
   );
 };
 
-export const SubtitleBar: React.FC<{ text: string; delay?: number }> = ({ text, delay = 6 }) => {
+export const KineticCaptions: React.FC<{ sceneKey: string; mobile?: boolean }> = ({ sceneKey, mobile }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
-  const progress = spring({ frame: Math.max(0, frame - delay), fps, config: { damping: 200 } });
+  const t = frame / fps;
+  const meta = VO_DATA[sceneKey];
+  if (!meta || !meta.captions.length) return null;
+
+  let activeGroup = meta.captions[0];
+  for (let i = 0; i < meta.captions.length; i++) {
+    const g = meta.captions[i];
+    const nextStart = i + 1 < meta.captions.length ? meta.captions[i + 1].start : meta.durationSec + 2;
+    if (t >= g.start - 0.06 && t < nextStart - 0.04) {
+      activeGroup = g;
+      break;
+    }
+    if (t >= nextStart - 0.04) {
+      activeGroup = meta.captions[Math.min(i + 1, meta.captions.length - 1)];
+    }
+  }
+
+  const groupStartFrame = Math.max(0, Math.floor(activeGroup.start * fps) - 2);
+  const groupProg = spring({ frame: Math.max(0, frame - groupStartFrame), fps, config: { damping: 14, stiffness: 180 } });
 
   return (
     <div
       style={{
         position: "absolute",
-        bottom: 44,
-        left: 110,
-        right: 110,
+        bottom: mobile ? 175 : 42,
+        left: mobile ? 64 : 110,
+        right: mobile ? 64 : 110,
         display: "flex",
         justifyContent: "center",
-        opacity: progress,
-        translate: `0px ${interpolate(progress, [0, 1], [18, 0])}px`,
+        pointerEvents: "none",
       }}
     >
       <div
         style={{
-          background: "rgba(7, 13, 25, 0.86)",
-          border: "1px solid rgba(255,255,255,0.16)",
-          backdropFilter: "blur(12px)",
-          color: "#f8fafc",
-          fontFamily: FONT_BODY,
-          fontSize: 30,
-          fontWeight: 600,
-          padding: "14px 32px",
-          borderRadius: 16,
-          textAlign: "center",
-          boxShadow: "0 18px 40px -10px rgba(0,0,0,0.65)",
-          maxWidth: 1460,
-          lineHeight: 1.35,
+          background: "rgba(7, 13, 25, 0.88)",
+          border: "1px solid rgba(255,255,255,0.18)",
+          borderRadius: 20,
+          padding: mobile ? "16px 26px" : "13px 30px",
+          boxShadow: "0 20px 45px -10px rgba(0,0,0,0.75)",
+          display: "flex",
+          flexWrap: "wrap",
+          justifyContent: "center",
+          gap: mobile ? 12 : 11,
+          scale: `${interpolate(groupProg, [0, 1], [0.92, 1])}`,
         }}
       >
-        {text}
+        {activeGroup.words.map((w, idx) => {
+          const spoken = t >= w.start - 0.04;
+          const isCurrent = t >= w.start - 0.04 && t <= w.end + 0.12;
+          return (
+            <span
+              key={`${activeGroup.start}-${idx}`}
+              style={{
+                fontFamily: FONT_DISPLAY,
+                fontSize: mobile ? (w.highlight ? 44 : 38) : (w.highlight ? 36 : 31),
+                fontWeight: w.highlight ? 900 : 700,
+                color: w.highlight
+                  ? spoken
+                    ? "#34d399"
+                    : "#94a3b8"
+                  : spoken
+                  ? "#ffffff"
+                  : "#94a3b8",
+                textShadow: w.highlight && spoken ? "0 0 22px rgba(16, 185, 129, 0.65)" : "none",
+                scale: isCurrent ? "1.08" : "1",
+                display: "inline-block",
+              }}
+            >
+              {w.text}
+            </span>
+          );
+        })}
       </div>
     </div>
   );
 };
+
+export const SceneSfxCue: React.FC<{ file: string; atFrame: number; volume?: number }> = ({
+  file,
+  atFrame,
+  volume = 0.35,
+}) => (
+  <Sequence from={atFrame} durationInFrames={30}>
+    <Audio src={staticFile(file)} volume={volume} />
+  </Sequence>
+);
 
 export const BrowserWindow: React.FC<{
   url?: string;
@@ -113,33 +168,36 @@ export const BrowserWindow: React.FC<{
   >
     <div
       style={{
-        height: 44,
+        height: 42,
         background: "#1e293b",
         borderBottom: "1px solid rgba(148,163,184,0.18)",
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        padding: "0 20px",
+        padding: "0 18px",
       }}
     >
-      <div style={{ display: "flex", gap: 9 }}>
-        <div style={{ width: 12, height: 12, borderRadius: "50%", background: "#ef4444" }} />
-        <div style={{ width: 12, height: 12, borderRadius: "50%", background: "#f59e0b" }} />
-        <div style={{ width: 12, height: 12, borderRadius: "50%", background: "#10b981" }} />
+      <div style={{ display: "flex", gap: 8 }}>
+        <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#ef4444" }} />
+        <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#f59e0b" }} />
+        <div style={{ width: 11, height: 11, borderRadius: "50%", background: "#10b981" }} />
       </div>
       <div
         style={{
           background: "#0f172a",
           color: "#94a3b8",
           fontFamily: "monospace",
-          fontSize: 16,
-          padding: "4px 20px",
+          fontSize: 15,
+          padding: "3px 16px",
           borderRadius: 999,
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
         }}
       >
         {url}
       </div>
-      <div style={{ color: "#34d399", fontFamily: FONT_BODY, fontSize: 15, fontWeight: 700 }}>
+      <div style={{ color: "#34d399", fontFamily: FONT_BODY, fontSize: 14, fontWeight: 700 }}>
         ● AO VIVO
       </div>
     </div>
@@ -151,7 +209,7 @@ export const popIn = (frame: number, fps: number, delay = 0) =>
   spring({
     frame: Math.max(0, frame - delay),
     fps,
-    config: { damping: 14, stiffness: 140, mass: 0.9 },
+    config: { damping: 14, stiffness: 150, mass: 0.85 },
   });
 
 export const easeOut = (frame: number, start: number, end: number, from: number, to: number) =>
