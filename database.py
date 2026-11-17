@@ -514,7 +514,7 @@ def reset_user_templates(user_id: int):
 # ==================== USUÁRIOS, ASSINATURAS & AUTH ====================
 
 PLAN_DEFAULTS = {
-    "trial": {"max_leads": 25, "days": 3, "status": "trial", "label": "Teste Grátis (3 dias · 25 leads)"},
+    "trial": {"max_leads": 25, "days": 1, "status": "trial", "label": "Teste Grátis (1 dia · 25 leads)"},
     "starter": {"max_leads": 500, "days": 30, "status": "active", "label": "Starter (500 leads/mês)"},
     "pro": {"max_leads": 2000, "days": 30, "status": "active", "label": "PRO (2.000 leads/mês)"},
     "enterprise": {"max_leads": 0, "days": 30, "status": "active", "label": "Enterprise (Ilimitado)"},
@@ -698,6 +698,7 @@ def get_user_access_status(user_id: int) -> Dict[str, Any]:
 
     exp_str = (user.get("plan_expires_at") or "").strip()
     days_left = 999
+    hours_left = 999
     if exp_str:
         try:
             exp_dt = datetime.fromisoformat(exp_str)
@@ -708,6 +709,7 @@ def get_user_access_status(user_id: int) -> Dict[str, Any]:
                     "active": False,
                     "reason": "expired",
                     "days_left": 0,
+                    "hours_left": 0,
                     "leads_count": leads_count,
                     "max_leads": int(user.get("max_leads") or 0),
                     "plan": user.get("plan", "trial"),
@@ -715,6 +717,7 @@ def get_user_access_status(user_id: int) -> Dict[str, Any]:
                     "subscription_status": "expired",
                 }
             days_left = max(1, int(delta.total_seconds() // 86400) + 1)
+            hours_left = max(1, int(delta.total_seconds() // 3600) + 1)
         except Exception:
             pass
 
@@ -723,6 +726,7 @@ def get_user_access_status(user_id: int) -> Dict[str, Any]:
         "active": True,
         "reason": "ok",
         "days_left": days_left,
+        "hours_left": hours_left,
         "leads_count": leads_count,
         "max_leads": max_leads,
         "leads_limit_reached": (max_leads > 0 and leads_count >= max_leads),

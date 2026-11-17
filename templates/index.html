@@ -120,16 +120,16 @@
 
         <div class="topbar-actions">
           {% if access_status and access_status.active and current_user and current_user.role != 'admin' %}
-          <div class="live-pill" style="background:#fffbeb; color:#b45309; border-color:#fde68a;">
+          <button type="button" id="topbar-plan-pill" class="live-pill" onclick="openUpgradeModal()" style="background:#fffbeb; color:#b45309; border-color:#fde68a; cursor:pointer;" title="Clique para escolher ou fazer upgrade de plano">
             <i class="fa-solid fa-clock"></i>
             {% if access_status.plan == 'trial' %}
-            <span>Teste: {{ access_status.days_left }}d · {{ access_status.leads_count }}/{{ access_status.max_leads }} leads</span>
+            <span id="topbar-plan-text">Teste ({{ access_status.hours_left or (access_status.days_left * 24) }}h) · {{ access_status.leads_count }}/{{ access_status.max_leads }} leads · <u>Assinar</u></span>
             {% elif access_status.max_leads > 0 %}
-            <span>{{ access_status.plan|upper }}: {{ access_status.leads_count }}/{{ access_status.max_leads }} leads/mês · {{ access_status.days_left }}d</span>
+            <span id="topbar-plan-text">{{ access_status.plan|upper }}: {{ access_status.leads_count }}/{{ access_status.max_leads }} leads/mês · {{ access_status.days_left }}d</span>
             {% else %}
-            <span>{{ access_status.plan|upper }}: Ilimitado · {{ access_status.days_left }}d</span>
+            <span id="topbar-plan-text">{{ access_status.plan|upper }}: Ilimitado · {{ access_status.days_left }}d</span>
             {% endif %}
-          </div>
+          </button>
           {% endif %}
           <div class="live-pill hidden" id="topbar-live-pill">
             <span class="pulse-dot"></span>
@@ -827,7 +827,7 @@
             <div class="kpi-card">
               <div class="kpi-icon bg-amber"><i class="fa-solid fa-hourglass-half"></i></div>
               <div class="kpi-body">
-                <span class="kpi-label">Em Teste Grátis (3d)</span>
+                <span class="kpi-label">Em Teste Grátis (1d)</span>
                 <strong class="kpi-value" id="adm-kpi-trial">0</strong>
               </div>
             </div>
@@ -920,7 +920,7 @@
               <div class="field">
                 <label>Plano</label>
                 <select name="plan">
-                  <option value="trial">Teste Grátis (3 dias · 25 leads)</option>
+                  <option value="trial">Teste Grátis (1 dia · 25 leads)</option>
                   <option value="starter">Starter (500 leads/mês)</option>
                   <option value="pro" selected>PRO (2.000 leads/mês)</option>
                   <option value="enterprise">Enterprise (Ilimitado)</option>
@@ -1006,31 +1006,50 @@
     </div>
   </div>
 
-  {% if access_status and not access_status.active %}
-  <div style="position:fixed; inset:0; background:rgba(15,23,42,0.75); backdrop-filter:blur(4px); z-index:999; display:flex; align-items:center; justify-content:center; padding:20px;">
-    <div class="card" style="max-width:440px; width:100%; text-align:center; padding:32px;">
-      <div style="width:56px; height:56px; border-radius:16px; background:#fef2f2; color:#dc2626; display:grid; place-items:center; font-size:1.5rem; margin:0 auto 14px;">
-        <i class="fa-solid fa-lock"></i>
+  {% set _is_locked = (access_status and not access_status.active) %}
+  <div id="upgrade-plan-modal" data-locked="{{ '1' if _is_locked else '0' }}" class="{% if not _is_locked %}hidden{% endif %}" style="position:fixed; inset:0; background:rgba(15,23,42,0.78); backdrop-filter:blur(5px); z-index:999; display:flex; align-items:center; justify-content:center; padding:20px; overflow-y:auto;">
+    <div class="card" style="max-width:520px; width:100%; text-align:center; padding:28px 26px; position:relative;">
+      {% if not _is_locked %}
+      <button type="button" class="icon-btn" onclick="closeUpgradeModal()" style="position:absolute; top:14px; right:14px;" aria-label="Fechar">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+      {% endif %}
+      <div style="width:54px; height:54px; border-radius:16px; background:{% if _is_locked %}#fef2f2; color:#dc2626{% else %}#eff6ff; color:#2563eb{% endif %}; display:grid; place-items:center; font-size:1.45rem; margin:0 auto 12px;">
+        <i class="fa-solid {% if _is_locked %}fa-lock{% else %}fa-crown{% endif %}"></i>
       </div>
-      <h2 style="margin-bottom:8px;">Assinatura ou Teste Vencido</h2>
-      <p class="text-muted" style="margin-bottom:20px;">
-        Seu acesso ao <strong>MapaLeads PRO</strong> expirou. Renove seu plano para liberar novas buscas no Google, disparos no WhatsApp e exportações.
+      <h2 id="upgrade-modal-title" style="margin-bottom:8px;">
+        {% if _is_locked %}Teste Grátis ou Assinatura Encerrada{% else %}Escolha seu Plano MapaLeads PRO{% endif %}
+      </h2>
+      <p id="upgrade-modal-desc" class="text-muted" style="margin-bottom:18px; font-size:0.92rem;">
+        {% if _is_locked %}
+        Seu acesso terminou. Escolha abaixo o plano ideal para liberar imediatamente suas buscas no Google, disparos no WhatsApp e exportações:
+        {% else %}
+        Selecione o plano ideal abaixo para concluir o pagamento na Kiwify ou falar com nosso comercial:
+        {% endif %}
       </p>
-      <div style="display:flex; flex-direction:column; gap:10px;">
-        {% if site_cfg and site_cfg.checkout_url %}
-        <a href="{{ site_cfg.checkout_url }}" target="_blank" class="btn btn-outline btn-lg" style="border-color:#2563eb; color:#2563eb;"><i class="fa-solid fa-rocket"></i> Assinar Starter ({{ site_cfg.plan_starter_price or 'R$ 37' }}/mês · 500 leads)</a>
+      <div style="display:flex; flex-direction:column; gap:10px; text-align:left;">
+        <a href="{{ (site_cfg.checkout_url if site_cfg and site_cfg.checkout_url else '/vendas#planos') }}" target="_blank" class="btn btn-outline btn-lg" style="border-color:#2563eb; color:#2563eb; justify-content:space-between; width:100%;">
+          <span><i class="fa-solid fa-rocket"></i> <strong>Plano Starter</strong> · 500 leads/mês</span>
+          <span style="font-weight:800;">{{ (site_cfg.plan_starter_price if site_cfg else None) or 'R$ 37' }}/mês <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.8em;"></i></span>
+        </a>
+        <a href="{{ (site_cfg.checkout_pro_url if site_cfg and site_cfg.checkout_pro_url else (site_cfg.enterprise_wa_url if site_cfg and site_cfg.enterprise_wa_url else '/vendas#planos')) }}" target="_blank" class="btn btn-primary btn-lg" style="justify-content:space-between; width:100%;">
+          <span><i class="fa-solid fa-crown"></i> <strong>Plano PRO</strong> · 2.000 leads/mês</span>
+          <span style="font-weight:800;">{{ (site_cfg.plan_pro_price if site_cfg else None) or 'R$ 79' }}/mês <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.8em;"></i></span>
+        </a>
+        <a href="{{ (site_cfg.enterprise_wa_url if site_cfg and site_cfg.enterprise_wa_url else '/vendas#planos') }}" target="_blank" class="btn btn-emerald btn-lg" style="justify-content:space-between; width:100%;">
+          <span><i class="fa-brands fa-whatsapp"></i> <strong>Enterprise</strong> · Leads Ilimitados</span>
+          <span style="font-weight:800;">WhatsApp Comercial <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.8em;"></i></span>
+        </a>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; justify-content:center; margin-top:16px;">
+        <a href="/vendas#planos" target="_blank" class="btn btn-outline btn-sm"><i class="fa-solid fa-layer-group"></i> Ver Comparativo de Planos</a>
+        <button type="button" class="btn btn-outline btn-sm" onclick="window.location.reload()"><i class="fa-solid fa-rotate"></i> Já paguei, liberar acesso</button>
+        {% if _is_locked %}
+        <a href="/logout" class="btn btn-outline btn-sm">Sair da Conta</a>
         {% endif %}
-        {% if site_cfg and site_cfg.checkout_pro_url %}
-        <a href="{{ site_cfg.checkout_pro_url }}" target="_blank" class="btn btn-emerald btn-lg"><i class="fa-solid fa-crown"></i> Assinar Plano PRO ({{ site_cfg.plan_pro_price or 'R$ 79' }}/mês · 2.000 leads)</a>
-        {% endif %}
-        {% if site_cfg and site_cfg.enterprise_wa_url %}
-        <a href="{{ site_cfg.enterprise_wa_url }}" target="_blank" class="btn btn-outline btn-lg"><i class="fa-brands fa-whatsapp"></i> Plano Enterprise (WhatsApp Comercial)</a>
-        {% endif %}
-        <a href="/logout" class="btn btn-outline">Sair da Conta</a>
       </div>
     </div>
   </div>
-  {% endif %}
 
   <!-- ==================== SLIDE-OVER LEAD DRAWER ==================== -->
   <div class="drawer-backdrop hidden" id="drawer-backdrop" onclick="closeLeadDrawer()"></div>

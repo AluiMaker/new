@@ -178,7 +178,8 @@ def subscription_required(fn):
             return jsonify({
                 "success": False,
                 "subscription_expired": True,
-                "error": "Seu período de teste ou assinatura expirou. Renove para continuar."
+                "upgrade_required": True,
+                "error": "Seu período de teste ou assinatura expirou. Escolha um plano para continuar."
             }), 402
         return fn(*args, **kwargs)
     return wrapper
@@ -430,8 +431,8 @@ def register_page():
     email = data.get("email", "")
     password = data.get("password", "")
     company_name = data.get("company_name", "")
-    # Novos cadastros públicos entram automaticamente no Teste Grátis: 3 dias e até 25 leads
-    uid, err = create_user(name, email, password, company_name=company_name, role="user", plan="trial", days=3, max_leads=25, signup_ip=ip)
+    # Novos cadastros públicos entram automaticamente no Teste Grátis: 1 dia e até 25 leads
+    uid, err = create_user(name, email, password, company_name=company_name, role="user", plan="trial", days=1, max_leads=25, signup_ip=ip)
     if err or not uid:
         if request.is_json:
             return jsonify({"success": False, "error": err or "Erro ao criar conta."}), 400
@@ -1020,7 +1021,9 @@ def api_search_start():
     if acc.get("leads_limit_reached"):
         return jsonify({
             "success": False,
-            "error": f"Você atingiu o limite de {acc.get('max_leads')} leads do seu plano ({acc.get('plan')}). Faça upgrade para continuar."
+            "upgrade_required": True,
+            "leads_limit_reached": True,
+            "error": f"Você atingiu o limite de {acc.get('max_leads')} leads do seu plano ({acc.get('plan').upper()}). Escolha um plano para continuar prospectando!"
         }), 402
     st = get_user_search_state(uid)
     if st["is_running"]:
@@ -1551,7 +1554,8 @@ def api_wa_connect():
     if user and user.get("role") != "admin" and user.get("plan") == "trial":
         return jsonify({
             "success": False,
-            "error": "Conexão WhatsApp QR automática disponível a partir do plano Starter/PRO. No Teste Grátis use o WhatsApp Web 1-Clique!"
+            "upgrade_required": True,
+            "error": "Conexão WhatsApp QR automática disponível a partir do plano Starter/PRO. Escolha um plano para liberar ou use o WhatsApp Web 1-Clique!"
         }), 403
     wa.ensure_service_running()
     force = bool((request.get_json(silent=True) or {}).get("force"))

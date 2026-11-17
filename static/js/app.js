@@ -59,11 +59,38 @@ async function loadAllData() {
   }
 }
 
+function openUpgradeModal(customMsg) {
+  const modal = document.getElementById('upgrade-plan-modal');
+  if (!modal) return;
+  if (customMsg) {
+    const desc = document.getElementById('upgrade-modal-desc');
+    if (desc) desc.textContent = customMsg;
+  }
+  modal.classList.remove('hidden');
+}
+
+function closeUpgradeModal() {
+  const modal = document.getElementById('upgrade-plan-modal');
+  if (!modal || modal.dataset.locked === '1') return;
+  modal.classList.add('hidden');
+}
+
 async function apiFetch(url, opts = {}) {
   const res = await fetch(url, opts);
   if (res.status === 401) {
     window.location.href = '/login';
     throw new Error('Sessão expirada');
+  }
+  if (res.status === 402 || res.status === 403) {
+    try {
+      const clone = res.clone();
+      const body = await clone.json();
+      if (res.status === 402 || body.upgrade_required) {
+        openUpgradeModal(body.error);
+      }
+    } catch (e) {
+      if (res.status === 402) openUpgradeModal();
+    }
   }
   return res;
 }
@@ -454,12 +481,28 @@ function initSSE() {
     }
   });
 
-  es.addEventListener('search_completed', (e) => {
+  es.addEventListener('search_completed', async (e) => {
     const d = JSON.parse(e.data || '{}');
     document.getElementById('search-progress-bar').style.width = '100%';
     document.getElementById('search-status-text').textContent = d.message || 'Busca concluída!';
     toast(d.message || 'Busca concluída!', 'success');
     loadAllData();
+    try {
+      const mr = await apiFetch('/api/me');
+      const md = await mr.json();
+      const acc = md.access;
+      if (acc) {
+        const pt = document.getElementById('topbar-plan-text');
+        if (pt && acc.plan === 'trial') {
+          pt.innerHTML = `Teste (${acc.hours_left || 24}h) · ${acc.leads_count}/${acc.max_leads} leads · <u>Assinar</u>`;
+        } else if (pt && acc.max_leads > 0) {
+          pt.textContent = `${String(acc.plan).toUpperCase()}: ${acc.leads_count}/${acc.max_leads} leads/mês · ${acc.days_left}d`;
+        }
+        if (!acc.active || acc.leads_limit_reached) {
+          openUpgradeModal(`Você atingiu o limite de ${acc.max_leads} leads do seu plano (${String(acc.plan).toUpperCase()}). Escolha um plano para continuar!`);
+        }
+      }
+    } catch (err) {}
   });
 
   es.addEventListener('search_finished', () => setSearchRunning(false));
