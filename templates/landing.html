@@ -382,18 +382,18 @@
         <div class="price-card">
           <span class="pop-badge" style="background:#dc2626;">Oferta de Lançamento</span>
           <h3>Plano Starter</h3>
-          <p class="text-muted" style="font-size:0.86rem; color:var(--muted);">Para quem está começando a prospectar todos os dias.</p>
+          <p class="text-muted" style="font-size:0.86rem; color:var(--muted);">Todas as ferramentas completas para começar a vender.</p>
           <div style="margin-top:10px;">
             <span style="text-decoration:line-through; color:#94a3b8; font-size:0.88rem; font-weight:600; display:block;">De R$ 97/mês por apenas</span>
             <div class="price-val" style="margin-top:2px; color:#0f172a;">{{ site_cfg.plan_starter_price or 'R$ 37' }} <small>/ mês</small></div>
             <span style="color:#059669; font-size:0.78rem; font-weight:700; display:block;">Valor promocional travado (vagas limitadas)</span>
           </div>
           <ul class="price-list">
-            <li><i class="fa-solid fa-check"></i> Até <strong>500 leads por mês</strong> no Google</li>
-            <li><i class="fa-solid fa-check"></i> Busca por rua inteira, bairro ou cidade</li>
-            <li><i class="fa-solid fa-check"></i> <strong>WhatsApp QR Code</strong> conectado no painel</li>
-            <li><i class="fa-solid fa-check"></i> <strong>Chat / Inbox estilo Kommo</strong> ao vivo</li>
-            <li><i class="fa-solid fa-check"></i> CRM Kanban + Exportação Excel/CSV</li>
+            <li><i class="fa-solid fa-check"></i> Até <strong>500 leads salvos</strong> no programa</li>
+            <li><i class="fa-solid fa-check"></i> <strong>Todas as funções liberadas</strong> (Busca + Mapa + Multi-segmentos)</li>
+            <li><i class="fa-solid fa-check"></i> <strong>WhatsApp QR Code</strong> + <strong>API Oficial Meta (BETA)</strong></li>
+            <li><i class="fa-solid fa-check"></i> <strong>Chat estilo Kommo</strong> ao vivo + CRM Kanban</li>
+            <li><i class="fa-solid fa-check"></i> Copys Quebra-Gelo + Exportação CSV</li>
           </ul>
           <a href="{{ site_cfg.checkout_url or '/register' }}" {% if site_cfg.checkout_url %}target="_blank"{% endif %} class="btn btn-outline btn-lg" style="width:100%; border-color:#2563eb; color:#2563eb;">
             {% if site_cfg.checkout_url %}Assinar Starter{% else %}Criar Conta Starter{% endif %}
@@ -403,18 +403,18 @@
         <div class="price-card featured">
           <span class="pop-badge">Mais Popular</span>
           <h3>Plano PRO</h3>
-          <p class="text-muted" style="font-size:0.86rem; color:var(--muted);">Escala máxima para fechar contratos todo dia.</p>
+          <p class="text-muted" style="font-size:0.86rem; color:var(--muted);">4x mais espaço salvo e fila prioritária para escalar.</p>
           <div style="margin-top:10px;">
-            <span style="color:var(--primary); font-size:0.82rem; font-weight:700; display:block;">4x mais volume · Melhor custo-benefício</span>
+            <span style="color:var(--primary); font-size:0.82rem; font-weight:700; display:block;">Prioridade na fila · 4x mais capacidade</span>
             <div class="price-val" style="margin-top:2px; color:#0f172a;">{{ site_cfg.plan_pro_price or 'R$ 79' }} <small>/ mês</small></div>
             <span style="color:#059669; font-size:0.78rem; font-weight:700; display:block;">Liberação imediata via PIX ou Cartão</span>
           </div>
           <ul class="price-list">
-            <li><i class="fa-solid fa-check"></i> Até <strong>2.000 leads por mês</strong> no Google</li>
-            <li><i class="fa-solid fa-check"></i> Tudo do Starter + Varredura multi-segmentos</li>
-            <li><i class="fa-solid fa-check"></i> Mapa visual de oportunidades completo</li>
-            <li><i class="fa-solid fa-check"></i> <strong>API Oficial Meta (BETA)</strong> + WhatsApp QR</li>
-            <li><i class="fa-solid fa-check"></i> Prioridade na fila de buscas + CSV</li>
+            <li><i class="fa-solid fa-check"></i> Até <strong>2.000 leads salvos</strong> no programa</li>
+            <li><i class="fa-solid fa-check"></i> <strong>Prioridade na fila de buscas</strong> (passa na frente!)</li>
+            <li><i class="fa-solid fa-check"></i> <strong>Todas as funções liberadas</strong> (Busca + Mapa + Multi-segmentos)</li>
+            <li><i class="fa-solid fa-check"></i> <strong>WhatsApp QR Code</strong> + <strong>API Oficial Meta (BETA)</strong></li>
+            <li><i class="fa-solid fa-check"></i> <strong>Chat estilo Kommo</strong> + CRM Kanban + CSV</li>
           </ul>
           <a href="{{ site_cfg.checkout_pro_url or site_cfg.enterprise_wa_url or '/register' }}" {% if site_cfg.checkout_pro_url or site_cfg.enterprise_wa_url %}target="_blank"{% endif %} class="btn btn-primary btn-lg" style="width:100%;">
             {% if site_cfg.checkout_pro_url %}Assinar Plano PRO{% else %}Quero o Plano PRO{% endif %}

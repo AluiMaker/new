@@ -496,7 +496,7 @@ function initSSE() {
         if (pt && acc.plan === 'trial') {
           pt.innerHTML = `Teste (${acc.hours_left || 24}h) · ${acc.leads_count}/${acc.max_leads} leads · <u>Assinar</u>`;
         } else if (pt && acc.max_leads > 0) {
-          pt.textContent = `${String(acc.plan).toUpperCase()}: ${acc.leads_count}/${acc.max_leads} leads/mês · ${acc.days_left}d`;
+          pt.textContent = `${String(acc.plan).toUpperCase()}: ${acc.leads_count}/${acc.max_leads} leads salvos · ${acc.days_left}d`;
         }
         if (!acc.active || acc.leads_limit_reached) {
           openUpgradeModal(`Você atingiu o limite de ${acc.max_leads} leads do seu plano (${String(acc.plan).toUpperCase()}). Escolha um plano para continuar!`);
@@ -1581,7 +1581,7 @@ function renderAdminUsersTable() {
   tb.innerHTML = filtered.length ? filtered.map(u => {
     const exp = u.plan_expires_at ? u.plan_expires_at.slice(0, 10) : (u.role === 'admin' ? 'Vitalício' : '-');
     const isTrialPlan = (u.plan || 'trial') === 'trial';
-    const usedQuota = isTrialPlan ? (u.leads_count || 0) : (u.leads_30d_count ?? u.leads_count ?? 0);
+    const usedQuota = u.leads_count || 0;
     const limitStr = u.max_leads > 0 ? ` / ${u.max_leads}` : ' / ilimitado';
     const subSt = u.subscription_status || 'active';
     const isOk = u.is_active && subSt !== 'expired' && subSt !== 'suspended';

@@ -2,6 +2,7 @@ import os
 import sys
 import time
 import json
+import heapq
 import queue
 import shutil
 import secrets
@@ -40,8 +41,71 @@ if os.environ.get("PORT") or os.environ.get("FORCE_HTTPS_COOKIE") == "1":
 _login_attempts: Dict[str, list] = {}
 _login_lock = threading.Lock()
 
-# Semáforo global para evitar sobrecarga de RAM do Chromium com múltiplos usuários
-_search_semaphore = threading.Semaphore(int(os.environ.get("MAX_CONCURRENT_SEARCHES", "1")))
+class _PrioritySearchPool:
+    """Pool concorrente de buscas com fila por prioridade (Admin/Enterprise=0, PRO=1, Starter=2, Trial=3)."""
+    def __init__(self, max_slots: int = 1):
+        self.max_slots = max(1, int(max_slots))
+        self._active = 0
+        self._seq = 0
+        self._waiters = []
+        self._cond = threading.Condition()
+
+    def is_busy(self) -> bool:
+        with self._cond:
+            return self._active >= self.max_slots
+
+    def acquire(self, priority: int = 2, blocking: bool = True, timeout: float = 180.0) -> bool:
+        with self._cond:
+            if not blocking:
+                if self._active < self.max_slots and not self._waiters:
+                    self._active += 1
+                    return True
+                return False
+
+            deadline = time.monotonic() + max(0.1, float(timeout))
+            self._seq += 1
+            ticket = (int(priority), self._seq)
+            heapq.heappush(self._waiters, ticket)
+            try:
+                while True:
+                    if self._active < self.max_slots and self._waiters and self._waiters[0] == ticket:
+                        heapq.heappop(self._waiters)
+                        self._active += 1
+                        return True
+                    remaining = deadline - time.monotonic()
+                    if remaining <= 0:
+                        return False
+                    self._cond.wait(timeout=remaining)
+            finally:
+                if ticket in self._waiters:
+                    self._waiters.remove(ticket)
+                    heapq.heapify(self._waiters)
+                    self._cond.notify_all()
+
+    def release(self):
+        with self._cond:
+            if self._active > 0:
+                self._active -= 1
+            self._cond.notify_all()
+
+
+def _plan_queue_priority(user: Optional[Dict[str, Any]]) -> int:
+    if not user:
+        return 3
+    if user.get("role") == "admin":
+        return 0
+    plan = normalize_plan_name(user.get("plan"))
+    if plan == "enterprise":
+        return 0
+    if plan == "pro":
+        return 1
+    if plan == "starter":
+        return 2
+    return 3
+
+
+# Pool global com prioridade para PRO/Enterprise evitando sobrecarga de RAM do Chromium
+_search_pool = _PrioritySearchPool(int(os.environ.get("MAX_CONCURRENT_SEARCHES", "1")))
 
 
 def _client_ip() -> str:
@@ -229,10 +293,16 @@ def run_scraper_thread(
         if lead.get("clean_phone"):
             broadcast_event("queue_updated", wa.get_queue_summary(), user_id=user_id)
 
-    acquired = _search_semaphore.acquire(blocking=False)
+    user_obj = get_user_by_id(user_id)
+    queue_prio = _plan_queue_priority(user_obj)
+
+    acquired = _search_pool.acquire(priority=queue_prio, blocking=False)
     if not acquired:
-        log_cb("Aguardando vaga na fila de buscas do servidor (iniciando automaticamente em instantes)...")
-        acquired = _search_semaphore.acquire(timeout=180)
+        if queue_prio <= 1:
+            log_cb("Aguardando vaga na fila prioritária PRO (sua busca passará na frente da fila padrão)...")
+        else:
+            log_cb("Aguardando vaga na fila de buscas do servidor (iniciando em instantes · PRO tem prioridade)...")
+        acquired = _search_pool.acquire(priority=queue_prio, blocking=True, timeout=180)
     if not acquired:
         log_cb("Servidor ocupado com muitas buscas simultâneas. Tente novamente em instantes.")
         broadcast_event("search_error", {"error": "Servidor ocupado. Tente novamente em instantes."}, user_id=user_id)
@@ -315,7 +385,7 @@ def run_scraper_thread(
         broadcast_event("search_error", {"error": str(e)}, user_id=user_id)
     finally:
         try:
-            _search_semaphore.release()
+            _search_pool.release()
         except Exception:
             pass
         st["is_running"] = False
@@ -1157,7 +1227,7 @@ def api_search_stream():
 
 
 @app.route("/api/export/csv")
-@login_required
+@subscription_required
 def api_export_csv():
     uid = current_user_id()
     website_type = request.args.get("website_type")
@@ -1321,7 +1391,7 @@ def api_wa_official_templates():
 
 
 @app.route("/api/wa/official/send", methods=["POST"])
-@login_required
+@subscription_required
 def api_wa_official_send():
     uid = current_user_id()
     data = request.get_json(silent=True) or {}
@@ -1458,7 +1528,7 @@ def api_chat_threads():
 
 
 @app.route("/api/chat/send", methods=["POST"])
-@login_required
+@subscription_required
 def api_chat_send():
     uid = current_user_id()
     data = request.get_json(silent=True) or {}
@@ -1592,7 +1662,7 @@ def api_wa_queue():
 
 
 @app.route("/api/wa/campaign/start", methods=["POST"])
-@login_required
+@subscription_required
 def api_wa_campaign_start():
     return jsonify(campaign.start())
 
@@ -1611,7 +1681,7 @@ def api_wa_campaign_status():
 
 
 @app.route("/api/wa/send-one", methods=["POST"])
-@login_required
+@subscription_required
 def api_wa_send_one():
     uid = current_user_id()
     data = request.get_json(silent=True) or {}
@@ -1642,7 +1712,7 @@ def api_wa_send_one():
 
 
 @app.route("/api/leads/verify-whatsapp-all", methods=["POST"])
-@login_required
+@subscription_required
 def api_verify_whatsapp_all():
     uid = current_user_id()
     wa.ensure_service_running()

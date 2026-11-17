@@ -514,11 +514,11 @@ def reset_user_templates(user_id: int):
 # ==================== USUÁRIOS, ASSINATURAS & AUTH ====================
 
 PLAN_DEFAULTS = {
-    "trial": {"max_leads": 25, "days": 1, "status": "trial", "label": "Teste Grátis (1 dia · 25 leads)"},
-    "starter": {"max_leads": 500, "days": 30, "status": "active", "label": "Starter (500 leads/mês)"},
-    "pro": {"max_leads": 2000, "days": 30, "status": "active", "label": "PRO (2.000 leads/mês)"},
-    "enterprise": {"max_leads": 0, "days": 30, "status": "active", "label": "Enterprise (Ilimitado)"},
-    "agency": {"max_leads": 0, "days": 30, "status": "active", "label": "Enterprise (Ilimitado)"},
+    "trial": {"max_leads": 25, "days": 1, "status": "trial", "label": "Teste Grátis (1 dia · 25 leads salvos)"},
+    "starter": {"max_leads": 500, "days": 30, "status": "active", "label": "Starter (até 500 leads salvos)"},
+    "pro": {"max_leads": 2000, "days": 30, "status": "active", "label": "PRO (até 2.000 leads salvos · Prioridade)"},
+    "enterprise": {"max_leads": 0, "days": 30, "status": "active", "label": "Enterprise (Ilimitado · Prioridade)"},
+    "agency": {"max_leads": 0, "days": 30, "status": "active", "label": "Enterprise (Ilimitado · Prioridade)"},
 }
 
 
@@ -536,13 +536,8 @@ def get_plan_defaults(plan: str) -> Dict[str, Any]:
 
 
 def _count_user_quota_leads(cursor, user_id: int, plan: str) -> int:
-    """Conta leads para cota: total no Trial, ou últimos 30 dias nos planos mensais."""
-    p = normalize_plan_name(plan)
-    if p == "trial":
-        cursor.execute("SELECT COUNT(*) FROM leads WHERE user_id = ?", (user_id,))
-    else:
-        cutoff = (datetime.now() - timedelta(days=30)).isoformat()
-        cursor.execute("SELECT COUNT(*) FROM leads WHERE user_id = ? AND created_at >= ?", (user_id, cutoff))
+    """Conta o total de leads salvos na conta para respeitar o limite do plano (25 / 500 / 2.000)."""
+    cursor.execute("SELECT COUNT(*) FROM leads WHERE user_id = ?", (user_id,))
     return int(cursor.fetchone()[0] or 0)
 
 

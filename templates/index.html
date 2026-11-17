@@ -125,7 +125,7 @@
             {% if access_status.plan == 'trial' %}
             <span id="topbar-plan-text">Teste ({{ access_status.hours_left or (access_status.days_left * 24) }}h) · {{ access_status.leads_count }}/{{ access_status.max_leads }} leads · <u>Assinar</u></span>
             {% elif access_status.max_leads > 0 %}
-            <span id="topbar-plan-text">{{ access_status.plan|upper }}: {{ access_status.leads_count }}/{{ access_status.max_leads }} leads/mês · {{ access_status.days_left }}d</span>
+            <span id="topbar-plan-text">{{ access_status.plan|upper }}: {{ access_status.leads_count }}/{{ access_status.max_leads }} leads salvos · {{ access_status.days_left }}d</span>
             {% else %}
             <span id="topbar-plan-text">{{ access_status.plan|upper }}: Ilimitado · {{ access_status.days_left }}d</span>
             {% endif %}
@@ -880,7 +880,7 @@
             </div>
             <form id="form-admin-site-settings" class="form-grid">
               <div class="field">
-                <label>Checkout Kiwify · Plano Starter (500 leads/mês)</label>
+                <label>Checkout Kiwify · Plano Starter (500 leads salvos)</label>
                 <input type="text" id="site-checkout-url" placeholder="https://pay.kiwify.com.br/seu-starter">
               </div>
               <div class="field">
@@ -888,7 +888,7 @@
                 <input type="text" id="site-starter-price" placeholder="R$ 37">
               </div>
               <div class="field">
-                <label>Checkout Kiwify · Plano PRO (2.000 leads/mês)</label>
+                <label>Checkout Kiwify · Plano PRO (2.000 leads salvos + Prioridade)</label>
                 <input type="text" id="site-checkout-pro-url" placeholder="https://pay.kiwify.com.br/seu-pro">
               </div>
               <div class="field">
@@ -920,10 +920,10 @@
               <div class="field">
                 <label>Plano</label>
                 <select name="plan">
-                  <option value="trial">Teste Grátis (1 dia · 25 leads)</option>
-                  <option value="starter">Starter (500 leads/mês)</option>
-                  <option value="pro" selected>PRO (2.000 leads/mês)</option>
-                  <option value="enterprise">Enterprise (Ilimitado)</option>
+                  <option value="trial">Teste Grátis (1 dia · 25 leads salvos)</option>
+                  <option value="starter">Starter (500 leads salvos · Todas funções)</option>
+                  <option value="pro" selected>PRO (2.000 leads salvos + Prioridade)</option>
+                  <option value="enterprise">Enterprise (Ilimitado · Prioridade Máxima)</option>
                 </select>
               </div>
               <div class="field">
@@ -1029,11 +1029,11 @@
       </p>
       <div style="display:flex; flex-direction:column; gap:10px; text-align:left;">
         <a href="{{ (site_cfg.checkout_url if site_cfg and site_cfg.checkout_url else '/vendas#planos') }}" target="_blank" class="btn btn-outline btn-lg" style="border-color:#2563eb; color:#2563eb; justify-content:space-between; width:100%;">
-          <span><i class="fa-solid fa-rocket"></i> <strong>Plano Starter</strong> · 500 leads/mês</span>
+          <span><i class="fa-solid fa-rocket"></i> <strong>Plano Starter</strong> · 500 leads salvos (todas funções)</span>
           <span style="font-weight:800;">{{ (site_cfg.plan_starter_price if site_cfg else None) or 'R$ 37' }}/mês <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.8em;"></i></span>
         </a>
         <a href="{{ (site_cfg.checkout_pro_url if site_cfg and site_cfg.checkout_pro_url else (site_cfg.enterprise_wa_url if site_cfg and site_cfg.enterprise_wa_url else '/vendas#planos')) }}" target="_blank" class="btn btn-primary btn-lg" style="justify-content:space-between; width:100%;">
-          <span><i class="fa-solid fa-crown"></i> <strong>Plano PRO</strong> · 2.000 leads/mês</span>
+          <span><i class="fa-solid fa-crown"></i> <strong>Plano PRO</strong> · 2.000 leads salvos + Fila Prioritária</span>
           <span style="font-weight:800;">{{ (site_cfg.plan_pro_price if site_cfg else None) or 'R$ 79' }}/mês <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.8em;"></i></span>
         </a>
         <a href="{{ (site_cfg.enterprise_wa_url if site_cfg and site_cfg.enterprise_wa_url else '/vendas#planos') }}" target="_blank" class="btn btn-emerald btn-lg" style="justify-content:space-between; width:100%;">
