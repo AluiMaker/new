@@ -854,6 +854,35 @@
           <div class="card" style="margin-bottom: 20px;">
             <div class="card-header">
               <div>
+                <h3>Página de Vendas &amp; Checkout Kiwify</h3>
+                <p class="card-sub">Configure o link do checkout da Kiwify e o preço exibido na sua página de vendas</p>
+              </div>
+              <a href="/vendas" target="_blank" class="btn btn-outline btn-sm">
+                <i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir Página de Vendas
+              </a>
+            </div>
+            <form id="form-admin-site-settings" class="form-grid">
+              <div class="field col-span-2">
+                <label>Link do Checkout (Kiwify / Cakto / Mercado Pago)</label>
+                <input type="text" id="site-checkout-url" placeholder="https://pay.kiwify.com.br/seu-produto">
+              </div>
+              <div class="field">
+                <label>Preço Exibido (Plano PRO)</label>
+                <input type="text" id="site-pro-price" placeholder="R$ 97">
+              </div>
+              <div class="field">
+                <label>WhatsApp de Suporte (só números com DDI, ex: 5531999998888)</label>
+                <input type="text" id="site-support-wa" placeholder="5531999998888">
+              </div>
+              <div class="field col-span-2">
+                <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-floppy-disk"></i> Salvar Página de Vendas</button>
+              </div>
+            </form>
+          </div>
+
+          <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header">
+              <div>
                 <h3>Criar Nova Conta de Assinante</h3>
                 <p class="card-sub">Cadastre clientes pagos manualmente ou crie testes personalizados</p>
               </div>

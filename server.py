@@ -20,7 +20,8 @@ from database import (
     get_connection, create_user, authenticate_user, get_user_by_id, find_user_by_email,
     list_users, update_user, get_wa_user_config, save_wa_user_config,
     get_user_access_status, extend_user_subscription, count_recent_signups_by_ip,
-    cleanup_expired_trials, log_billing_event, complete_first_access, get_admin_dashboard_stats
+    cleanup_expired_trials, log_billing_event, complete_first_access, get_admin_dashboard_stats,
+    get_site_settings, save_site_settings
 )
 from scraper_engine import GoogleMapsScraper, DEFAULT_SEGMENTS, SWEEP_ALL_TERMS
 from exporter import export_to_csv_bytes, export_to_json_bytes
@@ -332,14 +333,43 @@ def health():
     return jsonify({"status": "ok"}), 200
 
 
-@app.route("/")
+@app.route("/vendas")
+def landing_page():
+    site_cfg = get_site_settings()
+    return render_template("landing.html", site_cfg=site_cfg)
+
+
+@app.route("/app")
 @login_required
-def index():
+def app_dashboard():
     uid = current_user_id()
     user = get_user_by_id(uid)
     access_status = get_user_access_status(uid)
-    checkout_url = os.environ.get("CHECKOUT_URL", "")
-    return render_template("index.html", current_user=user, access_status=access_status, checkout_url=checkout_url)
+    site_cfg = get_site_settings()
+    return render_template("index.html", current_user=user, access_status=access_status, checkout_url=site_cfg.get("checkout_url", ""))
+
+
+@app.route("/")
+def index():
+    uid = current_user_id()
+    if uid:
+        user = get_user_by_id(uid)
+        if user and user.get("is_active"):
+            access_status = get_user_access_status(uid)
+            site_cfg = get_site_settings()
+            return render_template("index.html", current_user=user, access_status=access_status, checkout_url=site_cfg.get("checkout_url", ""))
+    site_cfg = get_site_settings()
+    return render_template("landing.html", site_cfg=site_cfg)
+
+
+@app.route("/api/admin/site-settings", methods=["GET", "POST"])
+@admin_required
+def api_admin_site_settings():
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        saved = save_site_settings(data)
+        return jsonify({"success": True, "settings": saved})
+    return jsonify({"success": True, "settings": get_site_settings()})
 
 
 @app.route("/login", methods=["GET", "POST"])

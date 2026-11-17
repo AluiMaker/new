@@ -905,6 +905,47 @@ def get_admin_dashboard_stats() -> Dict[str, Any]:
         conn.close()
 
 
+def get_site_settings() -> Dict[str, str]:
+    defaults = {
+        "checkout_url": os.environ.get("CHECKOUT_URL", ""),
+        "plan_pro_price": os.environ.get("PLAN_PRO_PRICE", "R$ 97"),
+        "support_whatsapp": os.environ.get("SUPPORT_WHATSAPP", ""),
+    }
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT value FROM whatsapp_config WHERE key = 'site_settings'")
+        row = cur.fetchone()
+        if row and row[0]:
+            try:
+                saved = json.loads(row[0])
+                for k, v in saved.items():
+                    if k in defaults and v is not None:
+                        defaults[k] = str(v)
+            except Exception:
+                pass
+        return defaults
+    finally:
+        conn.close()
+
+
+def save_site_settings(data: Dict[str, Any]) -> Dict[str, str]:
+    curr = get_site_settings()
+    for k in ("checkout_url", "plan_pro_price", "support_whatsapp"):
+        if k in data:
+            curr[k] = str(data[k] or "").strip()
+    conn = get_connection()
+    try:
+        conn.execute(
+            "INSERT OR REPLACE INTO whatsapp_config (key, value) VALUES ('site_settings', ?)",
+            (json.dumps(curr, ensure_ascii=False),)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return curr
+
+
 # ==================== CONFIGURAÇÃO WHATSAPP POR USUÁRIO ====================
 
 def get_wa_user_config(user_id: int) -> Dict[str, Any]:

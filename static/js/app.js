@@ -1370,6 +1370,21 @@ function initAdminControls() {
     }
   });
 
+  document.getElementById('form-admin-site-settings')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const res = await apiFetch('/api/admin/site-settings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        checkout_url: document.getElementById('site-checkout-url').value,
+        plan_pro_price: document.getElementById('site-pro-price').value,
+        support_whatsapp: document.getElementById('site-support-wa').value,
+      })
+    });
+    const d = await res.json();
+    if (d.success) toast('Página de vendas e link Kiwify atualizados!', 'success');
+  });
+
   document.getElementById('form-admin-create-user')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const payload = Object.fromEntries(new FormData(e.target).entries());
@@ -1397,6 +1412,19 @@ async function loadAdminUsers() {
     const d = await res.json();
     if (!d.success) return;
     _adminUsersCache = d.users || [];
+
+    try {
+      const sr = await apiFetch('/api/admin/site-settings');
+      const sd = await sr.json();
+      if (sd.success && sd.settings) {
+        const cu = document.getElementById('site-checkout-url');
+        const pp = document.getElementById('site-pro-price');
+        const sw = document.getElementById('site-support-wa');
+        if (cu) cu.value = sd.settings.checkout_url || '';
+        if (pp) pp.value = sd.settings.plan_pro_price || 'R$ 97';
+        if (sw) sw.value = sd.settings.support_whatsapp || '';
+      }
+    } catch (e) {}
 
     const st = d.stats || {};
     document.getElementById('adm-kpi-paid').textContent = st.paid_active || 0;
