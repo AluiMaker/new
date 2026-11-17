@@ -17,6 +17,9 @@ const STATE = {
   chatFilter: 'all',
   activeChatLead: null,
   chatThreads: [],
+  academyLessons: [],
+  activeLessonId: null,
+  academyModuleFilter: 'all',
 };
 
 const TAB_META = {
@@ -26,6 +29,7 @@ const TAB_META = {
   'tab-crm': ['CRM & Pipeline', 'Gerencie negociações no Kanban ou em lista e envie abordagens'],
   'tab-chat': ['Chat / Conversas', 'Atenda e acompanhe suas conversas ativas estilo Kommo'],
   'tab-templates': ['Modelos de Copy', 'Mensagens prontas para Plaquinhas NFC, WhatsApp, Cardápio e Biossites'],
+  'tab-academy': ['Academia & Videoaulas', 'Aprenda na prática a captar leads, limpar sua base e fechar vendas no WhatsApp'],
   'tab-settings': ['WhatsApp & Conta', 'Configure o WhatsApp por QR Code, API Oficial da Meta e seus dados'],
   'tab-admin': ['Painel Admin', 'Gerencie contas de clientes e planos do sistema'],
 };
@@ -45,6 +49,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initChatControls();
   initDrawerControls();
   initTemplateControls();
+  initAcademyControls();
   initSettingsControls();
   initAdminControls();
   initSSE();
@@ -54,9 +59,10 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function loadAllData() {
-  await Promise.all([loadStats(), loadLeads(), loadTemplates(), loadSegments(), loadSearchHistory(), loadChatThreads()]);
+  await Promise.all([loadStats(), loadLeads(), loadTemplates(), loadSegments(), loadSearchHistory(), loadChatThreads(), loadAcademyLessons()]);
   if (window.CURRENT_USER && window.CURRENT_USER.role === 'admin') {
     loadAdminUsers();
+    loadAdminAcademyLessons();
   }
 }
 
@@ -1668,6 +1674,44 @@ function initAdminControls() {
       toast(d.error || 'Erro ao criar usuário.', 'error');
     }
   });
+
+  document.getElementById('btn-admin-academy-reset')?.addEventListener('click', () => {
+    document.getElementById('form-admin-academy-lesson')?.reset();
+    const idEl = document.getElementById('adm-lesson-id');
+    if (idEl) idEl.value = '';
+    const pubEl = document.getElementById('adm-lesson-published');
+    if (pubEl) pubEl.checked = true;
+  });
+
+  document.getElementById('form-admin-academy-lesson')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const lid = document.getElementById('adm-lesson-id')?.value;
+    const payload = {
+      module_name: document.getElementById('adm-lesson-module')?.value || '',
+      title: document.getElementById('adm-lesson-title')?.value || '',
+      video_url: document.getElementById('adm-lesson-url')?.value || '',
+      duration_text: document.getElementById('adm-lesson-duration')?.value || '01:00',
+      sort_order: Number(document.getElementById('adm-lesson-order')?.value || 10),
+      target_tab: document.getElementById('adm-lesson-tab')?.value || '',
+      description: document.getElementById('adm-lesson-desc')?.value || '',
+      is_published: Boolean(document.getElementById('adm-lesson-published')?.checked),
+    };
+    const url = lid ? `/api/admin/academy/lessons/${lid}` : '/api/admin/academy/lessons';
+    const res = await apiFetch(url, {
+      method: lid ? 'PUT' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const d = await res.json();
+    if (d.success) {
+      toast(lid ? 'Videoaula atualizada!' : 'Videoaula adicionada na Academia!', 'success');
+      document.getElementById('btn-admin-academy-reset')?.click();
+      loadAdminAcademyLessons();
+      loadAcademyLessons();
+    } else {
+      toast(d.error || 'Erro ao salvar videoaula.', 'error');
+    }
+  });
 }
 
 async function loadAdminUsers() {
@@ -1798,6 +1842,230 @@ async function toggleUserActive(uid, active) {
   });
   toast('Status do usuário atualizado.', 'success');
   loadAdminUsers();
+}
+
+// ==================== ACADEMIA / VIDEOAULAS ====================
+function initAcademyControls() {
+  document.getElementById('btn-academy-toggle-done')?.addEventListener('click', toggleCurrentAcademyLessonDone);
+  document.getElementById('btn-academy-prev')?.addEventListener('click', () => stepAcademyLesson(-1));
+  document.getElementById('btn-academy-next')?.addEventListener('click', () => stepAcademyLesson(1));
+  document.getElementById('btn-academy-open-tab')?.addEventListener('click', () => {
+    const lesson = (STATE.academyLessons || []).find(l => l.id === STATE.activeLessonId);
+    if (lesson && lesson.target_tab) switchTab(lesson.target_tab);
+  });
+}
+
+async function loadAcademyLessons() {
+  try {
+    const res = await apiFetch('/api/academy/lessons');
+    if (!res.ok) return;
+    const d = await res.json();
+    STATE.academyLessons = d.lessons || [];
+    updateAcademyProgressUI(d.completed_count || 0, d.total_count || STATE.academyLessons.length, d.percent || 0);
+    renderAcademyModuleFilters();
+    renderAcademyPlaylist();
+    if (!STATE.activeLessonId && STATE.academyLessons.length) {
+      const nextUnread = STATE.academyLessons.find(l => !l.completed) || STATE.academyLessons[0];
+      selectAcademyLesson(nextUnread.id, false);
+    } else if (STATE.activeLessonId) {
+      selectAcademyLesson(STATE.activeLessonId, false);
+    }
+  } catch (e) {}
+}
+
+function updateAcademyProgressUI(done, total, pct) {
+  const badge = document.getElementById('badge-academy-progress');
+  const lbl = document.getElementById('academy-progress-label');
+  const pctEl = document.getElementById('academy-progress-pct');
+  const fill = document.getElementById('academy-progress-fill');
+  if (badge) badge.textContent = `${done}/${total}`;
+  if (lbl) lbl.textContent = `${done} de ${total} aulas concluídas`;
+  if (pctEl) pctEl.textContent = `${pct}%`;
+  if (fill) fill.style.width = `${pct}%`;
+}
+
+function renderAcademyModuleFilters() {
+  const wrap = document.getElementById('academy-module-filters');
+  if (!wrap) return;
+  const mods = ['all', ...Array.from(new Set((STATE.academyLessons || []).map(l => l.module_name)))];
+  wrap.innerHTML = mods.map(m => `
+    <button type="button" class="seg-btn ${STATE.academyModuleFilter === m ? 'active' : ''}" onclick="setAcademyModuleFilter('${escapeHtml(m).replace(/'/g, "\\'")}')">
+      ${m === 'all' ? 'Todos os Módulos' : escapeHtml(m)}
+    </button>
+  `).join('');
+}
+
+function setAcademyModuleFilter(mod) {
+  STATE.academyModuleFilter = mod;
+  renderAcademyModuleFilters();
+  renderAcademyPlaylist();
+}
+
+function renderAcademyPlaylist() {
+  const box = document.getElementById('academy-playlist');
+  if (!box) return;
+  const filtered = (STATE.academyLessons || []).filter(
+    l => STATE.academyModuleFilter === 'all' || l.module_name === STATE.academyModuleFilter
+  );
+  if (!filtered.length) {
+    box.innerHTML = '<p class="text-muted">Nenhuma videoaula publicada ainda.</p>';
+    return;
+  }
+  const groups = [];
+  filtered.forEach(l => {
+    let g = groups.find(x => x.name === l.module_name);
+    if (!g) { g = { name: l.module_name, items: [] }; groups.push(g); }
+    g.items.push(l);
+  });
+  box.innerHTML = groups.map(g => `
+    <div class="academy-module-group">
+      <div class="academy-module-title">${escapeHtml(g.name)}</div>
+      ${g.items.map(l => {
+        const isActive = l.id === STATE.activeLessonId;
+        const iconHtml = l.completed
+          ? '<i class="fa-solid fa-check"></i>'
+          : (isActive ? '<i class="fa-solid fa-play"></i>' : `${l.sort_order || '•'}`);
+        return `
+          <button type="button" class="academy-lesson-item ${isActive ? 'active' : ''} ${l.completed ? 'completed' : ''}" onclick="selectAcademyLesson(${l.id}, true)">
+            <div class="academy-lesson-check">${iconHtml}</div>
+            <div class="academy-lesson-info">
+              <strong>${escapeHtml(l.title)}</strong>
+              <span><i class="fa-regular fa-clock"></i> ${escapeHtml(l.duration_text || '01:00')}${l.completed ? ' · Concluída' : ''}</span>
+            </div>
+          </button>
+        `;
+      }).join('')}
+    </div>
+  `).join('');
+}
+
+function getEmbedUrl(url) {
+  const raw = String(url || '').trim();
+  const yt = raw.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{6,})/);
+  if (yt) return `https://www.youtube.com/embed/${yt[1]}?rel=0`;
+  const vim = raw.match(/vimeo\.com\/(\d+)/);
+  if (vim) return `https://player.vimeo.com/video/${vim[1]}`;
+  return null;
+}
+
+function selectAcademyLesson(lessonId, autoplay = false) {
+  const lessons = STATE.academyLessons || [];
+  const lesson = lessons.find(l => l.id === lessonId);
+  if (!lesson) return;
+  const changed = STATE.activeLessonId !== lesson.id || autoplay;
+  STATE.activeLessonId = lesson.id;
+
+  document.getElementById('academy-current-module').textContent = lesson.module_name || 'Módulo';
+  document.getElementById('academy-current-duration').textContent = lesson.duration_text || '01:00';
+  document.getElementById('academy-current-title').textContent = lesson.title;
+  document.getElementById('academy-current-desc').textContent = lesson.description || '';
+
+  const doneBtn = document.getElementById('btn-academy-toggle-done');
+  if (doneBtn) {
+    doneBtn.className = lesson.completed ? 'btn btn-emerald btn-sm' : 'btn btn-primary btn-sm';
+    doneBtn.innerHTML = lesson.completed
+      ? '<i class="fa-solid fa-circle-check"></i> Aula Concluída (Desmarcar)'
+      : '<i class="fa-regular fa-circle-check"></i> Marcar como Concluída';
+  }
+  const openTabBtn = document.getElementById('btn-academy-open-tab');
+  if (openTabBtn) openTabBtn.classList.toggle('hidden', !lesson.target_tab);
+
+  const stage = document.getElementById('academy-video-stage');
+  if (stage && (changed || !stage.querySelector('video, iframe'))) {
+    const embed = getEmbedUrl(lesson.video_url);
+    if (embed) {
+      stage.innerHTML = `<iframe src="${escapeHtml(embed)}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
+    } else {
+      stage.innerHTML = `<video id="academy-html5-video" src="${escapeHtml(lesson.video_url)}" controls playsinline preload="metadata"></video>`;
+      const vid = document.getElementById('academy-html5-video');
+      if (vid) {
+        if (autoplay) vid.play().catch(() => {});
+        vid.addEventListener('ended', async () => {
+          if (!lesson.completed) await markAcademyLessonDone(lesson.id, true);
+        });
+      }
+    }
+  }
+  renderAcademyPlaylist();
+}
+
+async function markAcademyLessonDone(lessonId, completed) {
+  const res = await apiFetch(`/api/academy/lessons/${lessonId}/progress`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ completed })
+  });
+  const d = await res.json();
+  if (d.success) {
+    const target = (STATE.academyLessons || []).find(l => l.id === lessonId);
+    if (target) target.completed = completed;
+    updateAcademyProgressUI(d.completed_count || 0, d.total_count || 0, d.percent || 0);
+    selectAcademyLesson(lessonId, false);
+    toast(completed ? 'Aula marcada como concluída!' : 'Aula marcada como pendente.', 'success');
+  }
+}
+
+async function toggleCurrentAcademyLessonDone() {
+  const lesson = (STATE.academyLessons || []).find(l => l.id === STATE.activeLessonId);
+  if (!lesson) return;
+  await markAcademyLessonDone(lesson.id, !lesson.completed);
+}
+
+function stepAcademyLesson(delta) {
+  const lessons = STATE.academyLessons || [];
+  const idx = lessons.findIndex(l => l.id === STATE.activeLessonId);
+  if (idx < 0) return;
+  const next = lessons[idx + delta];
+  if (next) selectAcademyLesson(next.id, true);
+}
+
+let _adminAcademyLessons = [];
+async function loadAdminAcademyLessons() {
+  const tb = document.getElementById('admin-academy-tbody');
+  if (!tb) return;
+  const res = await apiFetch('/api/admin/academy/lessons');
+  if (!res.ok) return;
+  const d = await res.json();
+  _adminAcademyLessons = d.lessons || [];
+  tb.innerHTML = _adminAcademyLessons.length ? _adminAcademyLessons.map(l => `
+    <tr>
+      <td>#${l.sort_order || 0}</td>
+      <td>${escapeHtml(l.module_name)}</td>
+      <td><strong>${escapeHtml(l.title)}</strong><div class="text-muted" style="font-size:0.75rem">${escapeHtml(l.video_url)}</div></td>
+      <td>${escapeHtml(l.duration_text || '-')}</td>
+      <td>${l.is_published ? '<span class="status-pill" style="background:#d1fae5;color:#065f46">Publicada</span>' : '<span class="status-pill">Oculta</span>'}</td>
+      <td style="white-space:nowrap;">
+        <button type="button" class="btn btn-outline btn-xs" onclick="editAdminAcademyLesson(${l.id})"><i class="fa-solid fa-pen"></i></button>
+        <button type="button" class="btn btn-outline btn-xs text-danger" onclick="deleteAdminAcademyLesson(${l.id})"><i class="fa-solid fa-trash"></i></button>
+      </td>
+    </tr>
+  `).join('') : '<tr><td colspan="6" class="text-muted">Nenhuma aula cadastrada.</td></tr>';
+}
+
+function editAdminAcademyLesson(id) {
+  const l = _adminAcademyLessons.find(x => x.id === id);
+  if (!l) return;
+  document.getElementById('adm-lesson-id').value = l.id;
+  document.getElementById('adm-lesson-module').value = l.module_name || '';
+  document.getElementById('adm-lesson-title').value = l.title || '';
+  document.getElementById('adm-lesson-url').value = l.video_url || '';
+  document.getElementById('adm-lesson-duration').value = l.duration_text || '01:00';
+  document.getElementById('adm-lesson-order').value = l.sort_order || 1;
+  document.getElementById('adm-lesson-tab').value = l.target_tab || '';
+  document.getElementById('adm-lesson-desc').value = l.description || '';
+  document.getElementById('adm-lesson-published').checked = Boolean(l.is_published);
+  document.getElementById('admin-academy-card')?.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function deleteAdminAcademyLesson(id) {
+  if (!confirm('Excluir esta videoaula da Academia?')) return;
+  const res = await apiFetch(`/api/admin/academy/lessons/${id}`, { method: 'DELETE' });
+  const d = await res.json();
+  if (d.success) {
+    toast('Videoaula excluída.', 'info');
+    loadAdminAcademyLessons();
+    loadAcademyLessons();
+  }
 }
 
 function debounce(fn, ms) {

@@ -441,6 +441,33 @@ def init_db():
     # Seed templates para o usuário padrão se ele ainda não tiver
     seed_user_templates(cursor, default_user_id)
 
+    # 8. Academia / Cursos e Progresso por Usuário
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS academy_lessons (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug TEXT UNIQUE,
+        module_name TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        duration_text TEXT DEFAULT '00:45',
+        video_url TEXT NOT NULL,
+        target_tab TEXT DEFAULT '',
+        sort_order INTEGER DEFAULT 0,
+        is_published INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS academy_progress (
+        user_id INTEGER NOT NULL,
+        lesson_id INTEGER NOT NULL,
+        completed INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, lesson_id)
+    )
+    """)
+    _seed_academy_lessons(cursor)
+
     conn.commit()
 
     # Limpeza básica de leads inválidos
@@ -1607,6 +1634,182 @@ def delete_pitch_template(template_id: str, user_id: int = 1) -> bool:
     affected = cursor.rowcount > 0
     conn.close()
     return affected
+
+
+# ==================== ACADEMIA / CURSOS & VIDEOAULAS ====================
+DEFAULT_ACADEMY_LESSONS = [
+    {
+        "slug": "aula-01-primeira-busca",
+        "module_name": "Módulo 1 · Primeiros Passos",
+        "title": "Aula 01 — Como Fazer Sua Primeira Busca no Google Maps",
+        "description": "Aprenda a escolher cidade, bairro ou rua, definir o modo de varredura e extrair contatos comerciais reais com oportunidades detectadas automaticamente.",
+        "duration_text": "00:26",
+        "video_url": "/static/video/lessons/aula-01-busca.mp4",
+        "target_tab": "tab-search",
+        "sort_order": 1,
+    },
+    {
+        "slug": "aula-02-mapa-oportunidades",
+        "module_name": "Módulo 1 · Primeiros Passos",
+        "title": "Aula 02 — Mapa de Oportunidades e Diagnóstico Automático",
+        "description": "Veja como identificar empresas sem site, com poucas avaliações ou sem WhatsApp Business diretamente no mapa e prospectar rua por rua.",
+        "duration_text": "00:24",
+        "video_url": "/static/video/lessons/aula-02-mapa.mp4",
+        "target_tab": "tab-map",
+        "sort_order": 2,
+    },
+    {
+        "slug": "aula-03-crm-limpeza",
+        "module_name": "Módulo 2 · CRM & Limpeza de Base",
+        "title": "Aula 03 — Dominando o CRM Kanban, Gaveta e Limpeza Sem WhatsApp",
+        "description": "Organize seu funil de vendas por etapas, edite anotações na gaveta do lead, verifique números em lote e remova leads sem WhatsApp para liberar espaço.",
+        "duration_text": "00:28",
+        "video_url": "/static/video/lessons/aula-03-crm.mp4",
+        "target_tab": "tab-crm",
+        "sort_order": 3,
+    },
+    {
+        "slug": "aula-04-conexao-whatsapp",
+        "module_name": "Módulo 3 · WhatsApp & Conversão",
+        "title": "Aula 04 — Conectando WhatsApp Oficial (1-Clique), QR Code e Regras Anti-Bloqueio",
+        "description": "Compare a conexão oficial da Meta em 1 clique com o QR Code e o WhatsApp Web 1-Clique, além de configurar cadência segura de envios.",
+        "duration_text": "00:23",
+        "video_url": "/static/video/lessons/aula-04-whatsapp.mp4",
+        "target_tab": "tab-settings",
+        "sort_order": 4,
+    },
+    {
+        "slug": "aula-05-copy-e-chat",
+        "module_name": "Módulo 3 · WhatsApp & Conversão",
+        "title": "Aula 05 — Modelos de Copy que Convertem e Atendimento no Chat",
+        "description": "Personalize variáveis dinâmicas de abordagem para NFC, Cardápio Digital, Biossite ou WhatsApp Business e conduza respostas pelo Chat integrado.",
+        "duration_text": "00:22",
+        "video_url": "/static/video/lessons/aula-05-chat-copy.mp4",
+        "target_tab": "tab-chat",
+        "sort_order": 5,
+    },
+]
+
+
+def _seed_academy_lessons(cursor):
+    for item in DEFAULT_ACADEMY_LESSONS:
+        cursor.execute(
+            """
+            INSERT OR IGNORE INTO academy_lessons
+                (slug, module_name, title, description, duration_text, video_url, target_tab, sort_order, is_published)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
+            """,
+            (
+                item["slug"],
+                item["module_name"],
+                item["title"],
+                item["description"],
+                item["duration_text"],
+                item["video_url"],
+                item["target_tab"],
+                item["sort_order"],
+            ),
+        )
+
+
+def get_academy_lessons_for_user(user_id: int, include_unpublished: bool = False) -> List[Dict[str, Any]]:
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        where = "" if include_unpublished else "WHERE l.is_published = 1"
+        cur.execute(
+            f"""
+            SELECT l.*, COALESCE(p.completed, 0) AS completed
+            FROM academy_lessons l
+            LEFT JOIN academy_progress p
+              ON p.lesson_id = l.id AND p.user_id = ?
+            {where}
+            ORDER BY l.sort_order ASC, l.id ASC
+            """,
+            (user_id,),
+        )
+        rows = []
+        for r in cur.fetchall():
+            d = dict(r)
+            d["completed"] = bool(d.get("completed"))
+            d["is_published"] = bool(d.get("is_published"))
+            rows.append(d)
+        return rows
+    finally:
+        conn.close()
+
+
+def set_academy_lesson_progress(user_id: int, lesson_id: int, completed: bool) -> Dict[str, Any]:
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        now = datetime.now().isoformat()
+        cur.execute(
+            """
+            INSERT INTO academy_progress (user_id, lesson_id, completed, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id, lesson_id) DO UPDATE SET completed = excluded.completed, updated_at = excluded.updated_at
+            """,
+            (user_id, lesson_id, 1 if completed else 0, now),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    lessons = get_academy_lessons_for_user(user_id, include_unpublished=False)
+    done = sum(1 for x in lessons if x["completed"])
+    total = len(lessons)
+    pct = int(round((done / total) * 100)) if total else 0
+    return {"completed_count": done, "total_count": total, "percent": pct}
+
+
+def upsert_academy_lesson(data: Dict[str, Any], lesson_id: Optional[int] = None) -> int:
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        title = (data.get("title") or "").strip() or "Nova Videoaula"
+        module_name = (data.get("module_name") or "").strip() or "Módulo Geral"
+        description = (data.get("description") or "").strip()
+        duration_text = (data.get("duration_text") or "").strip() or "01:00"
+        video_url = (data.get("video_url") or "").strip()
+        target_tab = (data.get("target_tab") or "").strip()
+        sort_order = int(data.get("sort_order") or 0)
+        is_published = 1 if data.get("is_published", True) else 0
+        if lesson_id:
+            cur.execute(
+                """
+                UPDATE academy_lessons
+                SET module_name = ?, title = ?, description = ?, duration_text = ?,
+                    video_url = ?, target_tab = ?, sort_order = ?, is_published = ?
+                WHERE id = ?
+                """,
+                (module_name, title, description, duration_text, video_url, target_tab, sort_order, is_published, lesson_id),
+            )
+            conn.commit()
+            return lesson_id
+        slug = (data.get("slug") or "").strip() or f"aula-{int(datetime.now().timestamp() * 1000)}"
+        cur.execute(
+            """
+            INSERT INTO academy_lessons (slug, module_name, title, description, duration_text, video_url, target_tab, sort_order, is_published)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (slug, module_name, title, description, duration_text, video_url, target_tab, sort_order, is_published),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+    finally:
+        conn.close()
+
+
+def delete_academy_lesson(lesson_id: int) -> bool:
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM academy_progress WHERE lesson_id = ?", (lesson_id,))
+        cur.execute("DELETE FROM academy_lessons WHERE id = ?", (lesson_id,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
 
 
 init_db()

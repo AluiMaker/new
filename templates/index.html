@@ -21,7 +21,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 
-  <link rel="stylesheet" href="/static/css/style.css?v=4.0">
+  <link rel="stylesheet" href="/static/css/style.css?v=4.2">
 </head>
 <body>
   <script>
@@ -78,6 +78,13 @@
         <button class="nav-item" data-tab="tab-templates" title="Modelos de Copy">
           <i class="fa-solid fa-message"></i>
           <span>Modelos de Copy</span>
+        </button>
+
+        <div class="nav-group-label">Aprendizado</div>
+        <button class="nav-item" data-tab="tab-academy" title="Academia &amp; Aulas">
+          <i class="fa-solid fa-graduation-cap"></i>
+          <span>Academia &amp; Aulas</span>
+          <span class="nav-badge" id="badge-academy-progress" style="background:#2563eb;">0/5</span>
         </button>
 
         <div class="nav-group-label">Sistema</div>
@@ -679,6 +686,68 @@
           </div>
         </section>
 
+        <!-- ==================== 5B. ACADEMIA & VIDEOAULAS ==================== -->
+        <section class="tab-view" id="tab-academy">
+          <div class="card academy-hero">
+            <div class="academy-hero-main">
+              <div class="academy-hero-icon"><i class="fa-solid fa-graduation-cap"></i></div>
+              <div>
+                <h2 style="margin:0 0 4px;">Academia MapaLeads PRO</h2>
+                <p class="card-sub" style="margin:0;">Assista às videoaulas passo a passo e domine busca de leads, CRM Kanban, limpeza sem WhatsApp e fechamento de vendas.</p>
+              </div>
+            </div>
+            <div class="academy-progress-box">
+              <div class="academy-progress-meta">
+                <strong id="academy-progress-label">0 de 5 aulas concluídas</strong>
+                <span id="academy-progress-pct">0%</span>
+              </div>
+              <div class="academy-progress-track">
+                <div class="academy-progress-fill" id="academy-progress-fill" style="width:0%"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="academy-module-filters" id="academy-module-filters"></div>
+
+          <div class="academy-layout">
+            <div class="card academy-player-card">
+              <div class="academy-video-stage" id="academy-video-stage">
+                <div class="text-muted" style="padding:48px; text-align:center;">Selecione uma aula na lista ao lado para assistir.</div>
+              </div>
+              <div class="academy-lesson-meta">
+                <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+                  <span class="academy-mod-pill" id="academy-current-module">Módulo</span>
+                  <span class="text-muted" style="font-size:0.82rem;"><i class="fa-regular fa-clock"></i> <span id="academy-current-duration">00:45</span></span>
+                </div>
+                <h3 id="academy-current-title" style="margin:8px 0 6px;">Carregando aula...</h3>
+                <p id="academy-current-desc" class="text-muted" style="margin:0 0 14px; font-size:0.9rem; line-height:1.5;"></p>
+                <div class="academy-actions-bar">
+                  <button type="button" class="btn btn-primary btn-sm" id="btn-academy-toggle-done">
+                    <i class="fa-regular fa-circle-check"></i> Marcar como Concluída
+                  </button>
+                  <button type="button" class="btn btn-outline btn-sm hidden" id="btn-academy-open-tab">
+                    <i class="fa-solid fa-arrow-up-right-from-square"></i> Abrir essa tela no sistema
+                  </button>
+                  <div style="margin-left:auto; display:flex; gap:8px;">
+                    <button type="button" class="btn btn-outline btn-sm" id="btn-academy-prev"><i class="fa-solid fa-chevron-left"></i> Anterior</button>
+                    <button type="button" class="btn btn-outline btn-sm" id="btn-academy-next">Próxima <i class="fa-solid fa-chevron-right"></i></button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="card academy-playlist-card">
+              <div class="card-header" style="margin-bottom:10px;">
+                <div>
+                  <h3>Conteúdo do Curso</h3>
+                  <p class="card-sub">Clique em qualquer aula para assistir agora</p>
+                </div>
+              </div>
+              <div class="academy-playlist" id="academy-playlist"></div>
+            </div>
+          </div>
+        </section>
+
         <!-- ==================== 6. WHATSAPP & CONTA ==================== -->
         <section class="tab-view" id="tab-settings">
           <div class="settings-tabs">
@@ -1072,6 +1141,76 @@
               </table>
             </div>
           </div>
+
+          <div class="card" id="admin-academy-card" style="margin-top: 20px;">
+            <div class="card-header">
+              <div>
+                <h3><i class="fa-solid fa-graduation-cap text-blue"></i> Gerenciar Videoaulas &amp; Cursos (Academia)</h3>
+                <p class="card-sub">Adicione, edite ou reordene videoaulas (suporta links MP4, YouTube ou Vimeo)</p>
+              </div>
+              <button type="button" class="btn btn-outline btn-sm" id="btn-admin-academy-reset">
+                <i class="fa-solid fa-plus"></i> Nova Aula
+              </button>
+            </div>
+            <form id="form-admin-academy-lesson" class="form-grid" style="margin-bottom: 18px;">
+              <input type="hidden" id="adm-lesson-id">
+              <div class="field">
+                <label>Módulo</label>
+                <input type="text" id="adm-lesson-module" placeholder="Ex: Módulo 4 · Prospecção Avançada" required>
+              </div>
+              <div class="field">
+                <label>Título da Aula</label>
+                <input type="text" id="adm-lesson-title" placeholder="Ex: Como fechar 3 contratos na semana" required>
+              </div>
+              <div class="field">
+                <label>URL do Vídeo (MP4, YouTube ou Vimeo)</label>
+                <input type="text" id="adm-lesson-url" placeholder="/static/video/lessons/aula-01-busca.mp4 ou https://youtube.com/..." required>
+              </div>
+              <div class="field">
+                <label>Duração / Ordem / Aba Atalho</label>
+                <div style="display:grid; grid-template-columns:1fr 90px 1fr; gap:8px;">
+                  <input type="text" id="adm-lesson-duration" placeholder="02:30" value="01:00">
+                  <input type="number" id="adm-lesson-order" placeholder="Ordem" value="10" min="1">
+                  <select id="adm-lesson-tab">
+                    <option value="">Sem atalho</option>
+                    <option value="tab-dashboard">Visão Geral</option>
+                    <option value="tab-search">Buscar Empresas</option>
+                    <option value="tab-map">Mapa</option>
+                    <option value="tab-crm">CRM Kanban</option>
+                    <option value="tab-chat">Chat</option>
+                    <option value="tab-templates">Modelos de Copy</option>
+                    <option value="tab-settings">WhatsApp &amp; Conta</option>
+                  </select>
+                </div>
+              </div>
+              <div class="field col-span-2">
+                <label>Descrição / Resumo da Aula</label>
+                <input type="text" id="adm-lesson-desc" placeholder="Explique brevemente o que o aluno vai aprender nessa aula...">
+              </div>
+              <div class="field col-span-2" style="display:flex; gap:10px; align-items:center;">
+                <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-floppy-disk"></i> Salvar Videoaula</button>
+                <label class="checkbox-inline" style="margin-left:8px;">
+                  <input type="checkbox" id="adm-lesson-published" checked>
+                  <span>Publicada para alunos</span>
+                </label>
+              </div>
+            </form>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Ordem</th>
+                    <th>Módulo</th>
+                    <th>Título</th>
+                    <th>Duração</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-academy-tbody"></tbody>
+              </table>
+            </div>
+          </div>
         </section>
         {% endif %}
       </main>
@@ -1237,6 +1376,6 @@
     window.CURRENT_USER = {{ current_user | tojson if current_user else 'null' }};
     window.ACCESS_STATUS = {{ access_status | tojson if access_status else 'null' }};
   </script>
-  <script src="/static/js/app.js?v=4.1"></script>
+  <script src="/static/js/app.js?v=4.2"></script>
 </body>
 </html>

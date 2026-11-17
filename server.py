@@ -23,7 +23,9 @@ from database import (
     get_user_access_status, extend_user_subscription, count_recent_signups_by_ip,
     cleanup_expired_trials, log_billing_event, complete_first_access, get_admin_dashboard_stats,
     get_site_settings, save_site_settings, normalize_plan_name,
-    cleanup_leads_by_criteria
+    cleanup_leads_by_criteria,
+    get_academy_lessons_for_user, set_academy_lesson_progress,
+    upsert_academy_lesson, delete_academy_lesson
 )
 from scraper_engine import GoogleMapsScraper, DEFAULT_SEGMENTS, SWEEP_ALL_TERMS
 from exporter import export_to_csv_bytes, export_to_json_bytes
@@ -1897,6 +1899,57 @@ def api_wa_activity():
 @login_required
 def api_lead_conversation(lead_id):
     return jsonify(wa.get_conversation(lead_id, user_id=current_user_id()))
+
+
+# ==================== ACADEMIA / CURSOS & VIDEOAULAS ====================
+@app.route("/api/academy/lessons")
+@login_required
+def api_academy_lessons():
+    uid = current_user_id()
+    lessons = get_academy_lessons_for_user(uid, include_unpublished=False)
+    done = sum(1 for l in lessons if l.get("completed"))
+    total = len(lessons)
+    pct = int(round((done / total) * 100)) if total else 0
+    return jsonify({
+        "lessons": lessons,
+        "completed_count": done,
+        "total_count": total,
+        "percent": pct,
+    })
+
+
+@app.route("/api/academy/lessons/<int:lesson_id>/progress", methods=["POST"])
+@login_required
+def api_academy_lesson_progress(lesson_id):
+    data = request.get_json(silent=True) or {}
+    completed = bool(data.get("completed", True))
+    summary = set_academy_lesson_progress(current_user_id(), lesson_id, completed)
+    return jsonify({"success": True, "lesson_id": lesson_id, "completed": completed, **summary})
+
+
+@app.route("/api/admin/academy/lessons", methods=["GET", "POST"])
+@admin_required
+def api_admin_academy_lessons():
+    if request.method == "GET":
+        return jsonify({"lessons": get_academy_lessons_for_user(current_user_id(), include_unpublished=True)})
+    data = request.get_json(silent=True) or {}
+    if not (data.get("title") or "").strip() or not (data.get("video_url") or "").strip():
+        return jsonify({"success": False, "error": "Informe o título e a URL do vídeo."}), 400
+    lid = upsert_academy_lesson(data)
+    return jsonify({"success": True, "id": lid})
+
+
+@app.route("/api/admin/academy/lessons/<int:lesson_id>", methods=["PUT", "DELETE"])
+@admin_required
+def api_admin_academy_lesson_detail(lesson_id):
+    if request.method == "DELETE":
+        ok = delete_academy_lesson(lesson_id)
+        return jsonify({"success": ok})
+    data = request.get_json(silent=True) or {}
+    if not (data.get("title") or "").strip() or not (data.get("video_url") or "").strip():
+        return jsonify({"success": False, "error": "Informe o título e a URL do vídeo."}), 400
+    upsert_academy_lesson(data, lesson_id=lesson_id)
+    return jsonify({"success": True, "id": lesson_id})
 
 
 def _maintenance_loop():
