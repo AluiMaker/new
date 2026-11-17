@@ -1,7 +1,8 @@
 import sqlite3
 import os
 import json
-from datetime import datetime
+import shutil
+from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional, Tuple
 from werkzeug.security import generate_password_hash, check_password_hash
 
@@ -131,10 +132,27 @@ def init_db():
         role TEXT DEFAULT 'user',
         plan TEXT DEFAULT 'pro',
         is_active INTEGER DEFAULT 1,
+        subscription_status TEXT DEFAULT 'active',
+        plan_expires_at TEXT DEFAULT '',
+        max_leads INTEGER DEFAULT 0,
+        signup_ip TEXT DEFAULT '',
+        billing_customer_id TEXT DEFAULT '',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_login_at TEXT
     )
     """)
+
+    for col_name, col_type in [
+        ("subscription_status", "TEXT DEFAULT 'active'"),
+        ("plan_expires_at", "TEXT DEFAULT ''"),
+        ("max_leads", "INTEGER DEFAULT 0"),
+        ("signup_ip", "TEXT DEFAULT ''"),
+        ("billing_customer_id", "TEXT DEFAULT ''"),
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}")
+        except sqlite3.OperationalError:
+            pass
 
     # Garante usuário administrador padrão se não existir nenhum usuário
     cursor.execute("SELECT COUNT(*) FROM users")
@@ -477,14 +495,55 @@ def reset_user_templates(user_id: int):
         conn.close()
 
 
-# ==================== USUÁRIOS & AUTH ====================
+# ==================== USUÁRIOS, ASSINATURAS & AUTH ====================
 
-def create_user(name: str, email: str, password: str, company_name: str = "", role: str = "user", plan: str = "pro") -> Tuple[Optional[int], Optional[str]]:
+PLAN_DEFAULTS = {
+    "trial": {"max_leads": 25, "days": 3, "status": "trial", "label": "Teste Grátis (3 dias · 25 leads)"},
+    "starter": {"max_leads": 500, "days": 30, "status": "active", "label": "Starter (500 leads/mês)"},
+    "pro": {"max_leads": 0, "days": 30, "status": "active", "label": "PRO (Ilimitado)"},
+    "agency": {"max_leads": 0, "days": 30, "status": "active", "label": "Agency (Ilimitado)"},
+}
+
+
+def get_plan_defaults(plan: str) -> Dict[str, Any]:
+    return PLAN_DEFAULTS.get((plan or "trial").lower(), PLAN_DEFAULTS["trial"])
+
+
+def count_recent_signups_by_ip(ip: str, hours: int = 24) -> int:
+    if not ip:
+        return 0
+    cutoff = (datetime.now() - timedelta(hours=hours)).isoformat()
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT COUNT(*) FROM users WHERE signup_ip = ? AND created_at >= ?", (ip, cutoff))
+        return int(cur.fetchone()[0] or 0)
+    finally:
+        conn.close()
+
+
+def create_user(
+    name: str,
+    email: str,
+    password: str,
+    company_name: str = "",
+    role: str = "user",
+    plan: str = "pro",
+    days: Optional[int] = None,
+    max_leads: Optional[int] = None,
+    signup_ip: str = "",
+) -> Tuple[Optional[int], Optional[str]]:
     email_clean = (email or "").strip().lower()
     if not email_clean or "@" not in email_clean:
         return None, "E-mail inválido."
     if not password or len(password) < 6:
         return None, "A senha deve ter pelo menos 6 caracteres."
+
+    p_cfg = get_plan_defaults(plan)
+    sub_status = "active" if role == "admin" else p_cfg["status"]
+    use_days = days if days is not None else p_cfg["days"]
+    use_max_leads = max_leads if max_leads is not None else (0 if role == "admin" else p_cfg["max_leads"])
+    expires_at = "" if (role == "admin" or use_days <= 0) else (datetime.now() + timedelta(days=use_days)).isoformat()
 
     conn = get_connection()
     cur = conn.cursor()
@@ -494,16 +553,41 @@ def create_user(name: str, email: str, password: str, company_name: str = "", ro
             return None, "Este e-mail já está cadastrado."
         cur.execute(
             """
-            INSERT INTO users (name, email, password_hash, company_name, role, plan, is_active)
-            VALUES (?, ?, ?, ?, ?, ?, 1)
+            INSERT INTO users (name, email, password_hash, company_name, role, plan, is_active, subscription_status, plan_expires_at, max_leads, signup_ip)
+            VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
             """,
-            (name.strip() or email_clean.split("@")[0], email_clean, generate_password_hash(password), company_name.strip(), role, plan)
+            (
+                name.strip() or email_clean.split("@")[0],
+                email_clean,
+                generate_password_hash(password),
+                company_name.strip(),
+                role,
+                plan,
+                sub_status,
+                expires_at,
+                use_max_leads,
+                signup_ip or "",
+            )
         )
         uid = cur.lastrowid
         seed_user_templates(cur, uid)
         cur.execute("INSERT OR IGNORE INTO wa_user_configs (user_id) VALUES (?)", (uid,))
         conn.commit()
         return uid, None
+    finally:
+        conn.close()
+
+
+def find_user_by_email(email: str) -> Optional[Dict[str, Any]]:
+    email_clean = (email or "").strip().lower()
+    if not email_clean:
+        return None
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT id, name, email, company_name, role, plan, is_active, subscription_status, plan_expires_at, max_leads FROM users WHERE email = ?", (email_clean,))
+        row = cur.fetchone()
+        return dict(row) if row else None
     finally:
         conn.close()
 
@@ -534,11 +618,110 @@ def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT id, name, email, company_name, role, plan, is_active, created_at, last_login_at FROM users WHERE id = ?", (user_id,))
+        cur.execute(
+            "SELECT id, name, email, company_name, role, plan, is_active, subscription_status, plan_expires_at, max_leads, created_at, last_login_at FROM users WHERE id = ?",
+            (user_id,)
+        )
         row = cur.fetchone()
         return dict(row) if row else None
     finally:
         conn.close()
+
+
+def get_user_access_status(user_id: int) -> Dict[str, Any]:
+    """Verifica validade da assinatura/trial e limite de leads do usuário."""
+    user = get_user_by_id(user_id)
+    if not user or not user.get("is_active"):
+        return {"active": False, "reason": "inactive", "days_left": 0, "leads_count": 0, "max_leads": 0, "plan": "none"}
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT COUNT(*) FROM leads WHERE user_id = ?", (user_id,))
+        leads_count = int(cur.fetchone()[0] or 0)
+    finally:
+        conn.close()
+
+    if user.get("role") == "admin":
+        return {"active": True, "reason": "admin", "days_left": 9999, "leads_count": leads_count, "max_leads": 0, "plan": user.get("plan", "agency"), "subscription_status": "active"}
+
+    sub_status = (user.get("subscription_status") or "active").lower()
+    if sub_status in ("suspended", "expired", "canceled"):
+        return {
+            "active": False,
+            "reason": sub_status,
+            "days_left": 0,
+            "leads_count": leads_count,
+            "max_leads": int(user.get("max_leads") or 0),
+            "plan": user.get("plan", "trial"),
+            "expires_at": user.get("plan_expires_at", ""),
+            "subscription_status": sub_status,
+        }
+
+    exp_str = (user.get("plan_expires_at") or "").strip()
+    days_left = 999
+    if exp_str:
+        try:
+            exp_dt = datetime.fromisoformat(exp_str)
+            delta = exp_dt - datetime.now()
+            if delta.total_seconds() <= 0:
+                update_user(user_id, {"subscription_status": "expired"})
+                return {
+                    "active": False,
+                    "reason": "expired",
+                    "days_left": 0,
+                    "leads_count": leads_count,
+                    "max_leads": int(user.get("max_leads") or 0),
+                    "plan": user.get("plan", "trial"),
+                    "expires_at": exp_str,
+                    "subscription_status": "expired",
+                }
+            days_left = max(1, int(delta.total_seconds() // 86400) + 1)
+        except Exception:
+            pass
+
+    max_leads = int(user.get("max_leads") or 0)
+    return {
+        "active": True,
+        "reason": "ok",
+        "days_left": days_left,
+        "leads_count": leads_count,
+        "max_leads": max_leads,
+        "leads_limit_reached": (max_leads > 0 and leads_count >= max_leads),
+        "plan": user.get("plan", "trial"),
+        "expires_at": exp_str,
+        "subscription_status": sub_status,
+    }
+
+
+def extend_user_subscription(user_id: int, days: int = 30, plan: Optional[str] = None, max_leads: Optional[int] = None) -> Optional[Dict[str, Any]]:
+    user = get_user_by_id(user_id)
+    if not user:
+        return None
+    now = datetime.now()
+    base = now
+    exp_str = (user.get("plan_expires_at") or "").strip()
+    if exp_str and (user.get("subscription_status") in ("active", "trial")):
+        try:
+            curr_exp = datetime.fromisoformat(exp_str)
+            if curr_exp > now:
+                base = curr_exp
+        except Exception:
+            pass
+
+    new_exp = (base + timedelta(days=int(days))).isoformat()
+    new_plan = plan or (user.get("plan") if user.get("plan") != "trial" else "pro")
+    p_cfg = get_plan_defaults(new_plan)
+    use_max = max_leads if max_leads is not None else p_cfg["max_leads"]
+
+    update_user(user_id, {
+        "plan": new_plan,
+        "subscription_status": "active",
+        "plan_expires_at": new_exp,
+        "max_leads": use_max,
+        "is_active": 1,
+    })
+    return get_user_by_id(user_id)
 
 
 def list_users() -> List[Dict[str, Any]]:
@@ -546,7 +729,9 @@ def list_users() -> List[Dict[str, Any]]:
     cur = conn.cursor()
     try:
         cur.execute("""
-            SELECT u.id, u.name, u.email, u.company_name, u.role, u.plan, u.is_active, u.created_at, u.last_login_at,
+            SELECT u.id, u.name, u.email, u.company_name, u.role, u.plan, u.is_active,
+                   u.subscription_status, u.plan_expires_at, u.max_leads,
+                   u.created_at, u.last_login_at,
                    (SELECT COUNT(*) FROM leads l WHERE l.user_id = u.id) as leads_count
             FROM users u
             ORDER BY u.id ASC
@@ -557,7 +742,7 @@ def list_users() -> List[Dict[str, Any]]:
 
 
 def update_user(user_id: int, fields: Dict[str, Any]) -> bool:
-    allowed = {"name", "company_name", "role", "plan", "is_active"}
+    allowed = {"name", "company_name", "role", "plan", "is_active", "subscription_status", "plan_expires_at", "max_leads", "billing_customer_id"}
     updates = []
     params = []
     for k, v in fields.items():
@@ -578,6 +763,40 @@ def update_user(user_id: int, fields: Dict[str, Any]) -> bool:
         return cur.rowcount > 0
     finally:
         conn.close()
+
+
+def cleanup_expired_trials(grace_days: int = 15) -> int:
+    """Remove contas de teste abandonadas vencidas há mais de grace_days para não acumular lixo no servidor."""
+    cutoff = (datetime.now() - timedelta(days=grace_days)).isoformat()
+    conn = get_connection()
+    cur = conn.cursor()
+    removed = 0
+    try:
+        cur.execute(
+            """
+            SELECT id FROM users
+            WHERE role != 'admin'
+              AND plan = 'trial'
+              AND plan_expires_at != ''
+              AND plan_expires_at < ?
+            """,
+            (cutoff,)
+        )
+        ids = [r[0] for r in cur.fetchall()]
+        for uid in ids:
+            cur.execute("DELETE FROM leads WHERE user_id = ?", (uid,))
+            cur.execute("DELETE FROM search_history WHERE user_id = ?", (uid,))
+            cur.execute("DELETE FROM pitch_templates WHERE user_id = ?", (uid,))
+            cur.execute("DELETE FROM wa_messages WHERE user_id = ?", (uid,))
+            cur.execute("DELETE FROM wa_user_configs WHERE user_id = ?", (uid,))
+            cur.execute("DELETE FROM users WHERE id = ?", (uid,))
+            wa_root = os.environ.get("WA_AUTH_ROOT") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "whatsapp_service", "auth_sessions")
+            shutil.rmtree(os.path.join(wa_root, f"user_{uid}"), ignore_errors=True)
+            removed += 1
+        conn.commit()
+    finally:
+        conn.close()
+    return removed
 
 
 # ==================== CONFIGURAÇÃO WHATSAPP POR USUÁRIO ====================
@@ -855,6 +1074,16 @@ def upsert_lead(lead_data: Dict[str, Any], user_id: int = 1) -> Tuple[int, bool]
         conn.close()
         return lead_id, False
     else:
+        # Garante respeito ao limite de leads do plano (ex: 25 leads no Teste Grátis)
+        cursor.execute("SELECT role, max_leads FROM users WHERE id = ?", (user_id,))
+        urow = cursor.fetchone()
+        if urow and urow["role"] != "admin" and int(urow["max_leads"] or 0) > 0:
+            cursor.execute("SELECT COUNT(*) FROM leads WHERE user_id = ?", (user_id,))
+            curr_cnt = int(cursor.fetchone()[0] or 0)
+            if curr_cnt >= int(urow["max_leads"]):
+                conn.close()
+                return 0, False
+
         tags_list = []
         if lead_data.get("website_type") == "none":
             tags_list.append("Sem Site")

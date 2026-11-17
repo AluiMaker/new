@@ -3,6 +3,7 @@ import sys
 import time
 import json
 import queue
+import shutil
 import secrets
 import threading
 from functools import wraps
@@ -12,12 +13,14 @@ import io
 from curl_cffi import requests as cffi_requests
 
 from database import (
-    upsert_lead, get_leads, update_lead, delete_lead,
+    DB_PATH, upsert_lead, get_leads, update_lead, delete_lead,
     get_stats, record_search, get_search_history,
     get_pitch_templates, save_pitch_template, delete_pitch_template, reset_user_templates,
     init_db, deduplicate_database, batch_verify_whatsapp, is_phone_already_contacted,
-    get_connection, create_user, authenticate_user, get_user_by_id,
-    list_users, update_user, get_wa_user_config, save_wa_user_config
+    get_connection, create_user, authenticate_user, get_user_by_id, find_user_by_email,
+    list_users, update_user, get_wa_user_config, save_wa_user_config,
+    get_user_access_status, extend_user_subscription, count_recent_signups_by_ip,
+    cleanup_expired_trials
 )
 from scraper_engine import GoogleMapsScraper, DEFAULT_SEGMENTS, SWEEP_ALL_TERMS
 from exporter import export_to_csv_bytes, export_to_json_bytes
@@ -29,6 +32,49 @@ app.config["TEMPLATES_AUTO_RELOAD"] = True
 app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+if os.environ.get("PORT") or os.environ.get("FORCE_HTTPS_COOKIE") == "1":
+    app.config["SESSION_COOKIE_SECURE"] = True
+
+# Rate limiter em memória para proteção contra força bruta no Login
+_login_attempts: Dict[str, list] = {}
+_login_lock = threading.Lock()
+
+# Semáforo global para evitar sobrecarga de RAM do Chromium com múltiplos usuários
+_search_semaphore = threading.Semaphore(int(os.environ.get("MAX_CONCURRENT_SEARCHES", "1")))
+
+
+def _client_ip() -> str:
+    fwd = request.headers.get("X-Forwarded-For", "").split(",")[0].strip()
+    return fwd or request.remote_addr or "unknown"
+
+
+def _is_login_blocked(ip: str) -> bool:
+    now = time.time()
+    with _login_lock:
+        recent = [t for t in _login_attempts.get(ip, []) if now - t < 600]
+        _login_attempts[ip] = recent
+        return len(recent) >= 10
+
+
+def _record_login_failure(ip: str):
+    now = time.time()
+    with _login_lock:
+        arr = [t for t in _login_attempts.get(ip, []) if now - t < 600]
+        arr.append(now)
+        _login_attempts[ip] = arr
+
+
+def _clear_login_failures(ip: str):
+    with _login_lock:
+        _login_attempts.pop(ip, None)
+
+
+@app.after_request
+def _add_security_headers(resp):
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+    resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    return resp
 
 def _load_secret_key() -> str:
     env_key = os.environ.get("SECRET_KEY")
@@ -122,6 +168,21 @@ def admin_required(fn):
     return wrapper
 
 
+def subscription_required(fn):
+    @wraps(fn)
+    @login_required
+    def wrapper(*args, **kwargs):
+        acc = get_user_access_status(current_user_id())
+        if not acc.get("active"):
+            return jsonify({
+                "success": False,
+                "subscription_expired": True,
+                "error": "Seu período de teste ou assinatura expirou. Renove para continuar."
+            }), 402
+        return fn(*args, **kwargs)
+    return wrapper
+
+
 def run_scraper_thread(
     user_id: int, query: str, niche: str, street: str, neighborhood: str, city: str,
     lat: Optional[float], lon: Optional[float], target_limit: int, visible_browser: bool,
@@ -158,11 +219,20 @@ def run_scraper_thread(
         if lon is not None and not lead.get("lon"):
             lead["lon"] = lon
         lead_id, is_new = upsert_lead(lead, user_id=user_id)
+        if not lead_id:
+            return
         lead["id"] = lead_id
         lead["is_new"] = is_new
         broadcast_event("lead_found", lead, user_id=user_id)
         if lead.get("clean_phone"):
             broadcast_event("queue_updated", wa.get_queue_summary(), user_id=user_id)
+
+    if not _search_semaphore.acquire(timeout=120):
+        log_cb("Servidor ocupado com outra busca no momento. Tente novamente em instantes.")
+        broadcast_event("search_error", {"error": "Servidor ocupado com outra busca. Tente novamente em instantes."}, user_id=user_id)
+        st["is_running"] = False
+        broadcast_event("search_finished", {}, user_id=user_id)
+        return
 
     scraper = GoogleMapsScraper(headless=not visible_browser, log_callback=log_cb)
     st["scraper_instance"] = scraper
@@ -238,6 +308,10 @@ def run_scraper_thread(
         log_cb(f"Erro na busca: {str(e)}")
         broadcast_event("search_error", {"error": str(e)}, user_id=user_id)
     finally:
+        try:
+            _search_semaphore.release()
+        except Exception:
+            pass
         st["is_running"] = False
         st["scraper_instance"] = None
         broadcast_event("search_finished", {}, user_id=user_id)
@@ -261,8 +335,11 @@ def health():
 @app.route("/")
 @login_required
 def index():
-    user = get_user_by_id(current_user_id())
-    return render_template("index.html", current_user=user)
+    uid = current_user_id()
+    user = get_user_by_id(uid)
+    access_status = get_user_access_status(uid)
+    checkout_url = os.environ.get("CHECKOUT_URL", "")
+    return render_template("index.html", current_user=user, access_status=access_status, checkout_url=checkout_url)
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -271,14 +348,22 @@ def login_page():
         if current_user_id() and get_user_by_id(current_user_id()):
             return redirect(url_for("index"))
         return render_template("auth.html", mode="login")
+    ip = _client_ip()
+    if _is_login_blocked(ip):
+        msg = "Muitas tentativas de login. Aguarde 10 minutos."
+        if request.is_json:
+            return jsonify({"success": False, "error": msg}), 429
+        return render_template("auth.html", mode="login", error=msg)
     data = request.get_json(silent=True) or request.form
     email = data.get("email", "")
     password = data.get("password", "")
     user = authenticate_user(email, password)
     if not user:
+        _record_login_failure(ip)
         if request.is_json:
             return jsonify({"success": False, "error": "E-mail ou senha inválidos (ou conta desativada)."}), 401
         return render_template("auth.html", mode="login", error="E-mail ou senha inválidos.")
+    _clear_login_failures(ip)
     session["user_id"] = user["id"]
     session.permanent = True
     if request.is_json:
@@ -292,12 +377,27 @@ def register_page():
         if current_user_id() and get_user_by_id(current_user_id()):
             return redirect(url_for("index"))
         return render_template("auth.html", mode="register")
+
+    if os.environ.get("ALLOW_PUBLIC_SIGNUP", "1") != "1":
+        msg = "Cadastro público fechado. Adquira um plano ou solicite acesso ao administrador."
+        if request.is_json:
+            return jsonify({"success": False, "error": msg}), 403
+        return render_template("auth.html", mode="register", error=msg)
+
+    ip = _client_ip()
+    if count_recent_signups_by_ip(ip, hours=24) >= 2:
+        msg = "Limite de contas de teste atingido para este endereço. Tente novamente amanhã."
+        if request.is_json:
+            return jsonify({"success": False, "error": msg}), 429
+        return render_template("auth.html", mode="register", error=msg)
+
     data = request.get_json(silent=True) or request.form
     name = data.get("name", "")
     email = data.get("email", "")
     password = data.get("password", "")
     company_name = data.get("company_name", "")
-    uid, err = create_user(name, email, password, company_name=company_name, role="user", plan="pro")
+    # Novos cadastros públicos entram automaticamente no Teste Grátis: 3 dias e até 25 leads
+    uid, err = create_user(name, email, password, company_name=company_name, role="user", plan="trial", days=3, max_leads=25, signup_ip=ip)
     if err or not uid:
         if request.is_json:
             return jsonify({"success": False, "error": err or "Erro ao criar conta."}), 400
@@ -334,7 +434,7 @@ def api_me():
                 return jsonify({"success": False, "error": "A nova senha deve ter pelo menos 6 caracteres."}), 400
             allowed_updates["password"] = data["password"]
         update_user(uid, allowed_updates)
-    return jsonify({"success": True, "user": get_user_by_id(uid)})
+    return jsonify({"success": True, "user": get_user_by_id(uid), "access": get_user_access_status(uid)})
 
 
 @app.route("/api/admin/users", methods=["GET", "POST"])
@@ -350,6 +450,7 @@ def api_admin_users():
         company_name=data.get("company_name", ""),
         role=data.get("role", "user"),
         plan=data.get("plan", "pro"),
+        days=int(data.get("days")) if data.get("days") else None,
     )
     if err:
         return jsonify({"success": False, "error": err}), 400
@@ -362,6 +463,93 @@ def api_admin_update_user(target_id):
     data = request.get_json(silent=True) or {}
     ok = update_user(target_id, data)
     return jsonify({"success": ok, "user": get_user_by_id(target_id)})
+
+
+@app.route("/api/admin/users/<int:target_id>/renew", methods=["POST"])
+@admin_required
+def api_admin_renew_user(target_id):
+    data = request.get_json(silent=True) or {}
+    days = int(data.get("days", 30))
+    plan = data.get("plan")
+    updated = extend_user_subscription(target_id, days=days, plan=plan)
+    if not updated:
+        return jsonify({"success": False, "error": "Usuário não encontrado."}), 404
+    return jsonify({"success": True, "user": updated})
+
+
+@app.route("/api/admin/cleanup-trials", methods=["POST"])
+@admin_required
+def api_admin_cleanup_trials():
+    data = request.get_json(silent=True) or {}
+    grace_days = int(data.get("grace_days", 15))
+    removed = cleanup_expired_trials(grace_days=grace_days)
+    return jsonify({"success": True, "removed": removed})
+
+
+@app.route("/api/billing/webhook", methods=["POST"])
+@app.route("/api/billing/webhook/<gateway>", methods=["POST"])
+def api_billing_webhook(gateway="generic"):
+    """
+    Webhook universal para liberação/bloqueio automático de assinantes:
+    Compatível com Kiwify, Cakto, Asaas, Mercado Pago ou integração própria.
+    Protegido por BILLING_WEBHOOK_SECRET (?token=... ou header X-Webhook-Token).
+    """
+    expected = os.environ.get("BILLING_WEBHOOK_SECRET", "").strip()
+    if expected:
+        got = (
+            request.args.get("token")
+            or request.headers.get("X-Webhook-Token")
+            or request.headers.get("asaas-access-token")
+            or ""
+        ).strip()
+        if not secrets.compare_digest(got, expected):
+            return jsonify({"success": False, "error": "Invalid webhook token"}), 403
+
+    payload = request.get_json(silent=True) or {}
+    gw = (gateway or "generic").lower()
+
+    # Extração normalizada de evento, email, nome e plano
+    event_name = str(
+        payload.get("webhook_event_type")
+        or payload.get("event")
+        or payload.get("action")
+        or payload.get("type")
+        or ""
+    ).lower()
+
+    customer = payload.get("Customer") or payload.get("customer") or payload.get("payer") or {}
+    email = str(
+        customer.get("email")
+        or payload.get("email")
+        or (payload.get("payment") or {}).get("customerEmail")
+        or ""
+    ).strip().lower()
+    name = str(customer.get("full_name") or customer.get("name") or payload.get("name") or (email.split("@")[0] if email else "Assinante")).strip()
+    plan = str(payload.get("plan") or "pro").lower()
+    days = int(payload.get("days") or 30)
+
+    if not email:
+        return jsonify({"success": True, "ignored": True, "reason": "no_email"}), 200
+
+    approved_events = ("paid", "approved", "order_approved", "subscription_renewed", "subscription_authorized", "payment_confirmed", "payment_received", "active")
+    cancel_events = ("refunded", "chargedback", "canceled", "cancelled", "subscription_canceled", "subscription_late", "payment_overdue", "expired")
+
+    user = find_user_by_email(email)
+
+    if any(k in event_name for k in approved_events) or payload.get("status") in ("paid", "approved", "CONFIRMED", "RECEIVED"):
+        if not user:
+            temp_pass = secrets.token_urlsafe(10)
+            uid, err = create_user(name, email, temp_pass, role="user", plan=plan, days=days)
+            return jsonify({"success": bool(uid), "action": "created_and_activated", "user_id": uid})
+        updated = extend_user_subscription(user["id"], days=days, plan=plan)
+        return jsonify({"success": True, "action": "renewed", "user_id": user["id"], "expires_at": (updated or {}).get("plan_expires_at")})
+
+    if any(k in event_name for k in cancel_events):
+        if user:
+            update_user(user["id"], {"subscription_status": "expired"})
+            return jsonify({"success": True, "action": "expired", "user_id": user["id"]})
+
+    return jsonify({"success": True, "ignored": True, "event": event_name}), 200
 
 @app.route("/api/address/suggest")
 def api_address_suggest():
@@ -731,9 +919,15 @@ def api_search_history():
 
 
 @app.route("/api/search/start", methods=["POST"])
-@login_required
+@subscription_required
 def api_search_start():
     uid = current_user_id()
+    acc = get_user_access_status(uid)
+    if acc.get("leads_limit_reached"):
+        return jsonify({
+            "success": False,
+            "error": f"Você atingiu o limite de {acc.get('max_leads')} leads do seu plano ({acc.get('plan')}). Faça upgrade para continuar."
+        }), 402
     st = get_user_search_state(uid)
     if st["is_running"]:
         return jsonify({"success": False, "error": "Já existe uma busca em andamento para a sua conta."}), 400
@@ -750,6 +944,9 @@ def api_search_start():
     lat = data.get("lat")
     lon = data.get("lon")
     target_limit = int(data.get("target_limit") or (80 if mode == "all" else (20 if mode == "multi" else 40)))
+    if acc.get("max_leads", 0) > 0:
+        remaining = max(1, acc["max_leads"] - acc.get("leads_count", 0))
+        target_limit = min(target_limit, remaining)
     visible_browser = bool(data.get("visible_browser", False))
 
     if not street and not neighborhood and not city and not niche:
@@ -1253,9 +1450,15 @@ def api_wa_status():
 
 
 @app.route("/api/wa/connect", methods=["POST"])
-@login_required
+@subscription_required
 def api_wa_connect():
     uid = current_user_id()
+    user = get_user_by_id(uid)
+    if user and user.get("role") != "admin" and user.get("plan") == "trial":
+        return jsonify({
+            "success": False,
+            "error": "Conexão WhatsApp QR automática disponível a partir do plano Starter/PRO. No Teste Grátis use o WhatsApp Web 1-Clique!"
+        }), 403
     wa.ensure_service_running()
     force = bool((request.get_json(silent=True) or {}).get("force"))
     return jsonify(wa.wa_request("POST", "/connect", {"session_id": str(uid), "force": force}, timeout=15))
@@ -1446,13 +1649,51 @@ def api_wa_incoming():
 @app.route("/api/wa/activity")
 @login_required
 def api_wa_activity():
-    return jsonify(wa.get_recent_activity(40))
+    uid = current_user_id()
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT m.*, l.name AS lead_name FROM wa_messages m
+            LEFT JOIN leads l ON l.id = m.lead_id
+            WHERE m.user_id = ?
+            ORDER BY m.id DESC LIMIT 40
+        """, (uid,))
+        return jsonify([dict(r) for r in cur.fetchall()])
+    finally:
+        conn.close()
 
 
 @app.route("/api/leads/<int:lead_id>/conversation")
 @login_required
 def api_lead_conversation(lead_id):
     return jsonify(wa.get_conversation(lead_id, user_id=current_user_id()))
+
+
+def _maintenance_loop():
+    """Limpeza automática de contas de teste abandonadas e backup diário do SQLite."""
+    while True:
+        try:
+            cleanup_expired_trials(grace_days=15)
+            db_dir = os.path.dirname(os.path.abspath(DB_PATH))
+            backup_dir = os.path.join(db_dir, "backups")
+            os.makedirs(backup_dir, exist_ok=True)
+            backup_file = os.path.join(backup_dir, f"mapaleads_{time.strftime('%Y%m%d')}.db")
+            if os.path.exists(DB_PATH) and not os.path.exists(backup_file):
+                shutil.copy2(DB_PATH, backup_file)
+                # Mantém apenas os últimos 5 backups diários
+                files = sorted([f for f in os.listdir(backup_dir) if f.endswith(".db")])
+                for old_f in files[:-5]:
+                    try:
+                        os.remove(os.path.join(backup_dir, old_f))
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        time.sleep(12 * 3600)
+
+
+threading.Thread(target=_maintenance_loop, daemon=True).start()
 
 
 if __name__ == "__main__":

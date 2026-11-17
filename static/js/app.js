@@ -1332,7 +1332,31 @@ async function sendChatMessage() {
 }
 
 // ==================== ADMIN ====================
+function copyBillingWebhookUrl() {
+  const url = document.getElementById('billing-webhook-url')?.textContent || '';
+  if (url) {
+    navigator.clipboard.writeText(url);
+    toast('Webhook de cobrança copiado!', 'success');
+  }
+}
+
 function initAdminControls() {
+  const bWh = document.getElementById('billing-webhook-url');
+  if (bWh) bWh.textContent = `${window.location.origin}/api/billing/webhook`;
+
+  document.getElementById('btn-cleanup-trials')?.addEventListener('click', async () => {
+    const res = await apiFetch('/api/admin/cleanup-trials', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ grace_days: 15 })
+    });
+    const d = await res.json();
+    if (d.success) {
+      toast(`${d.removed || 0} conta(s) de teste abandonada(s) removida(s).`, 'success');
+      loadAdminUsers();
+    }
+  });
+
   document.getElementById('form-admin-create-user')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const payload = Object.fromEntries(new FormData(e.target).entries());
@@ -1359,22 +1383,42 @@ async function loadAdminUsers() {
     const res = await apiFetch('/api/admin/users');
     const d = await res.json();
     if (!d.success) return;
-    tb.innerHTML = d.users.map(u => `
+    tb.innerHTML = d.users.map(u => {
+      const exp = u.plan_expires_at ? u.plan_expires_at.slice(0, 10) : (u.role === 'admin' ? 'Vitalício' : '-');
+      const limitStr = u.max_leads > 0 ? ` / ${u.max_leads}` : '';
+      const subSt = u.subscription_status || 'active';
+      const isOk = u.is_active && subSt !== 'expired' && subSt !== 'suspended';
+      return `
       <tr>
         <td>#${u.id}</td>
         <td><strong>${escapeHtml(u.name)}</strong><div class="text-muted" style="font-size:0.75rem">${escapeHtml(u.company_name || '')}</div></td>
         <td>${escapeHtml(u.email)}</td>
         <td><span class="status-pill">${escapeHtml(u.plan)}</span></td>
-        <td>${u.leads_count || 0}</td>
-        <td><span class="status-pill ${u.is_active ? 'ok' : 'err'}">${u.is_active ? 'Ativa' : 'Inativa'}</span></td>
-        <td>
+        <td>${escapeHtml(exp)}</td>
+        <td>${u.leads_count || 0}${limitStr}</td>
+        <td><span class="status-pill ${isOk ? 'ok' : 'err'}">${u.is_active ? escapeHtml(subSt) : 'bloqueada'}</span></td>
+        <td style="display:flex; gap:6px; flex-wrap:wrap;">
+          <button class="btn btn-emerald btn-xs" onclick="renewUser(${u.id}, 30)">+30d</button>
           <button class="btn btn-outline btn-xs" onclick="toggleUserActive(${u.id}, ${u.is_active ? 0 : 1})">
-            ${u.is_active ? 'Desativar' : 'Ativar'}
+            ${u.is_active ? 'Bloquear' : 'Liberar'}
           </button>
         </td>
-      </tr>
-    `).join('');
+      </tr>`;
+    }).join('');
   } catch (e) {}
+}
+
+async function renewUser(uid, days = 30) {
+  const res = await apiFetch(`/api/admin/users/${uid}/renew`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ days, plan: 'pro' })
+  });
+  const d = await res.json();
+  if (d.success) {
+    toast(`Assinatura renovada por +${days} dias (Plano PRO)!`, 'success');
+    loadAdminUsers();
+  }
 }
 
 async function toggleUserActive(uid, active) {
