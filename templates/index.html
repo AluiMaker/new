@@ -24,17 +24,25 @@
   <link rel="stylesheet" href="/static/css/style.css?v=4.0">
 </head>
 <body>
+  <script>
+    if (localStorage.getItem('ml_theme') === 'dark') document.body.classList.add('dark-theme');
+    if (localStorage.getItem('ml_sidebar_collapsed') === '1') document.body.classList.add('sidebar-collapsed');
+  </script>
+  <div class="sidebar-backdrop hidden" id="sidebar-backdrop"></div>
   <div class="app-shell">
     <!-- ==================== SIDEBAR ==================== -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <div class="brand">
           <div class="brand-icon"><i class="fa-solid fa-location-crosshairs"></i></div>
-          <div>
+          <div class="brand-text">
             <span class="brand-name">MapaLeads <span class="brand-tag">PRO</span></span>
             <span class="brand-sub">Prospecção & CRM</span>
           </div>
         </div>
+        <button class="icon-btn desktop-only" id="btn-toggle-sidebar" title="Recolher / Expandir menu" aria-label="Recolher menu">
+          <i class="fa-solid fa-angles-left"></i>
+        </button>
         <button class="icon-btn mobile-only" id="btn-close-sidebar" aria-label="Fechar menu">
           <i class="fa-solid fa-xmark"></i>
         </button>
@@ -42,43 +50,43 @@
 
       <nav class="sidebar-nav">
         <div class="nav-group-label">Principal</div>
-        <button class="nav-item active" data-tab="tab-dashboard">
+        <button class="nav-item active" data-tab="tab-dashboard" title="Visão Geral">
           <i class="fa-solid fa-chart-pie"></i>
           <span>Visão Geral</span>
         </button>
-        <button class="nav-item" data-tab="tab-search">
+        <button class="nav-item" data-tab="tab-search" title="Buscar Empresas">
           <i class="fa-solid fa-magnifying-glass-location"></i>
           <span>Buscar Empresas</span>
           <span class="nav-dot hidden" id="nav-search-dot"></span>
         </button>
-        <button class="nav-item" data-tab="tab-map">
+        <button class="nav-item" data-tab="tab-map" title="Mapa de Oportunidades">
           <i class="fa-solid fa-map-location-dot"></i>
           <span>Mapa de Oportunidades</span>
         </button>
 
         <div class="nav-group-label">Vendas & Prospecção</div>
-        <button class="nav-item" data-tab="tab-crm">
+        <button class="nav-item" data-tab="tab-crm" title="CRM & Pipeline">
           <i class="fa-solid fa-table-columns"></i>
           <span>CRM & Pipeline</span>
           <span class="nav-badge" id="badge-crm-novo">0</span>
         </button>
-        <button class="nav-item" data-tab="tab-chat">
+        <button class="nav-item" data-tab="tab-chat" title="Chat / Conversas">
           <i class="fa-solid fa-comments"></i>
           <span>Chat / Conversas</span>
           <span class="nav-badge hidden" id="badge-chat-replies" style="background:#10b981;">0</span>
         </button>
-        <button class="nav-item" data-tab="tab-templates">
+        <button class="nav-item" data-tab="tab-templates" title="Modelos de Copy">
           <i class="fa-solid fa-message"></i>
           <span>Modelos de Copy</span>
         </button>
 
         <div class="nav-group-label">Sistema</div>
-        <button class="nav-item" data-tab="tab-settings">
+        <button class="nav-item" data-tab="tab-settings" title="WhatsApp & Conta">
           <i class="fa-brands fa-whatsapp"></i>
           <span>WhatsApp & Conta</span>
         </button>
         {% if current_user and current_user.role == 'admin' %}
-        <button class="nav-item" data-tab="tab-admin">
+        <button class="nav-item" data-tab="tab-admin" title="Painel Admin">
           <i class="fa-solid fa-shield-halved"></i>
           <span>Painel Admin</span>
         </button>
@@ -121,6 +129,9 @@
             <span class="pulse-dot"></span>
             <span id="topbar-live-text">Buscando...</span>
           </div>
+          <button class="icon-btn" id="btn-toggle-theme" title="Alternar modo Claro / Escuro" aria-label="Alternar tema">
+            <i class="fa-solid fa-moon"></i>
+          </button>
           <button class="btn btn-outline btn-sm" id="btn-export-csv">
             <i class="fa-solid fa-file-csv"></i> Exportar Excel/CSV
           </button>

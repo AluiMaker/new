@@ -1,5 +1,7 @@
-# Substitua {$APP_DOMAIN} pelo seu domínio ou subdomínio (ex: app.seudominio.com.br ou seuip.sslip.io)
-{$APP_DOMAIN:localhost} {
+mapaleadspro.online, www.mapaleadspro.online {
     reverse_proxy mapaleads:5055
 }
 
+204.216.136.105.sslip.io {
+    reverse_proxy mapaleads:5055
+}

@@ -85,17 +85,55 @@ function formatBRL(v) {
   return Number(v || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 }
 
-// ==================== NAVIGATION ====================
+// ==================== NAVIGATION, THEME & SIDEBAR ====================
 function initNavigation() {
   document.querySelectorAll('.nav-item[data-tab]').forEach(btn => {
     btn.addEventListener('click', () => switchTab(btn.dataset.tab));
   });
-  document.getElementById('btn-open-sidebar')?.addEventListener('click', () => {
+
+  const openSidebarMobile = () => {
     document.getElementById('sidebar').classList.add('open');
-  });
-  document.getElementById('btn-close-sidebar')?.addEventListener('click', () => {
+    document.getElementById('sidebar-backdrop')?.classList.remove('hidden');
+  };
+  const closeSidebarMobile = () => {
     document.getElementById('sidebar').classList.remove('open');
+    document.getElementById('sidebar-backdrop')?.classList.add('hidden');
+  };
+
+  document.getElementById('btn-open-sidebar')?.addEventListener('click', openSidebarMobile);
+  document.getElementById('btn-close-sidebar')?.addEventListener('click', closeSidebarMobile);
+  document.getElementById('sidebar-backdrop')?.addEventListener('click', closeSidebarMobile);
+
+  // Menu retrátil desktop
+  const syncCollapseIcon = () => {
+    const collapsed = document.body.classList.contains('sidebar-collapsed');
+    const icon = document.querySelector('#btn-toggle-sidebar i');
+    if (icon) icon.className = collapsed ? 'fa-solid fa-angles-right' : 'fa-solid fa-angles-left';
+  };
+  syncCollapseIcon();
+  document.getElementById('btn-toggle-sidebar')?.addEventListener('click', () => {
+    document.body.classList.toggle('sidebar-collapsed');
+    const collapsed = document.body.classList.contains('sidebar-collapsed');
+    localStorage.setItem('ml_sidebar_collapsed', collapsed ? '1' : '0');
+    syncCollapseIcon();
+    setTimeout(() => STATE.map?.invalidateSize(), 220);
   });
+
+  // Modo Dark / Claro
+  const syncThemeIcon = () => {
+    const isDark = document.body.classList.contains('dark-theme');
+    const icon = document.querySelector('#btn-toggle-theme i');
+    if (icon) icon.className = isDark ? 'fa-solid fa-sun' : 'fa-solid fa-moon';
+  };
+  syncThemeIcon();
+  document.getElementById('btn-toggle-theme')?.addEventListener('click', () => {
+    document.body.classList.toggle('dark-theme');
+    const isDark = document.body.classList.contains('dark-theme');
+    localStorage.setItem('ml_theme', isDark ? 'dark' : 'light');
+    syncThemeIcon();
+    if (STATE.stats) renderCharts(STATE.stats);
+  });
+
   document.getElementById('btn-export-csv')?.addEventListener('click', () => {
     const opp = document.getElementById('crm-filter-opportunity')?.value || 'all';
     const wt = document.getElementById('crm-filter-website')?.value || 'all';
@@ -110,6 +148,7 @@ function switchTab(tabId) {
   document.getElementById('topbar-title').textContent = meta[0];
   document.getElementById('topbar-subtitle').textContent = meta[1];
   document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-backdrop')?.classList.add('hidden');
 
   if (tabId === 'tab-map') {
     setTimeout(() => {
@@ -154,6 +193,10 @@ async function loadStats() {
 
 function renderCharts(st) {
   if (typeof Chart === 'undefined') return;
+  const isDark = document.body.classList.contains('dark-theme');
+  const tickColor = isDark ? '#94a3b8' : '#64748b';
+  const gridColor = isDark ? 'rgba(148, 163, 184, 0.12)' : 'rgba(15, 23, 42, 0.06)';
+
   const opps = st.opportunities || {};
   const ctx1 = document.getElementById('chart-opportunities');
   if (ctx1) {
@@ -169,7 +212,15 @@ function renderCharts(st) {
           borderRadius: 8,
         }]
       },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: tickColor }, grid: { color: gridColor } },
+          y: { ticks: { color: tickColor }, grid: { color: gridColor } }
+        }
+      }
     });
   }
 
@@ -184,9 +235,14 @@ function renderCharts(st) {
         datasets: [{
           data: [cs.novo || 0, cs.contatado || 0, cs.respondeu || 0, cs.negociacao || 0, cs.fechado || 0],
           backgroundColor: ['#94a3b8', '#2563eb', '#f59e0b', '#7c3aed', '#10b981'],
+          borderColor: isDark ? '#111827' : '#ffffff',
         }]
       },
-      options: { responsive: true, maintainAspectRatio: false }
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: tickColor } } }
+      }
     });
   }
 }
