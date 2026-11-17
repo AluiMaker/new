@@ -582,12 +582,20 @@ function initCrmControls() {
   document.getElementById('crm-search-input')?.addEventListener('input', debounce(loadLeads, 280));
   document.getElementById('crm-filter-opportunity')?.addEventListener('change', loadLeads);
   document.getElementById('crm-filter-website')?.addEventListener('change', loadLeads);
+  document.getElementById('crm-filter-wa')?.addEventListener('change', () => {
+    renderKanban();
+    renderTable();
+  });
+
+  document.getElementById('btn-verify-wa-crm')?.addEventListener('click', verifyWhatsAppBatchFromCrm);
+  document.getElementById('btn-purge-no-wa')?.addEventListener('click', () => cleanupLeads('sem_whatsapp'));
 
   document.getElementById('btn-dedup-leads')?.addEventListener('click', async () => {
     const res = await apiFetch('/api/leads/deduplicate', { method: 'POST' });
     const d = await res.json();
     toast(`${d.duplicates_removed || 0} leads duplicados removidos.`, 'success');
     loadAllData();
+    refreshTopbarQuota();
   });
 
   // Drag and drop nas colunas Kanban
@@ -641,9 +649,29 @@ function renderOpportunityBadges(opps = []) {
   }).join('');
 }
 
+function getFilteredCrmLeads() {
+  const waFilter = document.getElementById('crm-filter-wa')?.value || 'all';
+  return (STATE.leads || []).filter(l => {
+    if (waFilter === 'mobile') return l.phone_type !== 'fixed' && l.whatsapp_verified !== -1 && l.crm_status !== 'sem_whatsapp' && Boolean(l.clean_phone);
+    if (waFilter === 'sem_whatsapp') return l.crm_status === 'sem_whatsapp' || l.whatsapp_verified === -1 || l.whatsapp_status === 'sem_whatsapp' || !l.clean_phone;
+    if (waFilter === 'fixed') return l.phone_type === 'fixed';
+    return true;
+  });
+}
+
+function renderPhoneStatusBadge(l) {
+  if (l.crm_status === 'sem_whatsapp' || l.whatsapp_verified === -1 || l.whatsapp_status === 'sem_whatsapp' || !l.clean_phone) {
+    return '<span class="opp-badge opp-nowa"><i class="fa-solid fa-phone-slash"></i> Sem WhatsApp</span>';
+  }
+  if (l.phone_type === 'fixed') {
+    return '<span class="opp-badge opp-fixed"><i class="fa-solid fa-phone"></i> Fixo</span>';
+  }
+  return '';
+}
+
 function renderKanban() {
-  const cols = { novo: [], contatado: [], respondeu: [], negociacao: [], fechado: [] };
-  STATE.leads.forEach(l => {
+  const cols = { novo: [], contatado: [], respondeu: [], negociacao: [], fechado: [], sem_whatsapp: [], perdido: [] };
+  getFilteredCrmLeads().forEach(l => {
     const st = cols[l.crm_status] ? l.crm_status : 'novo';
     cols[st].push(l);
   });
@@ -653,12 +681,17 @@ function renderKanban() {
     if (!container) return;
     container.innerHTML = items.map(l => `
       <div class="lead-card" data-id="${l.id}">
-        <div class="lead-card-title">${escapeHtml(l.name)}</div>
+        <div class="lead-card-top">
+          <div class="lead-card-title">${escapeHtml(l.name)}</div>
+          <button type="button" class="lead-card-del" onclick="event.stopPropagation(); deleteLeadQuick(${l.id}, '${escapeHtml(l.name).replace(/'/g, "\\'")}')" title="Excluir lead">
+            <i class="fa-solid fa-trash-can"></i>
+          </button>
+        </div>
         <div class="lead-card-sub">${escapeHtml(l.category || 'Negócio local')} · ${escapeHtml(l.neighborhood || l.city || '')}</div>
-        <div class="lead-card-badges">${renderOpportunityBadges(l.opportunities)}</div>
+        <div class="lead-card-badges">${renderPhoneStatusBadge(l)}${renderOpportunityBadges(l.opportunities)}</div>
         <div class="lead-card-foot">
           <span><i class="fa-solid fa-star" style="color:#f59e0b"></i> ${l.rating || '-'} (${l.reviews_count || 0})</span>
-          <span>${l.sale_value ? formatBRL(l.sale_value) : escapeHtml(l.phone || '')}</span>
+          <span>${l.sale_value ? formatBRL(l.sale_value) : escapeHtml(l.phone || 'Sem tel.')}</span>
         </div>
       </div>
     `).join('');
@@ -670,30 +703,125 @@ function renderKanban() {
 }
 
 function updateColumnCounts() {
-  ['novo', 'contatado', 'respondeu', 'negociacao', 'fechado'].forEach(st => {
+  ['novo', 'contatado', 'respondeu', 'negociacao', 'fechado', 'sem_whatsapp', 'perdido'].forEach(st => {
     const c = document.getElementById(`col-${st}`);
     const cnt = document.getElementById(`cnt-${st}`);
     if (c && cnt) cnt.textContent = c.children.length;
   });
+  const noWaCount = (STATE.leads || []).filter(l => l.crm_status === 'sem_whatsapp' || l.whatsapp_verified === -1 || l.whatsapp_status === 'sem_whatsapp' || !l.clean_phone).length;
+  const purgeEl = document.getElementById('cnt-purge-nowa');
+  if (purgeEl) purgeEl.textContent = noWaCount;
 }
 
 function renderTable() {
   const tb = document.getElementById('crm-table-tbody');
   if (!tb) return;
-  if (!STATE.leads.length) {
+  const rows = getFilteredCrmLeads();
+  if (!rows.length) {
     tb.innerHTML = '<tr><td colspan="6" class="text-muted">Nenhum lead encontrado com os filtros atuais.</td></tr>';
     return;
   }
-  tb.innerHTML = STATE.leads.map(l => `
+  const statusLabels = {
+    novo: 'Novo', contatado: 'Contatado', respondeu: 'Respondeu',
+    negociacao: 'Proposta', fechado: 'Fechado', sem_whatsapp: 'Sem WhatsApp', perdido: 'Perdido'
+  };
+  tb.innerHTML = rows.map(l => `
     <tr>
       <td><strong>${escapeHtml(l.name)}</strong><div class="text-muted" style="font-size:0.75rem">${escapeHtml(l.category || '')} · ${escapeHtml(l.neighborhood || l.city || '')}</div></td>
-      <td>${escapeHtml(l.phone || '-')}</td>
+      <td>${escapeHtml(l.phone || '-')}<div>${renderPhoneStatusBadge(l)}</div></td>
       <td><div style="display:flex;gap:4px;flex-wrap:wrap">${renderOpportunityBadges(l.opportunities)}</div></td>
       <td>${l.rating || '-'} ⭐ (${l.reviews_count || 0})</td>
-      <td><span class="status-pill">${escapeHtml(l.crm_status)}</span></td>
-      <td><button class="btn btn-outline btn-xs" onclick="openLeadDrawerById(${l.id})">Abrir</button></td>
+      <td><span class="status-pill">${escapeHtml(statusLabels[l.crm_status] || l.crm_status)}</span></td>
+      <td style="white-space:nowrap;">
+        <button class="btn btn-outline btn-xs" onclick="openLeadDrawerById(${l.id})">Abrir</button>
+        ${l.crm_status !== 'sem_whatsapp' ? `<button class="btn btn-outline btn-xs" onclick="quickMarkStatus(${l.id}, 'sem_whatsapp')" title="Marcar sem WhatsApp"><i class="fa-solid fa-phone-slash"></i></button>` : ''}
+        <button class="btn btn-outline btn-xs text-danger" onclick="deleteLeadQuick(${l.id}, '${escapeHtml(l.name).replace(/'/g, "\\'")}')" title="Excluir lead"><i class="fa-solid fa-trash-can"></i></button>
+      </td>
     </tr>
   `).join('');
+}
+
+async function deleteLeadQuick(leadId, leadName = '') {
+  if (!confirm(`Excluir "${leadName || 'este lead'}" da sua base e liberar vaga na cota?`)) return;
+  const res = await apiFetch(`/api/leads/${leadId}`, { method: 'DELETE' });
+  const d = await res.json();
+  if (d.success) {
+    toast('Lead excluído e vaga liberada.', 'info');
+    if (d.access) updateTopbarQuotaDisplay(d.access);
+    loadAllData();
+  }
+}
+
+async function quickMarkStatus(leadId, newStatus) {
+  await apiFetch(`/api/leads/${leadId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ crm_status: newStatus })
+  });
+  toast(newStatus === 'sem_whatsapp' ? 'Movido para Sem WhatsApp.' : 'Movido para Lead Perdido.', 'info');
+  loadAllData();
+}
+
+async function cleanupLeads(mode = 'sem_whatsapp') {
+  const msg = mode === 'perdido'
+    ? 'Excluir TODOS os leads marcados como "Lead Perdido" para limpar seu funil e liberar espaço?'
+    : 'Excluir TODOS os leads sem WhatsApp confirmado (ou sem telefone) para liberar espaço na sua conta?';
+  if (!confirm(msg)) return;
+  const res = await apiFetch('/api/leads/cleanup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode })
+  });
+  const d = await res.json();
+  if (d.success) {
+    toast(`${d.removed || 0} lead(s) removidos! Espaço liberado na sua conta.`, 'success');
+    if (d.access) updateTopbarQuotaDisplay(d.access);
+    loadAllData();
+  } else {
+    toast(d.error || 'Erro ao limpar leads.', 'error');
+  }
+}
+
+async function verifyWhatsAppBatchFromCrm() {
+  const btn = document.getElementById('btn-verify-wa-crm');
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Verificando...'; }
+  try {
+    const res = await apiFetch('/api/leads/verify-whatsapp-all', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ only_unverified: true })
+    });
+    const d = await res.json();
+    if (!d.success) {
+      toast(d.error || 'Conecte seu WhatsApp QR em "WhatsApp & Conta" para verificar números automaticamente.', 'info');
+      return;
+    }
+    toast(`Verificados: ${d.active || 0} têm WhatsApp e ${d.inactive || 0} foram movidos para "Sem WhatsApp".`, 'success');
+    loadAllData();
+  } catch (e) {
+    toast('Erro ao verificar números.', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+  }
+}
+
+function updateTopbarQuotaDisplay(acc) {
+  const pt = document.getElementById('topbar-plan-text');
+  if (!pt || !acc) return;
+  if (acc.plan === 'trial') {
+    pt.innerHTML = `Teste (${acc.hours_left || 24}h) · ${acc.leads_count}/${acc.max_leads} leads · <u>Assinar</u>`;
+  } else if (acc.max_leads > 0) {
+    pt.textContent = `${String(acc.plan).toUpperCase()}: ${acc.leads_count}/${acc.max_leads} leads salvos · ${acc.days_left}d`;
+  }
+}
+
+async function refreshTopbarQuota() {
+  try {
+    const r = await apiFetch('/api/me');
+    const d = await r.json();
+    if (d.access) updateTopbarQuotaDisplay(d.access);
+  } catch (e) {}
 }
 
 // ==================== LEAD DRAWER ====================
@@ -790,11 +918,27 @@ function initDrawerControls() {
     loadAllData();
   });
 
+  document.getElementById('btn-drawer-mark-no-wa')?.addEventListener('click', async () => {
+    const l = STATE.selectedLead;
+    if (!l) return;
+    await quickMarkStatus(l.id, 'sem_whatsapp');
+    closeLeadDrawer();
+  });
+
+  document.getElementById('btn-drawer-mark-lost')?.addEventListener('click', async () => {
+    const l = STATE.selectedLead;
+    if (!l) return;
+    await quickMarkStatus(l.id, 'perdido');
+    closeLeadDrawer();
+  });
+
   document.getElementById('btn-drawer-delete')?.addEventListener('click', async () => {
     const l = STATE.selectedLead;
     if (!l || !confirm(`Excluir "${l.name}"?`)) return;
-    await apiFetch(`/api/leads/${l.id}`, { method: 'DELETE' });
-    toast('Lead excluído.', 'info');
+    const res = await apiFetch(`/api/leads/${l.id}`, { method: 'DELETE' });
+    const d = await res.json();
+    toast('Lead excluído e vaga liberada.', 'info');
+    if (d.access) updateTopbarQuotaDisplay(d.access);
     closeLeadDrawer();
     loadAllData();
   });

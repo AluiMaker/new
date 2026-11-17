@@ -22,7 +22,8 @@ from database import (
     list_users, update_user, get_wa_user_config, save_wa_user_config,
     get_user_access_status, extend_user_subscription, count_recent_signups_by_ip,
     cleanup_expired_trials, log_billing_event, complete_first_access, get_admin_dashboard_stats,
-    get_site_settings, save_site_settings, normalize_plan_name
+    get_site_settings, save_site_settings, normalize_plan_name,
+    cleanup_leads_by_criteria
 )
 from scraper_engine import GoogleMapsScraper, DEFAULT_SEGMENTS, SWEEP_ALL_TERMS
 from exporter import export_to_csv_bytes, export_to_json_bytes
@@ -1009,6 +1010,10 @@ def api_update_lead(lead_id):
     elif status == "fechado":
         data.setdefault("had_contact", 1)
         data.setdefault("had_sale", 1)
+    elif status == "sem_whatsapp":
+        data.setdefault("is_whatsapp", 0)
+        data.setdefault("whatsapp_verified", -1)
+        data.setdefault("whatsapp_status", "sem_whatsapp")
     ok = update_lead(lead_id, data, user_id=uid)
     broadcast_event("lead_updated", {"id": lead_id, "crm_status": status}, user_id=uid)
     broadcast_event("queue_updated", wa.get_queue_summary(), user_id=uid)
@@ -1068,7 +1073,21 @@ def api_delete_lead(lead_id):
     uid = current_user_id()
     ok = delete_lead(lead_id, user_id=uid)
     broadcast_event("queue_updated", wa.get_queue_summary(), user_id=uid)
-    return jsonify({"success": ok})
+    return jsonify({"success": ok, "access": get_user_access_status(uid)})
+
+
+@app.route("/api/leads/cleanup", methods=["POST"])
+@login_required
+def api_leads_cleanup():
+    uid = current_user_id()
+    data = request.get_json(silent=True) or {}
+    mode = (data.get("mode") or "sem_whatsapp").strip().lower()
+    if mode not in ("sem_whatsapp", "perdido", "all_dead"):
+        return jsonify({"success": False, "error": "Modo de limpeza inválido."}), 400
+    removed = cleanup_leads_by_criteria(uid, mode=mode)
+    broadcast_event("lead_updated", {"cleanup": mode, "removed": removed}, user_id=uid)
+    broadcast_event("queue_updated", wa.get_queue_summary(), user_id=uid)
+    return jsonify({"success": True, "removed": removed, "access": get_user_access_status(uid)})
 
 
 @app.route("/api/leads/batch-status", methods=["POST"])

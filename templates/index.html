@@ -415,8 +415,20 @@
                 <option value="social_or_none">Sem Site ou Só Rede Social</option>
                 <option value="official">Com Site Oficial</option>
               </select>
+              <select id="crm-filter-wa">
+                <option value="all">Todos os Telefones</option>
+                <option value="mobile">Somente Celular / WhatsApp</option>
+                <option value="sem_whatsapp">Sem WhatsApp Confirmado</option>
+                <option value="fixed">Apenas Fixo</option>
+              </select>
             </div>
-            <div class="crm-view-switch">
+            <div class="crm-view-switch" style="flex-wrap:wrap;">
+              <button class="btn btn-outline btn-sm" id="btn-verify-wa-crm" title="Testar em lote no WhatsApp QR conectado e separar quem não tem WhatsApp">
+                <i class="fa-brands fa-whatsapp text-emerald"></i> Verificar WhatsApp
+              </button>
+              <button class="btn btn-outline btn-sm text-danger" id="btn-purge-no-wa" title="Excluir todos os leads sem WhatsApp e liberar espaço na conta">
+                <i class="fa-solid fa-trash-can"></i> Excluir Sem WhatsApp (<span id="cnt-purge-nowa">0</span>)
+              </button>
               <button class="btn btn-outline btn-sm" id="btn-dedup-leads" title="Remover leads duplicados">
                 <i class="fa-solid fa-wand-magic-sparkles"></i> Limpar Duplicados
               </button>
@@ -467,6 +479,30 @@
                 <span class="col-count" id="cnt-fechado">0</span>
               </div>
               <div class="kanban-list" id="col-fechado"></div>
+            </div>
+            <div class="kanban-col" data-status="sem_whatsapp">
+              <div class="kanban-col-head">
+                <span><span class="dot dot-orange"></span> Sem WhatsApp</span>
+                <div class="col-head-right">
+                  <button type="button" class="col-trash-btn" onclick="cleanupLeads('sem_whatsapp')" title="Excluir todos sem WhatsApp">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                  <span class="col-count" id="cnt-sem_whatsapp">0</span>
+                </div>
+              </div>
+              <div class="kanban-list" id="col-sem_whatsapp"></div>
+            </div>
+            <div class="kanban-col" data-status="perdido">
+              <div class="kanban-col-head">
+                <span><span class="dot dot-red"></span> Lead Perdido</span>
+                <div class="col-head-right">
+                  <button type="button" class="col-trash-btn" onclick="cleanupLeads('perdido')" title="Excluir todos os leads perdidos">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                  <span class="col-count" id="cnt-perdido">0</span>
+                </div>
+              </div>
+              <div class="kanban-list" id="col-perdido"></div>
             </div>
           </div>
 
@@ -530,6 +566,8 @@
                       <option value="respondeu">3. Respondeu</option>
                       <option value="negociacao">4. Proposta / Reunião</option>
                       <option value="fechado">5. Venda Fechada</option>
+                      <option value="sem_whatsapp">6. Sem WhatsApp</option>
+                      <option value="perdido">7. Lead Perdido</option>
                     </select>
                     <button type="button" class="btn btn-outline btn-sm" id="btn-chat-open-drawer">
                       <i class="fa-solid fa-id-card"></i> Ver Ficha
@@ -1097,6 +1135,8 @@
             <option value="respondeu">3. Respondeu</option>
             <option value="negociacao">4. Proposta / Reunião</option>
             <option value="fechado">5. Venda Fechada</option>
+            <option value="sem_whatsapp">6. Sem WhatsApp</option>
+            <option value="perdido">7. Lead Perdido</option>
           </select>
           <select id="drawer-product-interest">
             <option value="">Oferta (Opcional)</option>
@@ -1150,9 +1190,15 @@
       <div class="drawer-section">
         <label>Anotações Internas</label>
         <textarea id="drawer-notes" rows="3" placeholder="Observações sobre este cliente..."></textarea>
-        <div class="drawer-footer-actions">
+        <div class="drawer-footer-actions" style="flex-wrap:wrap; gap:8px;">
           <button class="btn btn-primary btn-sm" id="btn-drawer-save-notes">Salvar Alterações</button>
-          <button class="btn btn-outline btn-sm text-danger" id="btn-drawer-delete">Excluir Lead</button>
+          <button type="button" class="btn btn-outline btn-sm" id="btn-drawer-mark-no-wa" title="Mover para etapa Sem WhatsApp">
+            <i class="fa-solid fa-phone-slash"></i> Sem WhatsApp
+          </button>
+          <button type="button" class="btn btn-outline btn-sm" id="btn-drawer-mark-lost" title="Mover para etapa Lead Perdido">
+            <i class="fa-solid fa-ban"></i> Perdido
+          </button>
+          <button class="btn btn-outline btn-sm text-danger" id="btn-drawer-delete"><i class="fa-solid fa-trash-can"></i> Excluir Lead</button>
         </div>
       </div>
 

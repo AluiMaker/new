@@ -485,7 +485,7 @@ input:focus, select:focus, textarea:focus {
 
 .kanban-board {
   display: grid;
-  grid-template-columns: repeat(5, minmax(230px, 1fr));
+  grid-template-columns: repeat(7, minmax(240px, 1fr));
   gap: 12px;
   overflow-x: auto;
   padding-bottom: 8px;
@@ -500,14 +500,31 @@ input:focus, select:focus, textarea:focus {
 }
 .kanban-col-head {
   display: flex; align-items: center; justify-content: space-between;
-  font-weight: 700; font-size: 0.82rem; padding: 4px 4px 10px;
+  font-weight: 700; font-size: 0.82rem; padding: 4px 4px 10px; gap: 6px;
 }
+.col-head-right { display: flex; align-items: center; gap: 5px; }
+.col-trash-btn {
+  border: none; background: transparent; color: var(--text-muted); cursor: pointer;
+  padding: 2px 5px; border-radius: 6px; font-size: 0.74rem;
+}
+.col-trash-btn:hover { background: #fee2e2; color: #dc2626; }
 .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
 .dot-slate { background: #64748b; }
 .dot-blue { background: var(--primary); }
 .dot-amber { background: var(--amber); }
 .dot-purple { background: var(--purple); }
 .dot-emerald { background: var(--emerald); }
+.dot-orange { background: #ea580c; }
+.dot-red { background: #dc2626; }
+.lead-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 6px; }
+.lead-card-del {
+  border: none; background: transparent; color: var(--text-muted); cursor: pointer;
+  padding: 2px 5px; border-radius: 6px; font-size: 0.75rem; opacity: 0.55; flex-shrink: 0;
+}
+.lead-card:hover .lead-card-del { opacity: 1; }
+.lead-card-del:hover { background: #fee2e2; color: #dc2626; opacity: 1; }
+.opp-badge.opp-nowa { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+.opp-badge.opp-fixed { background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; }
 .col-count { background: var(--surface); padding: 2px 8px; border-radius: 999px; font-size: 0.74rem; color: var(--text-muted); }
 
 .kanban-list { flex: 1; display: flex; flex-direction: column; gap: 8px; min-height: 120px; }
@@ -926,7 +943,7 @@ body.dark-theme .live-pill { color: #34d399; border-color: rgba(16, 185, 129, 0.
   .col-span-2 { grid-column: span 1; }
   .crm-filters { width: 100%; }
   .crm-filters select, .input-icon-wrap.compact { width: 100%; min-width: 0; }
-  .kanban-board { grid-template-columns: repeat(5, 270px); scroll-snap-type: x proximity; }
+  .kanban-board { grid-template-columns: repeat(7, 265px); scroll-snap-type: x proximity; }
   .kanban-col { scroll-snap-align: start; min-height: 420px; }
   #leaflet-map { height: 62vh; min-height: 360px; }
 }

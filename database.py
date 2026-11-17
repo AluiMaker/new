@@ -1156,6 +1156,7 @@ def batch_verify_whatsapp(results: Dict[str, Dict[str, Any]], user_id: int = 1) 
                         is_whatsapp = 0,
                         whatsapp_verified = -1,
                         whatsapp_status = 'sem_whatsapp',
+                        crm_status = CASE WHEN crm_status IN ('novo', 'contatado') THEN 'sem_whatsapp' ELSE crm_status END,
                         updated_at = ?
                     WHERE user_id = ? AND (clean_phone = ? OR clean_phone LIKE ?)
                 """, (now, user_id, full_p, f"%{tail}"))
@@ -1450,14 +1451,51 @@ def update_lead(lead_id: int, fields: Dict[str, Any], user_id: Optional[int] = N
 def delete_lead(lead_id: int, user_id: Optional[int] = None) -> bool:
     conn = get_connection()
     cursor = conn.cursor()
-    if user_id is not None:
-        cursor.execute("DELETE FROM leads WHERE id = ? AND user_id = ?", (lead_id, user_id))
-    else:
-        cursor.execute("DELETE FROM leads WHERE id = ?", (lead_id,))
-    conn.commit()
-    affected = cursor.rowcount > 0
-    conn.close()
-    return affected
+    try:
+        if user_id is not None:
+            cursor.execute("DELETE FROM wa_messages WHERE lead_id = ? AND user_id = ?", (lead_id, user_id))
+            cursor.execute("DELETE FROM leads WHERE id = ? AND user_id = ?", (lead_id, user_id))
+        else:
+            cursor.execute("DELETE FROM wa_messages WHERE lead_id = ?", (lead_id,))
+            cursor.execute("DELETE FROM leads WHERE id = ?", (lead_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+    finally:
+        conn.close()
+
+
+def cleanup_leads_by_criteria(user_id: int, mode: str = "sem_whatsapp") -> int:
+    """Remove leads sem WhatsApp confirmado ou marcados como perdidos, liberando cota da conta."""
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        if mode == "perdido":
+            where = "user_id = ? AND crm_status = 'perdido'"
+        elif mode == "all_dead":
+            where = (
+                "user_id = ? AND (crm_status IN ('sem_whatsapp', 'perdido') "
+                "OR whatsapp_status = 'sem_whatsapp' OR whatsapp_verified = -1 "
+                "OR clean_phone IS NULL OR TRIM(clean_phone) = '')"
+            )
+        else:
+            where = (
+                "user_id = ? AND (crm_status = 'sem_whatsapp' "
+                "OR whatsapp_status = 'sem_whatsapp' OR whatsapp_verified = -1 "
+                "OR clean_phone IS NULL OR TRIM(clean_phone) = '')"
+            )
+
+        cur.execute(f"SELECT id FROM leads WHERE {where}", (user_id,))
+        ids = [r[0] for r in cur.fetchall()]
+        if not ids:
+            return 0
+        placeholders = ",".join("?" * len(ids))
+        cur.execute(f"DELETE FROM wa_messages WHERE user_id = ? AND lead_id IN ({placeholders})", [user_id] + ids)
+        cur.execute(f"DELETE FROM leads WHERE user_id = ? AND id IN ({placeholders})", [user_id] + ids)
+        removed = cur.rowcount
+        conn.commit()
+        return removed
+    finally:
+        conn.close()
 
 
 def get_stats(user_id: int = 1) -> Dict[str, Any]:
