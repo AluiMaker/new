@@ -280,13 +280,25 @@ def run_scraper_thread(
         st["no_website_count"] = prog["no_website_count"]
         broadcast_event("progress", prog, user_id=user_id)
 
+    limit_notified = False
+
     def lead_cb(lead: Dict[str, Any]):
+        nonlocal limit_notified
         if lat is not None and not lead.get("lat"):
             lead["lat"] = lat
         if lon is not None and not lead.get("lon"):
             lead["lon"] = lon
         lead_id, is_new = upsert_lead(lead, user_id=user_id)
         if not lead_id:
+            if not limit_notified:
+                limit_notified = True
+                log_cb("Limite de leads do seu plano atingido! Novas buscas foram pausadas, mas você pode visualizar e atender seus leads no CRM e Chat normalmente.")
+                scr = st.get("scraper_instance")
+                if scr:
+                    try:
+                        scr.request_stop()
+                    except Exception:
+                        pass
             return
         lead["id"] = lead_id
         lead["is_new"] = is_new
@@ -1135,7 +1147,7 @@ def api_search_start():
             "success": False,
             "upgrade_required": True,
             "leads_limit_reached": True,
-            "error": f"Você atingiu o limite de {acc.get('max_leads')} leads do seu plano ({acc.get('plan').upper()}). Escolha um plano para continuar prospectando!"
+            "error": f"Você atingiu o limite de {acc.get('max_leads')} leads do teste/plano ({acc.get('plan').upper()}). Você pode continuar usando o programa normalmente para ver e interagir com os leads já captados — escolha um plano para fazer novas buscas!"
         }), 402
     st = get_user_search_state(uid)
     if st["is_running"]:

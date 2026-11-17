@@ -48,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSettingsControls();
   initAdminControls();
   initSSE();
+  if (window.ACCESS_STATUS) updateTopbarQuotaDisplay(window.ACCESS_STATUS);
 
   loadAllData();
 });
@@ -409,6 +410,7 @@ async function startSearch() {
     });
     const data = await res.json();
     if (!data.success) {
+      if (data.leads_limit_reached) refreshTopbarQuota();
       toast(data.error || 'Erro ao iniciar busca.', 'error');
       return;
     }
@@ -492,14 +494,11 @@ function initSSE() {
       const md = await mr.json();
       const acc = md.access;
       if (acc) {
-        const pt = document.getElementById('topbar-plan-text');
-        if (pt && acc.plan === 'trial') {
-          pt.innerHTML = `Teste (${acc.hours_left || 24}h) · ${acc.leads_count}/${acc.max_leads} leads · <u>Assinar</u>`;
-        } else if (pt && acc.max_leads > 0) {
-          pt.textContent = `${String(acc.plan).toUpperCase()}: ${acc.leads_count}/${acc.max_leads} leads salvos · ${acc.days_left}d`;
-        }
-        if (!acc.active || acc.leads_limit_reached) {
-          openUpgradeModal(`Você atingiu o limite de ${acc.max_leads} leads do seu plano (${String(acc.plan).toUpperCase()}). Escolha um plano para continuar!`);
+        updateTopbarQuotaDisplay(acc);
+        if (!acc.active) {
+          openUpgradeModal(`Seu período de acesso do plano (${String(acc.plan).toUpperCase()}) encerrou. Escolha um plano para continuar!`);
+        } else if (acc.leads_limit_reached) {
+          toast(`Limite de ${acc.max_leads} leads do seu plano atingido! Novas buscas foram pausadas, mas seus ${acc.leads_count} leads continuam 100% liberados para ver e atender no CRM e Chat.`, 'info');
         }
       }
     } catch (err) {}
@@ -806,9 +805,24 @@ async function verifyWhatsAppBatchFromCrm() {
   }
 }
 
+function updateSearchLimitBanner(acc) {
+  const banner = document.getElementById('search-limit-banner');
+  if (!banner || !acc) return;
+  const isAdmin = window.CURRENT_USER && window.CURRENT_USER.role === 'admin';
+  const showBanner = Boolean(!isAdmin && acc.active && acc.leads_limit_reached);
+  banner.classList.toggle('hidden', !showBanner);
+  const maxEl = document.getElementById('search-limit-max');
+  const curEl = document.getElementById('search-limit-current');
+  if (maxEl && acc.max_leads > 0) maxEl.textContent = acc.max_leads;
+  if (curEl) curEl.textContent = acc.leads_count ?? 0;
+}
+
 function updateTopbarQuotaDisplay(acc) {
+  if (!acc) return;
+  window.ACCESS_STATUS = acc;
+  updateSearchLimitBanner(acc);
   const pt = document.getElementById('topbar-plan-text');
-  if (!pt || !acc) return;
+  if (!pt) return;
   if (acc.plan === 'trial') {
     pt.innerHTML = `Teste (${acc.hours_left || 24}h) · ${acc.leads_count}/${acc.max_leads} leads · <u>Assinar</u>`;
   } else if (acc.max_leads > 0) {
