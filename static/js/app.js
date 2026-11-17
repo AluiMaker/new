@@ -1131,10 +1131,10 @@ async function initMetaEmbeddedSignup() {
 
   if (!_embeddedCfg?.enabled) {
     if (txt) {
-      txt.textContent = 'Ativo automaticamente após publicar em HTTPS e configurar o App da Meta (META_APP_ID e META_EMBEDDED_CONFIG_ID). Enquanto isso, use a Configuração Manual abaixo ou o WhatsApp Web 1-Clique.';
+      txt.innerHTML = 'O botão de conexão 1-clique estilo Kommo precisa apenas de um <strong>Meta App de Provedor de Tecnologia</strong> configurado uma única vez pelo administrador em <strong>Painel Admin → Conexão Oficial WhatsApp 1-Clique</strong>. Enquanto isso, cada cliente já pode conectar abaixo via Configuração Manual ou usar o WhatsApp QR / Web 1-Clique.';
     }
     btn.addEventListener('click', () => {
-      toast('Para usar o botão automático 1-clique da Meta (igual ao Kommo), publique em HTTPS e configure META_APP_ID + META_EMBEDDED_CONFIG_ID no servidor.', 'info');
+      toast('Falta cadastrar o Meta App ID + Embedded Config ID no Painel Admin (veja as instruções no chat). Enquanto isso, use o QR Code ou a Configuração Manual abaixo.', 'info');
     });
     return;
   }
@@ -1143,12 +1143,16 @@ async function initMetaEmbeddedSignup() {
     if (event.origin !== 'https://www.facebook.com' && event.origin !== 'https://web.facebook.com') return;
     try {
       const data = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
-      if (data?.type === 'WA_EMBEDDED_SIGNUP' && data?.event === 'FINISH') {
+      if (data?.type === 'WA_EMBEDDED_SIGNUP' && (data?.event === 'FINISH' || data?.event === 'FINISH_ONLY_WABA' || data?.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING')) {
         _embeddedSignupSession.phone_number_id = data.data?.phone_number_id || '';
         _embeddedSignupSession.waba_id = data.data?.waba_id || '';
       }
     } catch (e) {}
   });
+
+  if (txt) {
+    txt.textContent = 'Pronto! Clique ao lado para conectar seu WhatsApp Business oficial em 1 clique usando sua conta do Facebook (sem copiar tokens manualmente).';
+  }
 
   if (!window.FB) {
     window.fbAsyncInit = function () {
@@ -1201,7 +1205,7 @@ async function initMetaEmbeddedSignup() {
       config_id: _embeddedCfg.config_id,
       response_type: 'code',
       override_default_response_type: true,
-      extras: { setup: {}, featureType: '' },
+      extras: { setup: {}, featureType: '', sessionInfoVersion: '3' },
     });
   });
 }
@@ -1480,6 +1484,9 @@ function initAdminControls() {
         checkout_pro_url: document.getElementById('site-checkout-pro-url').value,
         plan_pro_price: document.getElementById('site-pro-price').value,
         support_whatsapp: document.getElementById('site-support-wa').value,
+        meta_app_id: document.getElementById('site-meta-app-id')?.value || '',
+        meta_embedded_config_id: document.getElementById('site-meta-config-id')?.value || '',
+        meta_app_secret: document.getElementById('site-meta-app-secret')?.value || '',
       })
     });
     const d = await res.json();
@@ -1528,6 +1535,12 @@ async function loadAdminUsers() {
         if (cpu) cpu.value = sd.settings.checkout_pro_url || '';
         if (pp) pp.value = sd.settings.plan_pro_price || 'R$ 79';
         if (sw) sw.value = sd.settings.support_whatsapp || '';
+        const mai = document.getElementById('site-meta-app-id');
+        const mci = document.getElementById('site-meta-config-id');
+        const mas = document.getElementById('site-meta-app-secret');
+        if (mai) mai.value = sd.settings.meta_app_id || '';
+        if (mci) mci.value = sd.settings.meta_embedded_config_id || '';
+        if (mas) mas.value = sd.settings.meta_app_secret || '';
       }
     } catch (e) {}
 

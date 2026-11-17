@@ -936,6 +936,9 @@ def get_site_settings() -> Dict[str, str]:
         "plan_starter_price": os.environ.get("PLAN_STARTER_PRICE", "R$ 37"),
         "plan_pro_price": os.environ.get("PLAN_PRO_PRICE", "R$ 79"),
         "support_whatsapp": os.environ.get("SUPPORT_WHATSAPP", ""),
+        "meta_app_id": os.environ.get("META_APP_ID", ""),
+        "meta_app_secret": os.environ.get("META_APP_SECRET", ""),
+        "meta_embedded_config_id": os.environ.get("META_EMBEDDED_CONFIG_ID", ""),
     }
     conn = get_connection()
     cur = conn.cursor()
@@ -969,19 +972,24 @@ def get_site_settings() -> Dict[str, str]:
 
 def save_site_settings(data: Dict[str, Any]) -> Dict[str, str]:
     curr = get_site_settings()
-    for k in ("checkout_url", "checkout_pro_url", "plan_starter_price", "plan_pro_price", "support_whatsapp"):
+    for k in ("checkout_url", "checkout_pro_url", "plan_starter_price", "plan_pro_price", "support_whatsapp", "meta_app_id", "meta_embedded_config_id"):
         if k in data:
             curr[k] = str(data[k] or "").strip()
+    if "meta_app_secret" in data:
+        sec_val = str(data["meta_app_secret"] or "").strip()
+        if not sec_val.startswith("••••"):
+            curr["meta_app_secret"] = sec_val
+    to_store = {k: curr.get(k, "") for k in ("checkout_url", "checkout_pro_url", "plan_starter_price", "plan_pro_price", "support_whatsapp", "meta_app_id", "meta_app_secret", "meta_embedded_config_id")}
     conn = get_connection()
     try:
         conn.execute(
             "INSERT OR REPLACE INTO whatsapp_config (key, value) VALUES ('site_settings', ?)",
-            (json.dumps(curr, ensure_ascii=False),)
+            (json.dumps(to_store, ensure_ascii=False),)
         )
         conn.commit()
     finally:
         conn.close()
-    return curr
+    return get_site_settings()
 
 
 # ==================== CONFIGURAÇÃO WHATSAPP POR USUÁRIO ====================

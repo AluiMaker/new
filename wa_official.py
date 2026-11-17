@@ -127,6 +127,36 @@ def subscribe_waba_webhook(
     return _graph_request("POST", url, access_token, {})
 
 
+def discover_waba_assets(
+    app_id: str,
+    app_secret: str,
+    access_token: str,
+    api_version: str = "v21.0",
+) -> Dict[str, str]:
+    """Descobre automaticamente WABA ID e Phone Number ID via debug_token caso não venham do postMessage."""
+    ver = (api_version or "v21.0").strip()
+    waba_id = ""
+    phone_id = ""
+    try:
+        app_token = f"{app_id.strip()}|{app_secret.strip()}"
+        from urllib.parse import quote
+        dbg_url = f"https://graph.facebook.com/{ver}/debug_token?input_token={quote(access_token)}&access_token={quote(app_token)}"
+        with urllib.request.urlopen(dbg_url, timeout=15) as resp:
+            dbg = json.loads(resp.read().decode("utf-8")).get("data", {})
+        for g in dbg.get("granular_scopes", []):
+            if g.get("scope") in ("whatsapp_business_management", "whatsapp_business_messaging") and g.get("target_ids"):
+                waba_id = str(g["target_ids"][0])
+                break
+        if waba_id:
+            ph_res = _graph_request("GET", f"https://graph.facebook.com/{ver}/{waba_id}/phone_numbers?fields=id,display_phone_number,verified_name", access_token)
+            phones = (ph_res.get("data") or {}).get("data") or []
+            if phones:
+                phone_id = str(phones[0].get("id") or "")
+    except Exception:
+        pass
+    return {"waba_id": waba_id, "phone_number_id": phone_id}
+
+
 def list_templates(waba_id: str, access_token: str, api_version: str = "v21.0") -> Dict[str, Any]:
     """Lista os templates aprovados na conta WABA da Meta."""
     wid = (waba_id or "").strip()

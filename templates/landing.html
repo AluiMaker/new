@@ -3,199 +3,319 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MapaLeads PRO — Encontre Empresas no Google e Venda Todos os Dias</title>
-  <meta name="description" content="Capte empresas locais no Google com WhatsApp válido, CRM Kanban e chat para vender Plaquinhas NFC, WhatsApp Business, Cardápio Digital, Biossites e Landing Pages.">
+  <title>MapaLeads PRO — Encontre Empresas Locais e Feche Contratos no WhatsApp Todo Dia</title>
+  <meta name="description" content="Capte empresas no Google Maps por rua, bairro ou cidade já com telefone válido, oportunidade detectada, CRM Kanban e Chat estilo Kommo. Teste grátis por 1 dia.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
   <style>
     :root {
       --bg: #ffffff;
       --surface: #f8fafc;
-      --dark: #0f172a;
+      --dark: #0b1120;
+      --dark-2: #111827;
       --text: #0f172a;
-      --muted: #64748b;
-      --border: #e2e8f0;
+      --muted: #475569;
       --primary: #2563eb;
       --primary-dark: #1d4ed8;
       --emerald: #10b981;
       --emerald-dark: #059669;
-      --purple: #7c3aed;
+      --border: #e2e8f0;
       --amber: #f59e0b;
+      --red: #dc2626;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html { scroll-behavior: smooth; }
     body {
-      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      font-family: 'Inter', sans-serif;
       color: var(--text);
       background: var(--bg);
       line-height: 1.6;
       -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
     }
-    h1, h2, h3, h4 { font-family: 'Plus Jakarta Sans', 'Inter', sans-serif; line-height: 1.2; }
     a { text-decoration: none; color: inherit; }
-    .container { max-width: 1140px; margin: 0 auto; padding: 0 22px; }
+    .container { max-width: 1180px; margin: 0 auto; padding: 0 22px; }
+
+    /* Top Promo Bar */
+    .promo-bar {
+      background: linear-gradient(90deg, #0f172a 0%, #1e3a8a 50%, #065f46 100%);
+      color: #fff; text-align: center; padding: 9px 16px;
+      font-size: 0.82rem; font-weight: 600;
+    }
+    .promo-bar strong { color: #fde68a; }
 
     /* Navbar */
     .nav {
-      position: sticky; top: 0; z-index: 50;
-      background: rgba(255,255,255,0.92); backdrop-filter: blur(10px);
+      position: sticky; top: 0; z-index: 60;
+      background: rgba(255,255,255,0.92); backdrop-filter: blur(12px);
       border-bottom: 1px solid var(--border);
     }
     .nav-inner {
-      display: flex; align-items: center; justify-content: space-between;
-      height: 68px; gap: 16px;
+      height: 70px; display: flex; align-items: center; justify-content: space-between; gap: 16px;
     }
     .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 1.15rem; font-family: 'Plus Jakarta Sans', sans-serif; }
     .brand-icon {
-      width: 36px; height: 36px; border-radius: 10px;
+      width: 38px; height: 38px; border-radius: 10px;
       background: linear-gradient(135deg, #2563eb, #10b981);
-      color: #fff; display: grid; place-items: center;
+      color: #fff; display: grid; place-items: center; font-size: 1.05rem;
     }
-    .nav-links { display: flex; align-items: center; gap: 24px; font-size: 0.9rem; font-weight: 500; color: #475569; }
+    .nav-links { display: flex; align-items: center; gap: 22px; font-size: 0.88rem; font-weight: 600; color: var(--muted); }
     .nav-links a:hover { color: var(--primary); }
     .nav-cta { display: flex; align-items: center; gap: 10px; }
 
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-      padding: 10px 18px; border-radius: 10px; font-weight: 600; font-size: 0.9rem;
-      border: 1px solid transparent; cursor: pointer; transition: all .15s;
+      padding: 11px 18px; border-radius: 10px; font-weight: 700; font-size: 0.9rem;
+      border: 1px solid transparent; cursor: pointer; transition: all .18s ease;
     }
-    .btn-lg { padding: 14px 24px; font-size: 0.98rem; }
-    .btn-primary { background: var(--primary); color: #fff; }
+    .btn-sm { padding: 8px 14px; font-size: 0.84rem; }
+    .btn-lg { padding: 15px 26px; font-size: 1rem; border-radius: 12px; }
+    .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 10px 25px -8px rgba(37,99,235,0.5); }
     .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
-    .btn-emerald { background: var(--emerald); color: #fff; }
+    .btn-emerald { background: var(--emerald); color: #fff; box-shadow: 0 12px 28px -8px rgba(16,185,129,0.55); }
     .btn-emerald:hover { background: var(--emerald-dark); transform: translateY(-1px); }
     .btn-outline { background: #fff; border-color: var(--border); color: var(--text); }
-    .btn-outline:hover { background: var(--surface); }
+    .btn-outline:hover { border-color: #94a3b8; background: #f8fafc; }
 
-    @media (max-width: 860px) {
-      .nav-links { display: none; }
-    }
-
-    /* Hero */
+    /* Hero Dark Tech */
     .hero {
       padding: 64px 0 72px;
-      background: radial-gradient(circle at 80% 10%, rgba(37,99,235,0.08), transparent 45%),
-                  radial-gradient(circle at 10% 80%, rgba(16,185,129,0.08), transparent 45%),
-                  #ffffff;
+      background:
+        radial-gradient(900px 440px at 85% 15%, rgba(37,99,235,0.22), transparent),
+        radial-gradient(700px 380px at 12% 85%, rgba(16,185,129,0.16), transparent),
+        linear-gradient(180deg, #090f1d 0%, #0f172a 100%);
+      color: #f8fafc;
+      position: relative;
+      overflow: hidden;
     }
-    .hero-grid {
-      display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 40px; align-items: center;
-    }
-    @media (max-width: 920px) {
-      .hero-grid { grid-template-columns: 1fr; }
-    }
+    .hero-grid { display: grid; grid-template-columns: 1.04fr 0.96fr; gap: 44px; align-items: center; }
     .hero-badge {
       display: inline-flex; align-items: center; gap: 8px;
-      background: #eff6ff; color: var(--primary); border: 1px solid #bfdbfe;
-      padding: 6px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 700;
-      margin-bottom: 18px;
+      background: rgba(16,185,129,0.14); color: #34d399; border: 1px solid rgba(16,185,129,0.35);
+      padding: 6px 14px; border-radius: 999px; font-size: 0.76rem; font-weight: 800; letter-spacing: 0.03em; margin-bottom: 18px;
+      text-transform: uppercase;
     }
-    .hero h1 { font-size: 2.75rem; font-weight: 800; letter-spacing: -0.02em; margin-bottom: 18px; }
-    @media (max-width: 600px) { .hero h1 { font-size: 2rem; } }
-    .hero p { font-size: 1.08rem; color: #475569; margin-bottom: 26px; }
-    .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
-    .hero-trust { font-size: 0.82rem; color: var(--muted); display: flex; gap: 16px; flex-wrap: wrap; }
+    .hero h1 {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: clamp(2.05rem, 4.1vw, 3.25rem);
+      font-weight: 900; line-height: 1.09; letter-spacing: -0.028em; margin-bottom: 18px; color: #fff;
+    }
+    .hero h1 span {
+      background: linear-gradient(90deg, #34d399, #60a5fa);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+    .hero p { font-size: 1.06rem; color: #cbd5e1; margin-bottom: 26px; max-width: 570px; }
+    .hero p strong { color: #fff; }
+    .hero-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 22px; }
+    .hero-trust { display: flex; flex-wrap: wrap; gap: 18px; font-size: 0.83rem; color: #94a3b8; font-weight: 600; }
     .hero-trust span { display: inline-flex; align-items: center; gap: 6px; }
-    .hero-trust i { color: var(--emerald); }
+    .hero-trust i { color: #34d399; }
 
-    /* Mockup Preview */
-    .mockup-card {
-      background: #0f172a; color: #f8fafc; border-radius: 18px; padding: 18px;
-      box-shadow: 0 25px 60px -20px rgba(15,23,42,0.35);
-      border: 1px solid #1e293b;
+    /* Hero Visual Frame */
+    .hero-visual {
+      position: relative;
     }
-    .mockup-top { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; }
-    .mockup-dot { width: 10px; height: 10px; border-radius: 50%; }
-    .mockup-body { background: #ffffff; color: var(--text); border-radius: 12px; padding: 16px; }
-    .mockup-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
-    .mk-box { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
-    .mk-box small { display: block; font-size: 0.68rem; color: var(--muted); }
-    .mk-box strong { font-size: 1rem; font-weight: 800; }
-    .mk-lead {
-      border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px;
-      display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px;
+    .hero-img-wrap {
+      border-radius: 20px; overflow: hidden;
+      border: 1px solid rgba(148,163,184,0.22);
+      box-shadow: 0 32px 70px -15px rgba(0,0,0,0.75);
+      background: #0b1120;
     }
-    .mk-lead:last-child { margin-bottom: 0; }
-    .mk-tags { display: flex; gap: 4px; flex-wrap: wrap; margin-top: 4px; }
-    .tag { font-size: 0.66rem; font-weight: 700; padding: 2px 7px; border-radius: 5px; }
-    .tag-p { background: #f5f3ff; color: var(--purple); }
-    .tag-g { background: #ecfdf5; color: var(--emerald-dark); }
-    .tag-b { background: #eff6ff; color: var(--primary); }
-    .tag-a { background: #fffbeb; color: #b45309; }
+    .hero-img-wrap img { width: 100%; height: auto; display: block; object-fit: cover; }
+    .float-pill {
+      position: absolute; background: rgba(15,23,42,0.94); backdrop-filter: blur(10px);
+      border: 1px solid rgba(52,211,153,0.4); color: #fff; border-radius: 14px;
+      padding: 10px 14px; display: flex; align-items: center; gap: 10px;
+      box-shadow: 0 18px 36px -10px rgba(0,0,0,0.65); font-size: 0.8rem;
+    }
+    .float-pill.p1 { bottom: -16px; left: 16px; }
+    .float-pill.p2 { top: -14px; right: 16px; border-color: rgba(96,165,250,0.45); }
+    .float-dot { width: 32px; height: 32px; border-radius: 9px; display: grid; place-items: center; font-size: 0.95rem; }
+
+    /* ROI Strip */
+    .roi-strip { padding: 38px 0; background: #fff; border-bottom: 1px solid var(--border); }
+    .roi-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .roi-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 14px;
+      padding: 18px 20px; display: flex; align-items: center; gap: 14px;
+    }
+    .roi-icon {
+      width: 48px; height: 48px; border-radius: 12px; flex-shrink: 0;
+      display: grid; place-items: center; font-size: 1.2rem;
+    }
+    .roi-card strong { display: block; font-size: 1.05rem; font-family: 'Plus Jakarta Sans', sans-serif; color: var(--text); }
+    .roi-card span { font-size: 0.84rem; color: var(--muted); display: block; margin-top: 2px; }
 
     /* Sections */
-    .section { padding: 72px 0; }
+    .section { padding: 78px 0; }
     .section-alt { background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
-    .section-head { text-align: center; max-width: 680px; margin: 0 auto 42px; }
-    .section-head h2 { font-size: 2rem; font-weight: 800; margin-bottom: 10px; }
-    .section-head p { color: var(--muted); font-size: 1rem; }
+    .section-dark { background: var(--dark); color: #f8fafc; }
+    .section-head { text-align: center; max-width: 720px; margin: 0 auto 44px; }
+    .eyebrow {
+      display: inline-block; font-size: 0.76rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em;
+      color: var(--primary); background: #eff6ff; padding: 5px 12px; border-radius: 999px; margin-bottom: 10px;
+    }
+    .section-head h2 {
+      font-family: 'Plus Jakarta Sans', sans-serif; font-size: clamp(1.65rem, 3.2vw, 2.35rem);
+      font-weight: 800; margin-bottom: 12px; letter-spacing: -0.02em; line-height: 1.15;
+    }
+    .section-head p { color: var(--muted); font-size: 1.02rem; }
+    .section-dark .section-head p { color: #94a3b8; }
+
+    /* Real System Showcase Tabs */
+    .tour-tabs {
+      display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-bottom: 28px;
+    }
+    .tour-btn {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 12px 20px; border-radius: 12px; border: 1px solid var(--border);
+      background: #fff; color: var(--muted); font-weight: 700; font-size: 0.9rem;
+      cursor: pointer; transition: all .18s ease;
+    }
+    .tour-btn:hover { border-color: #94a3b8; color: var(--text); }
+    .tour-btn.active {
+      background: var(--primary); color: #fff; border-color: var(--primary);
+      box-shadow: 0 10px 24px -8px rgba(37,99,235,0.45);
+    }
+    .browser-frame {
+      background: #0f172a; border-radius: 18px; border: 1px solid #cbd5e1;
+      overflow: hidden; box-shadow: 0 28px 65px -20px rgba(15,23,42,0.28);
+    }
+    .browser-bar {
+      background: #1e293b; padding: 11px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      border-bottom: 1px solid #334155;
+    }
+    .browser-dots { display: flex; gap: 7px; }
+    .browser-dots span { width: 11px; height: 11px; border-radius: 50%; display: block; }
+    .browser-url {
+      background: #0f172a; color: #94a3b8; font-size: 0.76rem; padding: 4px 14px; border-radius: 999px;
+      font-family: monospace; flex: 1; max-width: 380px; text-align: center;
+    }
+    .tour-panel { display: none; }
+    .tour-panel.active { display: block; }
+    .tour-panel img { width: 100%; height: auto; display: block; background: #f8fafc; }
+    .tour-caption {
+      background: #fff; padding: 20px 26px; border-top: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: space-between; gap: 18px; flex-wrap: wrap;
+    }
+    .tour-caption strong { display: block; font-size: 1.05rem; color: var(--text); margin-bottom: 3px; }
+    .tour-caption span { color: var(--muted); font-size: 0.9rem; }
+
+    /* Offer Spotlight (NFC Image + High Ticket Services) */
+    .spotlight-grid { display: grid; grid-template-columns: 0.95fr 1.05fr; gap: 38px; align-items: center; margin-bottom: 42px; }
+    .spotlight-photo {
+      border-radius: 20px; overflow: hidden; border: 1px solid var(--border);
+      box-shadow: 0 25px 55px -20px rgba(15,23,42,0.25); position: relative;
+    }
+    .spotlight-photo img { width: 100%; height: auto; display: block; }
+    .spotlight-badge {
+      position: absolute; bottom: 16px; left: 16px; right: 16px;
+      background: rgba(15,23,42,0.88); backdrop-filter: blur(8px); color: #fff;
+      padding: 12px 16px; border-radius: 12px; display: flex; justify-content: space-between; align-items: center; gap: 12px;
+      font-size: 0.84rem;
+    }
+    .spotlight-badge strong { color: #34d399; font-size: 0.96rem; }
 
     .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
-    .grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; }
-    @media (max-width: 860px) {
-      .grid-3, .grid-2 { grid-template-columns: 1fr; }
-    }
-
     .card {
-      background: #fff; border: 1px solid var(--border); border-radius: 14px;
-      padding: 24px; transition: transform .15s, box-shadow .15s;
+      background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 26px;
+      transition: transform .18s ease, box-shadow .18s ease;
     }
-    .card:hover { transform: translateY(-2px); box-shadow: 0 12px 30px -15px rgba(15,23,42,0.12); }
+    .card:hover { transform: translateY(-3px); box-shadow: 0 18px 38px -18px rgba(15,23,42,0.16); }
     .card-icon {
       width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center;
       font-size: 1.2rem; margin-bottom: 14px;
     }
-    .card h3 { font-size: 1.08rem; font-weight: 700; margin-bottom: 8px; }
+    .card h3 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.08rem; margin-bottom: 8px; }
     .card p { font-size: 0.9rem; color: var(--muted); }
-
-    /* Steps */
-    .step-num {
-      width: 34px; height: 34px; border-radius: 999px; background: var(--primary); color: #fff;
-      font-weight: 800; display: grid; place-items: center; margin-bottom: 12px;
+    .ticket-tag {
+      display: inline-block; margin-top: 12px; font-size: 0.78rem; font-weight: 700;
+      padding: 4px 10px; border-radius: 999px; background: #ecfdf5; color: #047857;
     }
+
+    /* Steps Dark */
+    .step-card {
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(148,163,184,0.18);
+      border-radius: 18px; padding: 28px;
+    }
+    .step-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+    .step-num {
+      width: 38px; height: 38px; border-radius: 10px; background: linear-gradient(135deg, #2563eb, #10b981);
+      color: #fff; display: grid; place-items: center; font-weight: 800; font-size: 1rem;
+    }
+    .step-time { font-size: 0.76rem; font-weight: 700; color: #34d399; background: rgba(16,185,129,0.14); padding: 4px 10px; border-radius: 999px; }
+    .step-card h3 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 1.12rem; color: #fff; margin-bottom: 8px; }
+    .step-card p { font-size: 0.9rem; color: #cbd5e1; }
 
     /* Pricing */
     .pricing-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 18px; max-width: 1220px; margin: 0 auto; }
-    @media (max-width: 1080px) { .pricing-grid { grid-template-columns: repeat(2, 1fr); max-width: 820px; } }
-    @media (max-width: 640px) { .pricing-grid { grid-template-columns: 1fr; max-width: 440px; } }
     .price-card {
       background: #fff; border: 1px solid var(--border); border-radius: 18px; padding: 24px 22px;
       display: flex; flex-direction: column; position: relative;
     }
     .price-card.featured {
       border: 2px solid var(--primary);
-      box-shadow: 0 20px 50px -20px rgba(37,99,235,0.28);
-      position: relative;
+      box-shadow: 0 22px 52px -18px rgba(37,99,235,0.32);
     }
     .pop-badge {
-      position: absolute; top: -12px; right: 24px;
+      position: absolute; top: -12px; right: 20px;
       background: var(--primary); color: #fff; font-size: 0.72rem; font-weight: 800;
       padding: 4px 12px; border-radius: 999px; text-transform: uppercase;
     }
-    .price-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 2.3rem; font-weight: 800; margin: 12px 0 4px; }
-    .price-val small { font-size: 0.92rem; font-weight: 500; color: var(--muted); }
-    .price-list { list-style: none; margin: 20px 0 26px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
-    .price-list li { display: flex; align-items: center; gap: 9px; font-size: 0.9rem; color: #334155; }
-    .price-list li i { color: var(--emerald); }
+    .price-val { font-family: 'Plus Jakarta Sans', sans-serif; font-size: 2.25rem; font-weight: 800; margin: 12px 0 4px; }
+    .price-val small { font-size: 0.9rem; font-weight: 500; color: var(--muted); }
+    .price-list { list-style: none; margin: 18px 0 24px; display: flex; flex-direction: column; gap: 10px; flex: 1; }
+    .price-list li { display: flex; align-items: flex-start; gap: 9px; font-size: 0.88rem; color: #334155; }
+    .price-list li i { color: var(--emerald); margin-top: 4px; }
+    .guarantee-box {
+      max-width: 780px; margin: 32px auto 0; background: #fff; border: 1px solid #bbf7d0;
+      border-radius: 14px; padding: 18px 22px; display: flex; align-items: center; gap: 16px;
+    }
 
     /* FAQ */
-    .faq-list { max-width: 760px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
-    .faq-item { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 16px 20px; }
-    .faq-item summary { font-weight: 700; cursor: pointer; font-size: 0.96rem; }
+    .faq-list { max-width: 780px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+    .faq-item { background: #fff; border: 1px solid var(--border); border-radius: 12px; padding: 17px 20px; }
+    .faq-item summary { font-weight: 700; cursor: pointer; font-size: 0.97rem; }
     .faq-item p { margin-top: 10px; font-size: 0.9rem; color: var(--muted); }
 
-    footer {
-      background: var(--dark); color: #cbd5e1; padding: 40px 0; font-size: 0.86rem;
+    /* Final CTA */
+    .final-cta {
+      background: linear-gradient(135deg, #1d4ed8 0%, #0f172a 55%, #065f46 100%);
+      color: #fff; padding: 66px 0; text-align: center;
     }
+    .final-cta h2 { font-family: 'Plus Jakarta Sans', sans-serif; font-size: clamp(1.65rem, 3.3vw, 2.4rem); font-weight: 900; margin-bottom: 12px; }
+    .final-cta p { color: #cbd5e1; max-width: 620px; margin: 0 auto 24px; font-size: 1.02rem; }
+
+    footer { background: var(--dark); color: #cbd5e1; padding: 38px 0; font-size: 0.86rem; border-top: 1px solid #1e293b; }
     .footer-inner { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
     .footer-links { display: flex; gap: 18px; flex-wrap: wrap; }
     .footer-links a:hover { color: #fff; }
+
+    @media (max-width: 1080px) {
+      .pricing-grid { grid-template-columns: repeat(2, 1fr); max-width: 820px; }
+    }
+    @media (max-width: 960px) {
+      .hero-grid, .spotlight-grid { grid-template-columns: 1fr; }
+      .grid-3, .roi-grid { grid-template-columns: 1fr; }
+      .nav-links { display: none; }
+      .float-pill { display: none; }
+    }
+    @media (max-width: 640px) {
+      .pricing-grid { grid-template-columns: 1fr; max-width: 440px; }
+      .hero { padding: 44px 0 54px; }
+      .section { padding: 54px 0; }
+      .guarantee-box { flex-direction: column; text-align: center; }
+    }
   </style>
 </head>
 <body>
+  <div class="promo-bar">
+    <i class="fa-solid fa-fire"></i>
+    <strong>CONDIÇÃO DE LANÇAMENTO:</strong> Starter por <strong>{{ site_cfg.plan_starter_price or 'R$ 37' }}/mês</strong> (de R$ 97) ou comece hoje mesmo no <strong>Teste Grátis de 24h</strong>!
+  </div>
+
   <header class="nav">
     <div class="container nav-inner">
       <a href="/" class="brand">
@@ -203,14 +323,15 @@
         <span>MapaLeads <span style="color:var(--primary)">PRO</span></span>
       </a>
       <nav class="nav-links">
-        <a href="#ofertas">O que vender</a>
-        <a href="#como-funciona">Como funciona</a>
+        <a href="#sistema">Ver por Dentro</a>
+        <a href="#ofertas">O que Vender</a>
+        <a href="#como-funciona">Como Funciona</a>
         <a href="#planos">Planos</a>
         <a href="#faq">Dúvidas</a>
       </nav>
       <div class="nav-cta">
-        <a href="/login" class="btn btn-outline">Entrar</a>
-        <a href="/register" class="btn btn-primary">Testar Grátis</a>
+        <a href="/login" class="btn btn-outline btn-sm">Entrar</a>
+        <a href="/register" class="btn btn-primary btn-sm">Testar Grátis</a>
       </div>
     </div>
   </header>
@@ -219,139 +340,235 @@
   <section class="hero">
     <div class="container hero-grid">
       <div>
-        <div class="hero-badge"><i class="fa-solid fa-bolt"></i> Prospecção no Google + CRM Kanban + Chat</div>
-        <h1>Encontre empresas locais e feche contratos pelo WhatsApp todos os dias.</h1>
+        <div class="hero-badge"><i class="fa-solid fa-bolt"></i> Radar Google + WhatsApp + CRM Kanban em 1 Só Lugar</div>
+        <h1>Pare de caçar cliente no braço. Ache quem precisa de você hoje e <span>feche no WhatsApp</span>.</h1>
         <p>
-          Capte negócios no Google por rua, bairro ou cidade já com telefone válido e oportunidade detectada para vender <strong>Plaquinhas NFC + QR Code</strong>, <strong>WhatsApp Business</strong>, <strong>Cardápio Digital</strong>, <strong>Biossites</strong> e <strong>Landing Pages</strong>.
+          O <strong>MapaLeads PRO</strong> varre ruas, bairros e cidades inteiras no Google, extrai o WhatsApp do estabelecimento e mostra <strong>exatamente qual serviço vender</strong>: Plaquinha NFC + QR Code, Cardápio Digital, WhatsApp Business ou Biossite.
         </p>
         <div class="hero-actions">
           <a href="/register" class="btn btn-emerald btn-lg">
-            <i class="fa-solid fa-rocket"></i> Testar Grátis por 1 Dia
+            <i class="fa-solid fa-rocket"></i> Testar Grátis por 1 Dia (25 Leads)
           </a>
-          <a href="#planos" class="btn btn-outline btn-lg">
-            Ver Planos e Assinar
+          <a href="#planos" class="btn btn-outline btn-lg" style="background:rgba(255,255,255,0.08); color:#fff; border-color:rgba(255,255,255,0.22);">
+            Ver Planos a partir de {{ site_cfg.plan_starter_price or 'R$ 37' }}
           </a>
         </div>
         <div class="hero-trust">
-          <span><i class="fa-solid fa-check-circle"></i> Sem cartão no teste grátis</span>
+          <span><i class="fa-solid fa-check-circle"></i> Sem cartão no teste de 24h</span>
           <span><i class="fa-solid fa-check-circle"></i> Copys Quebra-Gelo anti-bloqueio</span>
-          <span><i class="fa-solid fa-check-circle"></i> 100% online no navegador</span>
+          <span><i class="fa-solid fa-check-circle"></i> 100% online no PC e celular</span>
         </div>
       </div>
 
-      <div class="mockup-card">
-        <div class="mockup-top">
-          <span class="mockup-dot" style="background:#ef4444"></span>
-          <span class="mockup-dot" style="background:#f59e0b"></span>
-          <span class="mockup-dot" style="background:#10b981"></span>
-          <span style="font-size:0.75rem; color:#94a3b8; margin-left:6px;">Painel MapaLeads PRO</span>
+      <div class="hero-visual">
+        <div class="hero-img-wrap">
+          <img src="/static/img/sales/saas-hero.jpg" alt="MapaLeads PRO — Captação no Google, CRM Kanban e Fechamento no WhatsApp">
         </div>
-        <div class="mockup-body">
-          <div class="mockup-kpis">
-            <div class="mk-box"><small>Captados hoje</small><strong>148</strong></div>
-            <div class="mk-box"><small>Sem Site / Biossite</small><strong style="color:var(--primary)">89</strong></div>
-            <div class="mk-box"><small>Poucas Avaliações</small><strong style="color:var(--purple)">112</strong></div>
+        <div class="float-pill p2">
+          <div class="float-dot" style="background:#eff6ff; color:#2563eb;"><i class="fa-solid fa-magnifying-glass-location"></i></div>
+          <div>
+            <strong>Busca por Rua Inteira</strong>
+            <div style="font-size:0.72rem; color:#94a3b8;">Acha até quem não tem site</div>
           </div>
-          <div class="mk-lead">
-            <div>
-              <strong style="font-size:0.86rem;">Pizzaria Bella Massa</strong>
-              <div class="mk-tags">
-                <span class="tag tag-a">Cardápio Digital</span>
-                <span class="tag tag-p">Plaquinha NFC</span>
-                <span class="tag tag-g">WhatsApp</span>
-              </div>
-            </div>
-            <span class="btn btn-emerald" style="padding:5px 10px; font-size:0.74rem;">Abordar</span>
-          </div>
-          <div class="mk-lead">
-            <div>
-              <strong style="font-size:0.86rem;">Barbearia Corte Fino</strong>
-              <div class="mk-tags">
-                <span class="tag tag-b">Biossite / LP</span>
-                <span class="tag tag-p">Plaquinha NFC 5⭐</span>
-              </div>
-            </div>
-            <span class="btn btn-primary" style="padding:5px 10px; font-size:0.74rem;">Abordar</span>
-          </div>
-          <div class="mk-lead">
-            <div>
-              <strong style="font-size:0.86rem;">Clínica Odontológica Sorrir</strong>
-              <div class="mk-tags">
-                <span class="tag tag-g">WhatsApp Business</span>
-                <span class="tag tag-p">NFC Balcão</span>
-              </div>
-            </div>
-            <span class="btn btn-emerald" style="padding:5px 10px; font-size:0.74rem;">Abordar</span>
+        </div>
+        <div class="float-pill p1">
+          <div class="float-dot" style="background:#ecfdf5; color:#059669;"><i class="fa-brands fa-whatsapp"></i></div>
+          <div>
+            <strong>Chat Integrado + 1-Clique</strong>
+            <div style="font-size:0.72rem; color:#94a3b8;">QR Code, Web ou API Oficial</div>
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- O QUE VENDER -->
+  <!-- ROI STRIP -->
+  <section class="roi-strip">
+    <div class="container roi-grid">
+      <div class="roi-card">
+        <div class="roi-icon" style="background:#eff6ff; color:#2563eb;"><i class="fa-solid fa-sack-dollar"></i></div>
+        <div>
+          <strong>1 venda paga 1 ano inteiro</strong>
+          <span>Vendeu 1 plaquinha NFC ou Biossite (R$ 250+)? O sistema já se pagou com folga.</span>
+        </div>
+      </div>
+      <div class="roi-card">
+        <div class="roi-icon" style="background:#ecfdf5; color:#059669;"><i class="fa-solid fa-crosshairs"></i></div>
+        <div>
+          <strong>Zero lead frio ou perdido</strong>
+          <span>Cada empresa já entra com telefone válido, avaliação do Google e falha detectada.</span>
+        </div>
+      </div>
+      <div class="roi-card">
+        <div class="roi-icon" style="background:#fef3c7; color:#d97706;"><i class="fa-solid fa-shield-halved"></i></div>
+        <div>
+          <strong>Feito para não tomar bloqueio</strong>
+          <span>Abordagens curtas de Quebra-Gelo + WhatsApp Web 1-Clique e API Oficial Meta.</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- REAL SYSTEM SCREENSHOTS -->
+  <section class="section" id="sistema">
+    <div class="container">
+      <div class="section-head">
+        <span class="eyebrow">Telas Reais do Sistema</span>
+        <h2>Veja o MapaLeads PRO trabalhando por você por dentro</h2>
+        <p>Sem enrolação ou promessa vazia: clique nas abas abaixo e veja as telas reais onde você encontra empresas, organiza negociações e fecha pelo WhatsApp.</p>
+      </div>
+
+      <div class="tour-tabs">
+        <button type="button" class="tour-btn active" onclick="switchTour('crm', this)">
+          <i class="fa-solid fa-table-columns"></i> 1. CRM Kanban + Oportunidades
+        </button>
+        <button type="button" class="tour-btn" onclick="switchTour('chat', this)">
+          <i class="fa-solid fa-comments"></i> 2. Chat / Inbox Estilo Kommo
+        </button>
+        <button type="button" class="tour-btn" onclick="switchTour('search', this)">
+          <i class="fa-solid fa-magnifying-glass-location"></i> 3. Radar de Busca no Google
+        </button>
+      </div>
+
+      <div class="browser-frame">
+        <div class="browser-bar">
+          <div class="browser-dots">
+            <span style="background:#ef4444"></span>
+            <span style="background:#f59e0b"></span>
+            <span style="background:#10b981"></span>
+          </div>
+          <div class="browser-url">https://mapaleadspro.online/app</div>
+          <div style="font-size:0.74rem; color:#34d399; font-weight:700;"><i class="fa-solid fa-lock"></i> Sistema ao Vivo</div>
+        </div>
+
+        <div class="tour-panel active" id="tour-crm">
+          <img src="/static/img/sales/ui-crm.png" alt="CRM Kanban MapaLeads PRO com etiquetas de oportunidades">
+          <div class="tour-caption">
+            <div>
+              <strong>CRM Kanban Visual com Diagnóstico Automático</strong>
+              <span>O sistema lê o perfil da empresa no Google e já marca se ela precisa de <em>Plaquinha NFC</em>, <em>Cardápio Digital</em>, <em>Biossite / LP</em> ou <em>WhatsApp Business</em>.</span>
+            </div>
+            <a href="/register" class="btn btn-primary btn-sm">Testar CRM Grátis</a>
+          </div>
+        </div>
+
+        <div class="tour-panel" id="tour-chat">
+          <img src="/static/img/sales/ui-chat.png" alt="Chat / Inbox integrado estilo Kommo no MapaLeads PRO">
+          <div class="tour-caption">
+            <div>
+              <strong>Central de Conversas Estilo Kommo (QR Code, API Meta ou 1-Clique)</strong>
+              <span>Responda clientes, insira modelos prontos com 1 clique e altere a etapa do funil sem sair da tela de atendimento.</span>
+            </div>
+            <a href="/register" class="btn btn-emerald btn-sm">Ver na Prática</a>
+          </div>
+        </div>
+
+        <div class="tour-panel" id="tour-search">
+          <img src="/static/img/sales/ui-search.png" alt="Busca por Rua, Bairro ou Cidade no Google dentro do MapaLeads PRO">
+          <div class="tour-caption">
+            <div>
+              <strong>Varredura Cirúrgica por Rua Inteira, Bairro ou Cidade</strong>
+              <span>Escolha um nicho ou faça varredura completa de comércios. Os leads aparecem em tempo real já com telefone limpo para WhatsApp.</span>
+            </div>
+            <a href="/register" class="btn btn-primary btn-sm">Fazer Minha 1ª Busca</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- OFERTAS & NFC PHOTO -->
   <section class="section section-alt" id="ofertas">
     <div class="container">
       <div class="section-head">
-        <h2>Feito para quem vende serviços para comércios locais</h2>
-        <p>O sistema analisa automaticamente cada empresa captada no Google e marca qual serviço ela mais precisa.</p>
+        <span class="eyebrow">Dinheiro Rápido em Negócios Locais</span>
+        <h2>O sistema acha quem tem dor real e entrega o gancho perfeito para você vender</h2>
+        <p>Você não vai tentar "empurrar" nada. O MapaLeads PRO filtra exatamente quem está perdendo clientes hoje por não ter estrutura digital.</p>
       </div>
+
+      <div class="spotlight-grid">
+        <div class="spotlight-photo">
+          <img src="/static/img/sales/nfc-plaque.jpg" alt="Plaquinha NFC + QR Code de Avaliações 5 Estrelas no Google no balcão">
+          <div class="spotlight-badge">
+            <span><i class="fa-solid fa-star" style="color:#fbbf24;"></i> Oferta Campeã de Entrada</span>
+            <strong>Ticket médio: R$ 150 a R$ 350 / plaquinha</strong>
+          </div>
+        </div>
+
+        <div>
+          <span class="eyebrow" style="background:#ecfdf5; color:#047857;">Exemplo de Oportunidade Detectada</span>
+          <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.65rem; font-weight:800; line-height:1.2; margin-bottom:14px;">
+            Clínicas, restaurantes e barbearias com poucas avaliações no Google compram na hora
+          </h3>
+          <p style="color:var(--muted); margin-bottom:16px;">
+            Empresas com menos de 50 avaliações perdem clientes todo dia para o concorrente ao lado. O MapaLeads PRO lista esses negócios para você em segundos com a mensagem de abordagem pronta — sem parecer robô.
+          </p>
+          <ul class="price-list" style="margin:0 0 22px;">
+            <li><i class="fa-solid fa-check-circle"></i> <strong>Filtro automático de poucas avaliações</strong> para vender Plaquinha NFC + QR Code;</li>
+            <li><i class="fa-solid fa-check-circle"></i> <strong>Detector de "Sem Site" ou "Só Instagram"</strong> para fechar Biossite, Landing Page ou Google Meu Negócio;</li>
+            <li><i class="fa-solid fa-check-circle"></i> <strong>Categoria Gastronomia destacada</strong> para fechar Cardápio Digital com pedido no WhatsApp sem taxa de iFood.</li>
+          </ul>
+          <a href="/register" class="btn btn-primary btn-lg">
+            <i class="fa-solid fa-crosshairs"></i> Achar Empresas na Minha Cidade Agora
+          </a>
+        </div>
+      </div>
+
       <div class="grid-3">
         <div class="card">
-          <div class="card-icon" style="background:#f5f3ff; color:var(--purple);"><i class="fa-solid fa-wifi"></i></div>
-          <h3>Plaquinhas NFC + QR Code</h3>
-          <p>Identifica empresas com poucas avaliações ou nota baixa no Google para você ofertar plaquinhas de Avaliação 5⭐, Pix, Wi-Fi e Instagram.</p>
-        </div>
-        <div class="card">
-          <div class="card-icon" style="background:#ecfdf5; color:var(--emerald);"><i class="fa-brands fa-whatsapp"></i></div>
-          <h3>Configuração WhatsApp Business</h3>
-          <p>Capte negócios locais com telefone ativo para vender estruturação de catálogo, mensagens automáticas, respostas rápidas e etiquetas.</p>
-        </div>
-        <div class="card">
-          <div class="card-icon" style="background:#fffbeb; color:#d97706;"><i class="fa-solid fa-utensils"></i></div>
-          <h3>Cardápio Digital</h3>
-          <p>Filtra restaurantes, pizzarias, lanchonetes, bares e cafeterias prontos para usar cardápio digital com QR Code / NFC na mesa.</p>
-        </div>
-        <div class="card">
-          <div class="card-icon" style="background:#eff6ff; color:var(--primary);"><i class="fa-solid fa-globe"></i></div>
+          <div class="card-icon" style="background:#eff6ff; color:#2563eb;"><i class="fa-solid fa-globe"></i></div>
           <h3>Biossites &amp; Landing Pages</h3>
-          <p>Destaca na hora empresas que não possuem site oficial ou usam apenas link do Instagram no Google Meu Negócio.</p>
+          <p>Encontre comércios bons que só têm link quebrado ou Instagram e venda presença profissional que traz clientes do Google.</p>
+          <span class="ticket-tag">Ticket típico: R$ 400 a R$ 1.500</span>
         </div>
         <div class="card">
-          <div class="card-icon" style="background:#f1f5f9; color:var(--dark);"><i class="fa-solid fa-table-columns"></i></div>
-          <h3>CRM Kanban + Chat estilo Kommo</h3>
-          <p>Organize todas as negociações do primeiro contato à venda fechada, registre valores em R$ e converse em uma tela de inbox limpa.</p>
+          <div class="card-icon" style="background:#fef3c7; color:#d97706;"><i class="fa-solid fa-utensils"></i></div>
+          <h3>Cardápio Digital &amp; Delivery</h3>
+          <p>Hamburguerias, pizzarias e açaís pagam até 27% de taxa no aplicativo. Mostre como vender direto no WhatsApp sem comissão.</p>
+          <span class="ticket-tag">Recorrência: R$ 97 a R$ 297/mês</span>
         </div>
         <div class="card">
-          <div class="card-icon" style="background:#fef2f2; color:#dc2626;"><i class="fa-solid fa-shield-halved"></i></div>
-          <h3>Quebra-Gelo Anti-Bloqueio</h3>
-          <p>Modelos curtos e naturais de 1ª mensagem + follow-up automático para gerar resposta do cliente antes de enviar sua proposta.</p>
+          <div class="card-icon" style="background:#ecfdf5; color:#059669;"><i class="fa-brands fa-whatsapp"></i></div>
+          <h3>WhatsApp Business + API</h3>
+          <p>Organize o atendimento de clínicas e escritórios usando WhatsApp QR Code conectado, templates prontos ou API Oficial Meta.</p>
+          <span class="ticket-tag">Ticket típico: R$ 500 a R$ 2.000</span>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- COMO FUNCIONA -->
-  <section class="section" id="como-funciona">
+  <!-- HOW IT WORKS (DARK SECTION) -->
+  <section class="section section-dark" id="como-funciona">
     <div class="container">
       <div class="section-head">
-        <h2>Da busca ao fechamento em 3 passos</h2>
-        <p>Sem planilhas bagunçadas. Tudo em um único painel simples e rápido.</p>
+        <span class="eyebrow" style="background:rgba(37,99,235,0.22); color:#93c5fd;">Passo a Passo Completo</span>
+        <h2>Do zero ao dinheiro no bolso em 3 passos simples</h2>
+        <p>Você não precisa saber programar nem gastar R$ 1 com tráfego pago para gerar reuniões e vendas todos os dias.</p>
       </div>
       <div class="grid-3">
-        <div class="card">
-          <div class="step-num">1</div>
-          <h3>Busque por Rua, Bairro ou Cidade</h3>
-          <p>Digite o endereço ou clique direto no mapa. O sistema busca no Google e traz empresas com telefone válido e tags de oportunidade.</p>
+        <div class="step-card">
+          <div class="step-top">
+            <div class="step-num">1</div>
+            <span class="step-time"><i class="fa-regular fa-clock"></i> ~2 minutos</span>
+          </div>
+          <h3>Digite a Rua, Bairro ou Cidade</h3>
+          <p>Escolha o nicho (ex: Barbearia, Dentista, Pizzaria) ou faça uma varredura completa. O motor busca empresas reais no Google já filtrando telefones e oportunidades.</p>
         </div>
-        <div class="card">
-          <div class="step-num">2</div>
-          <h3>Envie a Abordagem Certa</h3>
-          <p>Escolha o modelo curto pronto para o serviço (NFC, WhatsApp, Cardápio ou Biossite) e envie por WhatsApp Web 1-Clique, QR Code ou API Oficial.</p>
+        <div class="step-card">
+          <div class="step-top">
+            <div class="step-num">2</div>
+            <span class="step-time"><i class="fa-regular fa-clock"></i> ~5 minutos</span>
+          </div>
+          <h3>Dispare o Quebra-Gelo Seguro</h3>
+          <p>Selecione o lead no CRM e use os modelos curtos Anti-Bloqueio com o nome da empresa preenchido automaticamente via WhatsApp Web 1-Clique, QR Code ou API Oficial.</p>
         </div>
-        <div class="card">
-          <div class="step-num">3</div>
-          <h3>Acompanhe no CRM e Fature</h3>
-          <p>Arraste o card entre as etapas do funil, responda no Chat integrado e acompanhe seu faturamento fechado no dashboard.</p>
+        <div class="step-card">
+          <div class="step-top">
+            <div class="step-num">3</div>
+            <span class="step-time"><i class="fa-solid fa-check"></i> Todo dia</span>
+          </div>
+          <h3>Atenda no Chat e Feche Contratos</h3>
+          <p>Quem responder sobe para o topo do seu Chat/Inbox estilo Kommo. Arraste no funil Kanban, envie proposta e registre o valor fechado direto no seu painel financeiro.</p>
         </div>
       </div>
     </div>
@@ -361,22 +578,24 @@
   <section class="section section-alt" id="planos">
     <div class="container">
       <div class="section-head">
-        <h2>Comece grátis hoje mesmo</h2>
-        <p>Teste na prática por 1 dia sem compromisso ou escolha o plano ideal para você.</p>
+        <span class="eyebrow">Sem Surpresas · Sem Taxas Escondidas</span>
+        <h2>Todas as ferramentas liberadas nos dois planos pagos</h2>
+        <p>Tanto o <strong>Starter</strong> quanto o <strong>PRO</strong> contam com 100% das ferramentas (WhatsApp QR, Chat estilo Kommo, API Oficial Meta, Mapa e CSV). Você só escolhe o limite de leads salvos e se quer prioridade na fila.</p>
       </div>
+
       <div class="pricing-grid">
         <div class="price-card">
           <h3>Teste Grátis</h3>
           <p class="text-muted" style="font-size:0.86rem; color:var(--muted);">Ideal para validar na sua cidade antes de assinar.</p>
           <div class="price-val">R$ 0 <small>/ 1 dia</small></div>
           <ul class="price-list">
-            <li><i class="fa-solid fa-check"></i> Captação de até <strong>25 empresas</strong></li>
+            <li><i class="fa-solid fa-check"></i> Captação de até <strong>25 empresas salvas</strong></li>
             <li><i class="fa-solid fa-check"></i> Detecção de oportunidades (NFC, Site, Cardápio)</li>
             <li><i class="fa-solid fa-check"></i> CRM Kanban + Lista completa</li>
             <li><i class="fa-solid fa-check"></i> Modelos curtos + Quebra-Gelo Anti-Bloqueio</li>
             <li><i class="fa-solid fa-check"></i> Envio pelo WhatsApp Web 1-Clique</li>
           </ul>
-          <a href="/register" class="btn btn-outline btn-lg" style="width:100%;">Começar Teste Grátis</a>
+          <a href="/register" class="btn btn-outline btn-lg" style="width:100%;">Começar Teste 24h</a>
         </div>
 
         <div class="price-card">
@@ -396,7 +615,7 @@
             <li><i class="fa-solid fa-check"></i> Copys Quebra-Gelo + Exportação CSV</li>
           </ul>
           <a href="{{ site_cfg.checkout_url or '/register' }}" {% if site_cfg.checkout_url %}target="_blank"{% endif %} class="btn btn-outline btn-lg" style="width:100%; border-color:#2563eb; color:#2563eb;">
-            {% if site_cfg.checkout_url %}Assinar Starter{% else %}Criar Conta Starter{% endif %}
+            {% if site_cfg.checkout_url %}Assinar Starter Agora{% else %}Criar Conta Starter{% endif %}
           </a>
         </div>
 
@@ -417,7 +636,7 @@
             <li><i class="fa-solid fa-check"></i> <strong>Chat estilo Kommo</strong> + CRM Kanban + CSV</li>
           </ul>
           <a href="{{ site_cfg.checkout_pro_url or site_cfg.enterprise_wa_url or '/register' }}" {% if site_cfg.checkout_pro_url or site_cfg.enterprise_wa_url %}target="_blank"{% endif %} class="btn btn-primary btn-lg" style="width:100%;">
-            {% if site_cfg.checkout_pro_url %}Assinar Plano PRO{% else %}Quero o Plano PRO{% endif %}
+            {% if site_cfg.checkout_pro_url %}Assinar Plano PRO Agora{% else %}Quero o Plano PRO{% endif %}
           </a>
         </div>
 
@@ -428,7 +647,7 @@
           <div class="price-val" style="color:#fff; font-size:1.95rem; margin-top:18px;">Sob consulta</div>
           <span style="color:#34d399; font-size:0.78rem; font-weight:700; display:block;">Fechamento personalizado no WhatsApp</span>
           <ul class="price-list" style="color:#e2e8f0;">
-            <li style="color:#e2e8f0;"><i class="fa-solid fa-check"></i> <strong>Leads ilimitados</strong> todos os meses</li>
+            <li style="color:#e2e8f0;"><i class="fa-solid fa-check"></i> <strong>Leads ilimitados</strong> salvos no programa</li>
             <li style="color:#e2e8f0;"><i class="fa-solid fa-check"></i> Contas para equipe / múltiplos vendedores</li>
             <li style="color:#e2e8f0;"><i class="fa-solid fa-check"></i> Configuração assistida WhatsApp &amp; API Meta</li>
             <li style="color:#e2e8f0;"><i class="fa-solid fa-check"></i> Templates de abordagem personalizados</li>
@@ -437,6 +656,16 @@
           <a href="{{ site_cfg.enterprise_wa_url or '/register' }}" {% if site_cfg.enterprise_wa_url %}target="_blank"{% endif %} class="btn btn-emerald btn-lg" style="width:100%;">
             <i class="fa-brands fa-whatsapp"></i> Falar com Comercial
           </a>
+        </div>
+      </div>
+
+      <div class="guarantee-box">
+        <div style="width:52px; height:52px; border-radius:14px; background:#ecfdf5; color:#059669; display:grid; place-items:center; font-size:1.5rem; flex-shrink:0;">
+          <i class="fa-solid fa-shield-check"></i>
+        </div>
+        <div>
+          <strong style="display:block; font-size:1rem;">Garantia Incondicional de 7 Dias + Cancelamento com 1 Clique</strong>
+          <span style="font-size:0.88rem; color:var(--muted);">Pagamento 100% processado com segurança pela Kiwify. Se testar e achar que não é para você nos primeiros 7 dias, devolvemos 100% do seu dinheiro sem perguntas.</span>
         </div>
       </div>
     </div>
@@ -450,21 +679,37 @@
       </div>
       <div class="faq-list">
         <details class="faq-item" open>
+          <summary>Qual a diferença entre o Plano Starter e o Plano PRO?</summary>
+          <p>Os dois planos liberam <strong>exatamente as mesmas ferramentas</strong> (WhatsApp QR, API Oficial Meta, Chat estilo Kommo, Busca por Rua/Bairro/Cidade, Mapa e CSV). A diferença é que o <strong>Starter</strong> comporta até <strong>500 leads salvos</strong> no programa, enquanto o <strong>PRO</strong> comporta até <strong>2.000 leads salvos</strong> e ainda tem <strong>prioridade na fila de buscas</strong>.</p>
+        </details>
+        <details class="faq-item">
           <summary>Preciso instalar algum programa no meu computador?</summary>
-          <p>Não! O MapaLeads PRO funciona 100% online no seu navegador, tanto no computador quanto no celular.</p>
+          <p>Não! O MapaLeads PRO funciona 100% online direto no seu navegador, tanto no computador quanto no celular (modo claro e modo escuro inclusos).</p>
         </details>
         <details class="faq-item">
           <summary>Tem risco de bloqueio no meu WhatsApp?</summary>
-          <p>O sistema inclui o modo <strong>WhatsApp Web 1-Clique</strong> (envio manual humano com zero risco de bloqueio) e modelos curtos de <strong>Quebra-Gelo</strong> para você iniciar conversas naturais antes de enviar propostas.</p>
+          <p>O sistema traz o modo <strong>WhatsApp Web 1-Clique</strong> (envio manual humano com zero risco de bloqueio) e modelos curtos de <strong>Quebra-Gelo</strong> para você iniciar conversas naturais antes de enviar links ou propostas, além da integração com a <strong>API Oficial Meta</strong>.</p>
         </details>
         <details class="faq-item">
-          <summary>Funciona em qualquer cidade do Brasil?</summary>
-          <p>Sim! Você pode buscar por cidade inteira, bairro específico ou até varrer os comércios de uma única rua ou avenida.</p>
+          <summary>Como recebo meu acesso após pagar na Kiwify?</summary>
+          <p>A liberação é automática em segundos logo após a confirmação do PIX ou Cartão. Se você já criou seu Teste Grátis usando o mesmo e-mail da compra, sua conta sobe para o plano escolhido na hora!</p>
         </details>
-        <details class="faq-item">
-          <summary>Como recebo meu acesso após pagar?</summary>
-          <p>A liberação é automática logo após a confirmação do pagamento. Se já criou seu Teste Grátis com o mesmo e-mail, sua conta vira PRO na hora.</p>
-        </details>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA FINAL -->
+  <section class="final-cta">
+    <div class="container">
+      <h2>Suas próximas vendas já estão no Google agora mesmo.</h2>
+      <p>Abra sua conta grátis de 24h, faça sua primeira busca na sua cidade e veja quantas empresas estão esperando uma abordagem pelo WhatsApp.</p>
+      <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
+        <a href="/register" class="btn btn-emerald btn-lg">
+          <i class="fa-solid fa-rocket"></i> Começar Teste Grátis Agora
+        </a>
+        <a href="#planos" class="btn btn-outline btn-lg" style="background:rgba(255,255,255,0.1); color:#fff; border-color:rgba(255,255,255,0.28);">
+          Assinar Plano Pago
+        </a>
       </div>
     </div>
   </section>
@@ -479,11 +724,20 @@
         <a href="/register">Teste Grátis</a>
         <a href="/primeiro-acesso">Primeiro Acesso (Assinante)</a>
         {% if site_cfg.support_whatsapp %}
-        <a href="https://wa.me/{{ site_cfg.support_whatsapp }}" target="_blank"><i class="fa-brands fa-whatsapp"></i> Suporte</a>
+        <a href="https://wa.me/{{ site_cfg.support_whatsapp_digits or site_cfg.support_whatsapp }}" target="_blank"><i class="fa-brands fa-whatsapp"></i> Suporte Comercial</a>
         {% endif %}
       </div>
     </div>
   </footer>
+
+  <script>
+    function switchTour(key, btn) {
+      document.querySelectorAll('.tour-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tour-panel').forEach(p => p.classList.remove('active'));
+      if (btn) btn.classList.add('active');
+      var panel = document.getElementById('tour-' + key);
+      if (panel) panel.classList.add('active');
+    }
+  </script>
 </body>
 </html>
-

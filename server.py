@@ -437,14 +437,22 @@ def index():
     return render_template("landing.html", site_cfg=site_cfg)
 
 
+def _mask_admin_site_settings(cfg: Dict[str, str]) -> Dict[str, str]:
+    out = dict(cfg)
+    sec = out.get("meta_app_secret") or ""
+    out["has_meta_app_secret"] = bool(sec)
+    out["meta_app_secret"] = ("••••" + sec[-4:]) if len(sec) > 4 else ("••••" if sec else "")
+    return out
+
+
 @app.route("/api/admin/site-settings", methods=["GET", "POST"])
 @admin_required
 def api_admin_site_settings():
     if request.method == "POST":
         data = request.get_json(silent=True) or {}
         saved = save_site_settings(data)
-        return jsonify({"success": True, "settings": saved})
-    return jsonify({"success": True, "settings": get_site_settings()})
+        return jsonify({"success": True, "settings": _mask_admin_site_settings(saved)})
+    return jsonify({"success": True, "settings": _mask_admin_site_settings(get_site_settings())})
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -1323,8 +1331,9 @@ def api_wa_official_test():
 @app.route("/api/wa/official/embedded-config")
 @login_required
 def api_wa_official_embedded_config():
-    app_id = os.environ.get("META_APP_ID", "").strip()
-    config_id = os.environ.get("META_EMBEDDED_CONFIG_ID", "").strip()
+    cfg = get_site_settings()
+    app_id = (cfg.get("meta_app_id") or os.environ.get("META_APP_ID", "")).strip()
+    config_id = (cfg.get("meta_embedded_config_id") or os.environ.get("META_EMBEDDED_CONFIG_ID", "")).strip()
     api_version = os.environ.get("META_API_VERSION", "v21.0").strip()
     return jsonify({
         "enabled": bool(app_id and config_id),
@@ -1343,12 +1352,13 @@ def api_wa_official_embedded_callback():
     phone_number_id = (data.get("phone_number_id") or "").strip()
     waba_id = (data.get("waba_id") or "").strip()
 
-    app_id = os.environ.get("META_APP_ID", "").strip()
-    app_secret = os.environ.get("META_APP_SECRET", "").strip()
+    cfg = get_site_settings()
+    app_id = (cfg.get("meta_app_id") or os.environ.get("META_APP_ID", "")).strip()
+    app_secret = (cfg.get("meta_app_secret") or os.environ.get("META_APP_SECRET", "")).strip()
     api_version = os.environ.get("META_API_VERSION", "v21.0").strip()
 
     if not app_id or not app_secret:
-        return jsonify({"success": False, "error": "META_APP_ID e META_APP_SECRET não configurados no servidor."}), 400
+        return jsonify({"success": False, "error": "META_APP_ID e META_APP_SECRET não configurados no Painel Admin."}), 400
     if not code:
         return jsonify({"success": False, "error": "Código de autorização da Meta não recebido."}), 400
 
@@ -1357,6 +1367,11 @@ def api_wa_official_embedded_callback():
         return jsonify(tok_res), 400
 
     access_token = tok_res["access_token"]
+    if not waba_id or not phone_number_id:
+        discovered = wa_official.discover_waba_assets(app_id, app_secret, access_token, api_version)
+        waba_id = waba_id or discovered.get("waba_id", "")
+        phone_number_id = phone_number_id or discovered.get("phone_number_id", "")
+
     if waba_id:
         wa_official.subscribe_waba_webhook(waba_id, access_token, api_version)
 
