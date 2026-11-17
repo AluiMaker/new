@@ -8,5 +8,6 @@ __pycache__/
 whatsapp_service/node_modules/
 whatsapp_service/.wwebjs_auth/
 whatsapp_service/service.log
+vsl-video/
 .git/
 

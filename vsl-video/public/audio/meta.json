@@ -1,0 +1,32 @@
+{
+  "01_hook": {
+    "file": "audio/01_hook.mp3",
+    "duration": 6.216,
+    "text": "Você ainda perde horas procurando cliente na mão, sem saber quem realmente precisa do seu serviço?"
+  },
+  "02_radar": {
+    "file": "audio/02_radar.mp3",
+    "duration": 11.904,
+    "text": "Conheça o MapaLeads PRO. Em segundos, ele varre ruas, bairros e cidades inteiras no Google, extrai o WhatsApp do dono e já detecta quem tem poucas avaliações ou não tem site."
+  },
+  "03_ofertas": {
+    "file": "audio/03_ofertas.mp3",
+    "duration": 12.504,
+    "text": "Assim você oferta a solução certa na hora: Plaquinha NFC cinco estrelas, Cardápio Digital, Biossite ou WhatsApp Business. Uma única venda já paga o ano inteiro do sistema."
+  },
+  "04_crm": {
+    "file": "audio/04_crm.mp3",
+    "duration": 7.248,
+    "text": "Cada empresa entra organizada no CRM Kanban com etiquetas automáticas e modelos curtos de quebra-gelo anti-bloqueio."
+  },
+  "05_chat": {
+    "file": "audio/05_chat.mp3",
+    "duration": 9.264,
+    "text": "E quando o cliente responde, você atende tudo em tempo real no chat estilo Kommo, com WhatsApp QR Code, um clique ou API Oficial Meta."
+  },
+  "06_cta": {
+    "file": "audio/06_cta.mp3",
+    "duration": 11.184,
+    "text": "Comece agora no teste grátis de vinte e quatro horas sem cartão, ou assine o Starter por apenas trinta e sete reais por mês. Clique no botão abaixo e faça sua primeira busca hoje!"
+  }
+}
