@@ -379,10 +379,14 @@
         </div>
 
         <div class="price-card featured">
-          <span class="pop-badge">Mais Escolhido</span>
+          <span class="pop-badge" style="background:#dc2626;">Oferta de Lançamento</span>
           <h3>Plano PRO Mensal</h3>
           <p class="text-muted" style="font-size:0.88rem; color:var(--muted);">Acesso completo e ilimitado para vender todo dia.</p>
-          <div class="price-val">{{ site_cfg.plan_pro_price or 'R$ 97' }} <small>/ mês</small></div>
+          <div style="margin-top:12px;">
+            <span style="text-decoration:line-through; color:#94a3b8; font-size:0.95rem; font-weight:600; display:block;">De R$ 97/mês por apenas</span>
+            <div class="price-val" style="margin-top:2px; color:#0f172a;">{{ site_cfg.plan_pro_price or 'R$ 37' }} <small>/ mês</small></div>
+            <span style="color:#059669; font-size:0.8rem; font-weight:700; display:block;">Valor promocional travado para os primeiros assinantes (vagas limitadas)</span>
+          </div>
           <ul class="price-list">
             <li><i class="fa-solid fa-check"></i> <strong>Leads ilimitados</strong> no Google Maps</li>
             <li><i class="fa-solid fa-check"></i> Mapa visual + Busca por rua inteira, bairro ou cidade</li>
@@ -442,3 +446,4 @@
   </footer>
 </body>
 </html>
+

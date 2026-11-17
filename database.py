@@ -908,7 +908,7 @@ def get_admin_dashboard_stats() -> Dict[str, Any]:
 def get_site_settings() -> Dict[str, str]:
     defaults = {
         "checkout_url": os.environ.get("CHECKOUT_URL", ""),
-        "plan_pro_price": os.environ.get("PLAN_PRO_PRICE", "R$ 97"),
+        "plan_pro_price": os.environ.get("PLAN_PRO_PRICE", "R$ 37"),
         "support_whatsapp": os.environ.get("SUPPORT_WHATSAPP", ""),
     }
     conn = get_connection()
