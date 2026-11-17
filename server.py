@@ -228,9 +228,13 @@ def run_scraper_thread(
         if lead.get("clean_phone"):
             broadcast_event("queue_updated", wa.get_queue_summary(), user_id=user_id)
 
-    if not _search_semaphore.acquire(timeout=120):
-        log_cb("Servidor ocupado com outra busca no momento. Tente novamente em instantes.")
-        broadcast_event("search_error", {"error": "Servidor ocupado com outra busca. Tente novamente em instantes."}, user_id=user_id)
+    acquired = _search_semaphore.acquire(blocking=False)
+    if not acquired:
+        log_cb("Aguardando vaga na fila de buscas do servidor (iniciando automaticamente em instantes)...")
+        acquired = _search_semaphore.acquire(timeout=180)
+    if not acquired:
+        log_cb("Servidor ocupado com muitas buscas simultâneas. Tente novamente em instantes.")
+        broadcast_event("search_error", {"error": "Servidor ocupado. Tente novamente em instantes."}, user_id=user_id)
         st["is_running"] = False
         broadcast_event("search_finished", {}, user_id=user_id)
         return

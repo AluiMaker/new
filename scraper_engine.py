@@ -6,6 +6,7 @@ import re
 import shutil
 import socket
 import subprocess
+import tempfile
 import urllib.request
 import urllib.parse
 from typing import Dict, Any, List, Optional, Callable, Tuple, Set
@@ -403,7 +404,7 @@ class GoogleMapsScraper:
         self.log_callback = log_callback or (lambda msg: None)
         self.process: Optional[subprocess.Popen] = None
         self.ws: Optional[websocket.WebSocket] = None
-        self.user_data_dir = os.path.join(os.environ.get("TEMP", "C:\\Temp"), f"chrome_gmaps_lh_{self.port}")
+        self.user_data_dir = os.path.join(tempfile.gettempdir(), f"chrome_gmaps_lh_{self.port}")
         self.stop_requested = False
         self._req_counter = 1
 
@@ -446,11 +447,13 @@ class GoogleMapsScraper:
                     "--disable-dev-shm-usage",
                     "--disable-gpu",
                     "--disable-software-rasterizer",
+                    "--blink-settings=imagesEnabled=false",
                     "--js-flags=--max-old-space-size=256",
                     "--window-size=1366,860"
                 ])
             else:
                 args.extend([
+                    "--blink-settings=imagesEnabled=false",
                     "--window-position=-32000,-32000",
                     "--window-size=1366,860"
                 ])
@@ -528,7 +531,7 @@ class GoogleMapsScraper:
                     break
         except Exception:
             pass
-        time.sleep(2.4)
+        time.sleep(1.8)
 
     def eval_js(self, expression: str, timeout: int = 12) -> Any:
         if not self.ws:
@@ -575,6 +578,8 @@ class GoogleMapsScraper:
                 except Exception:
                     pass
             self.process = None
+        if self.user_data_dir and os.path.isdir(self.user_data_dir):
+            shutil.rmtree(self.user_data_dir, ignore_errors=True)
 
     def handle_consent_and_wait(self):
         time.sleep(1.5)
@@ -805,6 +810,17 @@ class GoogleMapsScraper:
                         except Exception:
                             pass
 
+                    lead_lat = None
+                    lead_lon = None
+                    if m_url:
+                        m_coords = re.search(r"!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)", m_url) or re.search(r"/@(-?\d+\.\d+),(-?\d+\.\d+)", m_url)
+                        if m_coords:
+                            try:
+                                lead_lat = float(m_coords.group(1))
+                                lead_lon = float(m_coords.group(2))
+                            except Exception:
+                                pass
+
                     lead = {
                         "name": name,
                         "category": lines_info["category"] or niche or "Comércio Local",
@@ -822,7 +838,9 @@ class GoogleMapsScraper:
                         "website": clean_web,
                         "website_type": web_type,
                         "maps_url": m_url or f"https://www.google.com/maps/search/{urllib.parse.quote(name + ' ' + clean_p)}",
-                        "search_query": effective_query
+                        "search_query": effective_query,
+                        "lat": lead_lat,
+                        "lon": lead_lon,
                     }
 
                     leads_result.append(lead)
@@ -875,7 +893,7 @@ class GoogleMapsScraper:
                     }
                 })()
                 """, timeout=5)
-                time.sleep(1.3)
+                time.sleep(0.95)
 
             return leads_result
         finally:
