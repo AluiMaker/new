@@ -20,7 +20,7 @@ from database import (
     get_connection, create_user, authenticate_user, get_user_by_id, find_user_by_email,
     list_users, update_user, get_wa_user_config, save_wa_user_config,
     get_user_access_status, extend_user_subscription, count_recent_signups_by_ip,
-    cleanup_expired_trials
+    cleanup_expired_trials, log_billing_event, complete_first_access, get_admin_dashboard_stats
 )
 from scraper_engine import GoogleMapsScraper, DEFAULT_SEGMENTS, SWEEP_ALL_TERMS
 from exporter import export_to_csv_bytes, export_to_json_bytes
@@ -441,7 +441,7 @@ def api_me():
 @admin_required
 def api_admin_users():
     if request.method == "GET":
-        return jsonify({"success": True, "users": list_users()})
+        return jsonify({"success": True, "users": list_users(), "stats": get_admin_dashboard_stats()})
     data = request.get_json(silent=True) or {}
     uid, err = create_user(
         data.get("name", ""),
@@ -486,9 +486,30 @@ def api_admin_cleanup_trials():
     return jsonify({"success": True, "removed": removed})
 
 
+@app.route("/primeiro-acesso", methods=["GET", "POST"])
+def first_access_page():
+    if request.method == "GET":
+        return render_template("auth.html", mode="first_access")
+    data = request.get_json(silent=True) or request.form
+    user, err = complete_first_access(
+        data.get("email", ""),
+        data.get("hint_digits", ""),
+        data.get("password", ""),
+    )
+    if err or not user:
+        if request.is_json:
+            return jsonify({"success": False, "error": err or "Não foi possível ativar sua senha."}), 400
+        return render_template("auth.html", mode="first_access", error=err)
+    session["user_id"] = user["id"]
+    session.permanent = True
+    if request.is_json:
+        return jsonify({"success": True, "user": user})
+    return redirect(url_for("index"))
+
+
 @app.route("/api/billing/webhook", methods=["POST"])
 @app.route("/api/billing/webhook/<gateway>", methods=["POST"])
-def api_billing_webhook(gateway="generic"):
+def api_billing_webhook(gateway="kiwify"):
     """
     Webhook universal para liberação/bloqueio automático de assinantes:
     Compatível com Kiwify, Cakto, Asaas, Mercado Pago ou integração própria.
@@ -506,9 +527,8 @@ def api_billing_webhook(gateway="generic"):
             return jsonify({"success": False, "error": "Invalid webhook token"}), 403
 
     payload = request.get_json(silent=True) or {}
-    gw = (gateway or "generic").lower()
+    gw = (gateway or "kiwify").lower()
 
-    # Extração normalizada de evento, email, nome e plano
     event_name = str(
         payload.get("webhook_event_type")
         or payload.get("event")
@@ -525,29 +545,40 @@ def api_billing_webhook(gateway="generic"):
         or ""
     ).strip().lower()
     name = str(customer.get("full_name") or customer.get("name") or payload.get("name") or (email.split("@")[0] if email else "Assinante")).strip()
+    cpf_digits = "".join(c for c in str(customer.get("CPF") or customer.get("cpf") or "") if c.isdigit())[-4:]
+    phone_digits = "".join(c for c in str(customer.get("mobile") or customer.get("phone") or "") if c.isdigit())[-4:]
+    hint = ",".join([x for x in (cpf_digits, phone_digits) if x])
+
     plan = str(payload.get("plan") or "pro").lower()
     days = int(payload.get("days") or 30)
 
     if not email:
+        log_billing_event(gw, event_name, "", "ignored", "Sem e-mail no payload")
         return jsonify({"success": True, "ignored": True, "reason": "no_email"}), 200
 
     approved_events = ("paid", "approved", "order_approved", "subscription_renewed", "subscription_authorized", "payment_confirmed", "payment_received", "active")
-    cancel_events = ("refunded", "chargedback", "canceled", "cancelled", "subscription_canceled", "subscription_late", "payment_overdue", "expired")
+    cancel_events = ("refunded", "chargedback", "chargeback", "canceled", "cancelled", "subscription_canceled", "subscription_late", "payment_overdue", "expired")
 
     user = find_user_by_email(email)
 
-    if any(k in event_name for k in approved_events) or payload.get("status") in ("paid", "approved", "CONFIRMED", "RECEIVED"):
+    if any(k in event_name for k in approved_events) or str(payload.get("order_status") or payload.get("status") or "").lower() in ("paid", "approved", "confirmed", "received"):
         if not user:
-            temp_pass = secrets.token_urlsafe(10)
+            temp_pass = secrets.token_urlsafe(12)
             uid, err = create_user(name, email, temp_pass, role="user", plan=plan, days=days)
+            if uid:
+                update_user(uid, {"must_set_password": 1, "verification_hint": hint})
+            log_billing_event(gw, event_name or "approved", email, "created", f"Novo assinante {plan} ({days}d)")
             return jsonify({"success": bool(uid), "action": "created_and_activated", "user_id": uid})
         updated = extend_user_subscription(user["id"], days=days, plan=plan)
+        log_billing_event(gw, event_name or "renewed", email, "renewed", f"Renovado +{days}d ({plan})")
         return jsonify({"success": True, "action": "renewed", "user_id": user["id"], "expires_at": (updated or {}).get("plan_expires_at")})
 
     if any(k in event_name for k in cancel_events):
         if user:
             update_user(user["id"], {"subscription_status": "expired"})
+            log_billing_event(gw, event_name or "canceled", email, "expired", "Acesso expirado pelo gateway")
             return jsonify({"success": True, "action": "expired", "user_id": user["id"]})
+        log_billing_event(gw, event_name or "canceled", email, "ignored", "Usuário não encontrado")
 
     return jsonify({"success": True, "ignored": True, "event": event_name}), 200
 

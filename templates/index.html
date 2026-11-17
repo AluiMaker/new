@@ -798,14 +798,53 @@
         <!-- ==================== 7. PAINEL ADMIN ==================== -->
         {% if current_user and current_user.role == 'admin' %}
         <section class="tab-view" id="tab-admin">
+          <!-- KPIs SaaS -->
+          <div class="kpi-grid" style="margin-bottom: 18px;">
+            <div class="kpi-card highlight-card">
+              <div class="kpi-icon bg-emerald-solid"><i class="fa-solid fa-crown"></i></div>
+              <div class="kpi-body">
+                <span class="kpi-label">Assinantes Pagos</span>
+                <strong class="kpi-value text-emerald" id="adm-kpi-paid">0</strong>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon bg-amber"><i class="fa-solid fa-hourglass-half"></i></div>
+              <div class="kpi-body">
+                <span class="kpi-label">Em Teste Grátis (3d)</span>
+                <strong class="kpi-value" id="adm-kpi-trial">0</strong>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon" style="background:#fef2f2; color:#dc2626;"><i class="fa-solid fa-circle-xmark"></i></div>
+              <div class="kpi-body">
+                <span class="kpi-label">Vencidos / Bloqueados</span>
+                <strong class="kpi-value" id="adm-kpi-expired">0</strong>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon bg-blue"><i class="fa-solid fa-users"></i></div>
+              <div class="kpi-body">
+                <span class="kpi-label">Total de Clientes</span>
+                <strong class="kpi-value" id="adm-kpi-clients">0</strong>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon bg-purple"><i class="fa-solid fa-database"></i></div>
+              <div class="kpi-body">
+                <span class="kpi-label">Leads no Servidor</span>
+                <strong class="kpi-value" id="adm-kpi-leads">0</strong>
+              </div>
+            </div>
+          </div>
+
           <div class="info-banner" style="margin-bottom: 18px; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
             <div>
-              <strong><i class="fa-solid fa-credit-card"></i> Webhook Automático de Mensalidades (Kiwify / Cakto / Asaas / Mercado Pago)</strong>
+              <strong><i class="fa-solid fa-credit-card"></i> Webhook Automático Kiwify / Cakto / Asaas / Mercado Pago</strong>
               <div class="webhook-copy-row">
                 <code id="billing-webhook-url"></code>
                 <button type="button" class="btn btn-outline btn-xs" onclick="copyBillingWebhookUrl()">Copiar URL</button>
               </div>
-              <small style="color:#475569;">Adicione <code>?token=SEU_BILLING_WEBHOOK_SECRET</code> se configurar segredo no <code>.env</code>.</small>
+              <small style="color:#475569;">Cole na Kiwify com <code>?token=SEU_BILLING_WEBHOOK_SECRET</code>. Link de primeiro acesso para compradores: <code>/primeiro-acesso</code></small>
             </div>
             <button type="button" class="btn btn-outline btn-sm" id="btn-cleanup-trials">
               <i class="fa-solid fa-broom"></i> Limpar Testes Abandonados
@@ -850,11 +889,20 @@
             </form>
           </div>
 
-          <div class="card">
-            <div class="card-header">
+          <div class="card" style="margin-bottom: 20px;">
+            <div class="card-header" style="flex-wrap:wrap;">
               <div>
                 <h3>Assinantes &amp; Contas Cadastradas</h3>
-                <p class="card-sub">Gerencie vencimentos (+30 dias), planos, bloqueios e leads por cliente</p>
+                <p class="card-sub">Filtre entre assinantes pagos, contas em Trial ou vencidos</p>
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+                <input type="text" id="admin-search-input" placeholder="Buscar nome ou e-mail..." style="width:200px;">
+                <div class="segmented">
+                  <button type="button" class="seg-btn active" data-adm-filter="all">Todos</button>
+                  <button type="button" class="seg-btn" data-adm-filter="paid">Pagos</button>
+                  <button type="button" class="seg-btn" data-adm-filter="trial">Trial</button>
+                  <button type="button" class="seg-btn" data-adm-filter="expired">Vencidos</button>
+                </div>
               </div>
             </div>
             <div class="table-wrap">
@@ -872,6 +920,29 @@
                   </tr>
                 </thead>
                 <tbody id="admin-users-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h3>Últimos Eventos de Pagamento / Webhook</h3>
+                <p class="card-sub">Registro em tempo real das aprovações, renovações e cancelamentos recebidos</p>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Data</th>
+                    <th>Gateway</th>
+                    <th>Evento</th>
+                    <th>E-mail</th>
+                    <th>Resultado</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-events-tbody"></tbody>
               </table>
             </div>
           </div>

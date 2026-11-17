@@ -169,13 +169,13 @@
   <main class="auth-panel">
     <div class="auth-card">
       <div class="auth-tabs">
-        <button type="button" class="auth-tab {% if mode != 'register' %}active{% endif %}" id="tab-login" onclick="switchMode('login')">Entrar</button>
-        <button type="button" class="auth-tab {% if mode == 'register' %}active{% endif %}" id="tab-register" onclick="switchMode('register')">Criar Conta</button>
+        <button type="button" class="auth-tab {% if mode not in ('register', 'first_access') %}active{% endif %}" id="tab-login" onclick="switchMode('login')">Entrar</button>
+        <button type="button" class="auth-tab {% if mode == 'register' %}active{% endif %}" id="tab-register" onclick="switchMode('register')">Teste Grátis</button>
       </div>
 
       <div id="auth-error" class="alert-err {% if error %}show{% endif %}">{{ error or '' }}</div>
 
-      <form id="form-login" class="{% if mode == 'register' %}hidden{% endif %}" onsubmit="submitAuth(event, '/login')">
+      <form id="form-login" class="{% if mode in ('register', 'first_access') %}hidden{% endif %}" onsubmit="submitAuth(event, '/login')">
         <h2>Bem-vindo de volta</h2>
         <p class="auth-sub">Acesse seu painel de prospecção e CRM.</p>
         <div class="field">
@@ -187,6 +187,11 @@
           <input type="password" name="password" placeholder="••••••••" required>
         </div>
         <button type="submit" class="btn-submit">Entrar no Sistema</button>
+        <div style="text-align:center; margin-top:14px; font-size:0.82rem;">
+          <a href="#" onclick="switchMode('first_access'); return false;" style="color:var(--primary); text-decoration:none; font-weight:600;">
+            Assinou agora na Kiwify? Clique aqui para definir sua senha
+          </a>
+        </div>
       </form>
 
       <form id="form-register" class="{% if mode != 'register' %}hidden{% endif %}" onsubmit="submitAuth(event, '/register')">
@@ -210,6 +215,27 @@
         </div>
         <button type="submit" class="btn-submit">Criar Conta e Acessar</button>
       </form>
+
+      <form id="form-first-access" class="{% if mode != 'first_access' %}hidden{% endif %}" onsubmit="submitAuth(event, '/primeiro-acesso')">
+        <h2>Primeiro Acesso (Assinante)</h2>
+        <p class="auth-sub">Use o e-mail da sua compra na Kiwify e os 4 últimos dígitos do seu CPF ou WhatsApp para criar sua senha.</p>
+        <div class="field">
+          <label>E-mail usado na compra</label>
+          <input type="email" name="email" placeholder="seu@email.com" required>
+        </div>
+        <div class="field">
+          <label>4 últimos dígitos do CPF ou WhatsApp</label>
+          <input type="text" name="hint_digits" placeholder="Ex: 8912" maxlength="14" required>
+        </div>
+        <div class="field">
+          <label>Escolha sua Senha (mínimo 6 caracteres)</label>
+          <input type="password" name="password" placeholder="Crie sua senha de acesso" minlength="6" required>
+        </div>
+        <button type="submit" class="btn-submit">Ativar Minha Conta</button>
+        <div style="text-align:center; margin-top:12px; font-size:0.82rem;">
+          <a href="#" onclick="switchMode('login'); return false;" style="color:var(--muted); text-decoration:none;">Voltar para Login</a>
+        </div>
+      </form>
     </div>
   </main>
 
@@ -220,6 +246,7 @@
       document.getElementById('tab-register').classList.toggle('active', mode === 'register');
       document.getElementById('form-login').classList.toggle('hidden', mode !== 'login');
       document.getElementById('form-register').classList.toggle('hidden', mode !== 'register');
+      document.getElementById('form-first-access').classList.toggle('hidden', mode !== 'first_access');
     }
     async function submitAuth(e, url) {
       e.preventDefault();

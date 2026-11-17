@@ -137,6 +137,8 @@ def init_db():
         max_leads INTEGER DEFAULT 0,
         signup_ip TEXT DEFAULT '',
         billing_customer_id TEXT DEFAULT '',
+        must_set_password INTEGER DEFAULT 0,
+        verification_hint TEXT DEFAULT '',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         last_login_at TEXT
     )
@@ -148,11 +150,25 @@ def init_db():
         ("max_leads", "INTEGER DEFAULT 0"),
         ("signup_ip", "TEXT DEFAULT ''"),
         ("billing_customer_id", "TEXT DEFAULT ''"),
+        ("must_set_password", "INTEGER DEFAULT 0"),
+        ("verification_hint", "TEXT DEFAULT ''"),
     ]:
         try:
             cursor.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}")
         except sqlite3.OperationalError:
             pass
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS billing_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        gateway TEXT DEFAULT 'kiwify',
+        event_type TEXT DEFAULT '',
+        email TEXT DEFAULT '',
+        status TEXT DEFAULT 'ok',
+        details TEXT DEFAULT '',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
 
     # Garante usuário administrador padrão se não existir nenhum usuário
     cursor.execute("SELECT COUNT(*) FROM users")
@@ -742,7 +758,7 @@ def list_users() -> List[Dict[str, Any]]:
 
 
 def update_user(user_id: int, fields: Dict[str, Any]) -> bool:
-    allowed = {"name", "company_name", "role", "plan", "is_active", "subscription_status", "plan_expires_at", "max_leads", "billing_customer_id"}
+    allowed = {"name", "company_name", "role", "plan", "is_active", "subscription_status", "plan_expires_at", "max_leads", "billing_customer_id", "must_set_password", "verification_hint"}
     updates = []
     params = []
     for k, v in fields.items():
@@ -797,6 +813,96 @@ def cleanup_expired_trials(grace_days: int = 15) -> int:
     finally:
         conn.close()
     return removed
+
+
+def log_billing_event(gateway: str, event_type: str, email: str, status: str, details: str = ""):
+    conn = get_connection()
+    try:
+        conn.execute(
+            "INSERT INTO billing_events (gateway, event_type, email, status, details) VALUES (?, ?, ?, ?, ?)",
+            (gateway or "kiwify", event_type or "", email or "", status or "ok", details or "")
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def complete_first_access(email: str, hint_digits: str, new_password: str) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Permite que comprador da Kiwify defina sua senha no primeiro acesso validando e-mail + últimos 4 dígitos do CPF/WhatsApp."""
+    email_clean = (email or "").strip().lower()
+    hint_clean = "".join(c for c in str(hint_digits or "") if c.isdigit())[-4:]
+    if not email_clean or not new_password or len(new_password) < 6:
+        return None, "Informe um e-mail válido e senha com no mínimo 6 caracteres."
+
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT * FROM users WHERE email = ?", (email_clean,))
+        row = cur.fetchone()
+        if not row:
+            return None, "Nenhuma assinatura encontrada com esse e-mail."
+        user = dict(row)
+        if not user.get("must_set_password"):
+            return None, "Esta conta já possui senha definida. Faça login normalmente."
+        saved_hint = (user.get("verification_hint") or "").strip()
+        if saved_hint and hint_clean not in saved_hint.split(","):
+            return None, "Os últimos 4 dígitos do CPF ou WhatsApp não conferem com o cadastro da compra."
+
+        cur.execute(
+            "UPDATE users SET password_hash = ?, must_set_password = 0, last_login_at = ? WHERE id = ?",
+            (generate_password_hash(new_password), datetime.now().isoformat(), user["id"])
+        )
+        conn.commit()
+        return get_user_by_id(user["id"]), None
+    finally:
+        conn.close()
+
+
+def get_admin_dashboard_stats() -> Dict[str, Any]:
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT id, role, plan, is_active, subscription_status, plan_expires_at FROM users")
+        users = [dict(r) for r in cur.fetchall()]
+        now = datetime.now()
+        paid_active = 0
+        trial_active = 0
+        expired_count = 0
+        for u in users:
+            if u.get("role") == "admin":
+                continue
+            sub = (u.get("subscription_status") or "active").lower()
+            exp_str = (u.get("plan_expires_at") or "").strip()
+            is_expired = (not u.get("is_active")) or sub in ("expired", "suspended", "canceled")
+            if not is_expired and exp_str:
+                try:
+                    if datetime.fromisoformat(exp_str) <= now:
+                        is_expired = True
+                except Exception:
+                    pass
+            if is_expired:
+                expired_count += 1
+            elif u.get("plan") == "trial" or sub == "trial":
+                trial_active += 1
+            else:
+                paid_active += 1
+
+        cur.execute("SELECT COUNT(*) FROM leads")
+        total_leads = int(cur.fetchone()[0] or 0)
+
+        cur.execute("SELECT * FROM billing_events ORDER BY id DESC LIMIT 20")
+        events = [dict(r) for r in cur.fetchall()]
+
+        return {
+            "paid_active": paid_active,
+            "trial_active": trial_active,
+            "expired_count": expired_count,
+            "total_clients": paid_active + trial_active + expired_count,
+            "total_leads": total_leads,
+            "recent_events": events,
+        }
+    finally:
+        conn.close()
 
 
 # ==================== CONFIGURAÇÃO WHATSAPP POR USUÁRIO ====================

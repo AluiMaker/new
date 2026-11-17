@@ -1340,9 +1340,22 @@ function copyBillingWebhookUrl() {
   }
 }
 
+let _adminUsersCache = [];
+let _adminFilter = 'all';
+
 function initAdminControls() {
   const bWh = document.getElementById('billing-webhook-url');
   if (bWh) bWh.textContent = `${window.location.origin}/api/billing/webhook`;
+
+  document.getElementById('admin-search-input')?.addEventListener('input', renderAdminUsersTable);
+  document.querySelectorAll('[data-adm-filter]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('[data-adm-filter]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      _adminFilter = btn.dataset.admFilter;
+      renderAdminUsersTable();
+    });
+  });
 
   document.getElementById('btn-cleanup-trials')?.addEventListener('click', async () => {
     const res = await apiFetch('/api/admin/cleanup-trials', {
@@ -1383,29 +1396,77 @@ async function loadAdminUsers() {
     const res = await apiFetch('/api/admin/users');
     const d = await res.json();
     if (!d.success) return;
-    tb.innerHTML = d.users.map(u => {
-      const exp = u.plan_expires_at ? u.plan_expires_at.slice(0, 10) : (u.role === 'admin' ? 'Vitalício' : '-');
-      const limitStr = u.max_leads > 0 ? ` / ${u.max_leads}` : '';
-      const subSt = u.subscription_status || 'active';
-      const isOk = u.is_active && subSt !== 'expired' && subSt !== 'suspended';
-      return `
-      <tr>
-        <td>#${u.id}</td>
-        <td><strong>${escapeHtml(u.name)}</strong><div class="text-muted" style="font-size:0.75rem">${escapeHtml(u.company_name || '')}</div></td>
-        <td>${escapeHtml(u.email)}</td>
-        <td><span class="status-pill">${escapeHtml(u.plan)}</span></td>
-        <td>${escapeHtml(exp)}</td>
-        <td>${u.leads_count || 0}${limitStr}</td>
-        <td><span class="status-pill ${isOk ? 'ok' : 'err'}">${u.is_active ? escapeHtml(subSt) : 'bloqueada'}</span></td>
-        <td style="display:flex; gap:6px; flex-wrap:wrap;">
-          <button class="btn btn-emerald btn-xs" onclick="renewUser(${u.id}, 30)">+30d</button>
-          <button class="btn btn-outline btn-xs" onclick="toggleUserActive(${u.id}, ${u.is_active ? 0 : 1})">
-            ${u.is_active ? 'Bloquear' : 'Liberar'}
-          </button>
-        </td>
-      </tr>`;
-    }).join('');
+    _adminUsersCache = d.users || [];
+
+    const st = d.stats || {};
+    document.getElementById('adm-kpi-paid').textContent = st.paid_active || 0;
+    document.getElementById('adm-kpi-trial').textContent = st.trial_active || 0;
+    document.getElementById('adm-kpi-expired').textContent = st.expired_count || 0;
+    document.getElementById('adm-kpi-clients').textContent = st.total_clients || 0;
+    document.getElementById('adm-kpi-leads').textContent = st.total_leads || 0;
+
+    renderAdminUsersTable();
+
+    const evTb = document.getElementById('admin-events-tbody');
+    if (evTb) {
+      const evs = st.recent_events || [];
+      evTb.innerHTML = evs.length ? evs.map(ev => `
+        <tr>
+          <td>${escapeHtml((ev.created_at || '').slice(0, 16).replace('T', ' '))}</td>
+          <td><span class="status-pill">${escapeHtml(ev.gateway)}</span></td>
+          <td>${escapeHtml(ev.event_type)}</td>
+          <td>${escapeHtml(ev.email)}</td>
+          <td><strong>${escapeHtml(ev.status)}</strong> <small class="text-muted">${escapeHtml(ev.details || '')}</small></td>
+        </tr>
+      `).join('') : '<tr><td colspan="5" class="text-muted">Nenhum evento de pagamento recebido ainda.</td></tr>';
+    }
   } catch (e) {}
+}
+
+function renderAdminUsersTable() {
+  const tb = document.getElementById('admin-users-tbody');
+  if (!tb) return;
+  const q = (document.getElementById('admin-search-input')?.value || '').trim().toLowerCase();
+  const nowIso = new Date().toISOString();
+
+  const filtered = _adminUsersCache.filter(u => {
+    const subSt = u.subscription_status || 'active';
+    const isExp = (!u.is_active) || subSt === 'expired' || subSt === 'suspended' || (u.plan_expires_at && u.plan_expires_at < nowIso);
+    const isTrial = !isExp && (u.plan === 'trial' || subSt === 'trial');
+    const isPaid = !isExp && !isTrial && u.role !== 'admin';
+
+    if (_adminFilter === 'paid' && !isPaid) return false;
+    if (_adminFilter === 'trial' && !isTrial) return false;
+    if (_adminFilter === 'expired' && !isExp) return false;
+    if (q) {
+      const hay = `${u.name || ''} ${u.email || ''} ${u.company_name || ''}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  tb.innerHTML = filtered.length ? filtered.map(u => {
+    const exp = u.plan_expires_at ? u.plan_expires_at.slice(0, 10) : (u.role === 'admin' ? 'Vitalício' : '-');
+    const limitStr = u.max_leads > 0 ? ` / ${u.max_leads}` : '';
+    const subSt = u.subscription_status || 'active';
+    const isOk = u.is_active && subSt !== 'expired' && subSt !== 'suspended';
+    return `
+    <tr>
+      <td>#${u.id}</td>
+      <td><strong>${escapeHtml(u.name)}</strong><div class="text-muted" style="font-size:0.75rem">${escapeHtml(u.company_name || '')}</div></td>
+      <td>${escapeHtml(u.email)}</td>
+      <td><span class="status-pill">${escapeHtml(u.plan)}</span></td>
+      <td>${escapeHtml(exp)}</td>
+      <td>${u.leads_count || 0}${limitStr}</td>
+      <td><span class="status-pill ${isOk ? 'ok' : 'err'}">${u.is_active ? escapeHtml(subSt) : 'bloqueada'}</span></td>
+      <td style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button class="btn btn-emerald btn-xs" onclick="renewUser(${u.id}, 30)">+30d</button>
+        <button class="btn btn-outline btn-xs" onclick="toggleUserActive(${u.id}, ${u.is_active ? 0 : 1})">
+          ${u.is_active ? 'Bloquear' : 'Liberar'}
+        </button>
+      </td>
+    </tr>`;
+  }).join('') : '<tr><td colspan="8" class="text-muted">Nenhuma conta encontrada nesse filtro.</td></tr>';
 }
 
 async function renewUser(uid, days = 30) {
