@@ -25,7 +25,10 @@ from database import (
     get_site_settings, save_site_settings, normalize_plan_name,
     cleanup_leads_by_criteria,
     get_academy_lessons_for_user, set_academy_lesson_progress,
-    upsert_academy_lesson, delete_academy_lesson
+    upsert_academy_lesson, delete_academy_lesson,
+    has_pro_sales_access, get_sales_academy_for_user,
+    get_sales_academy_course_by_slug, set_sales_academy_progress,
+    upsert_sales_academy_course, delete_sales_academy_course
 )
 from scraper_engine import GoogleMapsScraper, DEFAULT_SEGMENTS, SWEEP_ALL_TERMS
 from exporter import export_to_csv_bytes, export_to_json_bytes
@@ -1950,6 +1953,80 @@ def api_admin_academy_lesson_detail(lesson_id):
         return jsonify({"success": False, "error": "Informe o título e a URL do vídeo."}), 400
     upsert_academy_lesson(data, lesson_id=lesson_id)
     return jsonify({"success": True, "id": lesson_id})
+
+
+# ==================== ACADEMIA DE VENDAS PRO (CURSOS + VSLs) ====================
+@app.route("/api/sales-academy")
+@login_required
+def api_sales_academy_list():
+    uid = current_user_id()
+    acc = get_user_access_status(uid)
+    data = get_sales_academy_for_user(uid, include_unpublished=False)
+    data["plan"] = acc.get("plan", "trial")
+    return jsonify(data)
+
+
+@app.route("/api/sales-academy/<int:course_id>/progress", methods=["POST"])
+@login_required
+def api_sales_academy_progress(course_id):
+    uid = current_user_id()
+    if not has_pro_sales_access(uid):
+        return jsonify({
+            "success": False,
+            "upgrade_required": True,
+            "error": "A Academia de Vendas e o Pacote de VSLs Prontas são exclusivos dos planos PRO e Enterprise."
+        }), 402
+    body = request.get_json(silent=True) or {}
+    completed = bool(body.get("completed", True))
+    summary = set_sales_academy_progress(uid, course_id, completed)
+    return jsonify({"success": True, "course_id": course_id, "completed": completed, **summary})
+
+
+@app.route("/api/sales-academy/download/<slug>")
+@login_required
+def api_sales_academy_download(slug):
+    uid = current_user_id()
+    if not has_pro_sales_access(uid):
+        return jsonify({
+            "success": False,
+            "upgrade_required": True,
+            "error": "O download das VSLs Prontas para divulgar é exclusivo do Plano PRO ou Enterprise. Faça o upgrade para baixar!"
+        }), 402
+    course = get_sales_academy_course_by_slug(slug)
+    if not course or not course.get("vsl_video_url"):
+        return jsonify({"success": False, "error": "VSL não encontrada."}), 404
+    vurl = course["vsl_video_url"]
+    if vurl.startswith("/static/"):
+        rel_path = vurl.lstrip("/").replace("/", os.sep)
+        abs_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), rel_path)
+        if os.path.exists(abs_path):
+            return send_file(abs_path, as_attachment=True, download_name=f"{slug}-vsl.mp4", mimetype="video/mp4")
+        return jsonify({"success": False, "error": "Arquivo de vídeo ainda não disponível no servidor."}), 404
+    return redirect(vurl)
+
+
+@app.route("/api/admin/sales-academy", methods=["GET", "POST"])
+@admin_required
+def api_admin_sales_academy():
+    if request.method == "GET":
+        return jsonify(get_sales_academy_for_user(current_user_id(), include_unpublished=True))
+    data = request.get_json(silent=True) or {}
+    if not (data.get("title") or "").strip() or not (data.get("course_video_url") or "").strip():
+        return jsonify({"success": False, "error": "Informe o título e a URL do curso."}), 400
+    cid = upsert_sales_academy_course(data)
+    return jsonify({"success": True, "id": cid})
+
+
+@app.route("/api/admin/sales-academy/<int:course_id>", methods=["PUT", "DELETE"])
+@admin_required
+def api_admin_sales_academy_detail(course_id):
+    if request.method == "DELETE":
+        return jsonify({"success": delete_sales_academy_course(course_id)})
+    data = request.get_json(silent=True) or {}
+    if not (data.get("title") or "").strip() or not (data.get("course_video_url") or "").strip():
+        return jsonify({"success": False, "error": "Informe o título e a URL do curso."}), 400
+    upsert_sales_academy_course(data, course_id=course_id)
+    return jsonify({"success": True, "id": course_id})
 
 
 def _maintenance_loop():

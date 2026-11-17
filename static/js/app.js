@@ -20,6 +20,9 @@ const STATE = {
   academyLessons: [],
   activeLessonId: null,
   academyModuleFilter: 'all',
+  salesAcademy: { unlocked: false, items: [], completed_count: 0, total_count: 5, percent: 0 },
+  activeSalesCourseId: null,
+  salesAcademyMode: 'course',
 };
 
 const TAB_META = {
@@ -28,13 +31,15 @@ const TAB_META = {
   'tab-map': ['Mapa de Oportunidades', 'Visualize seus leads e clique em qualquer rua para prospectar'],
   'tab-crm': ['CRM & Pipeline', 'Gerencie negociações no Kanban ou em lista e envie abordagens'],
   'tab-chat': ['Chat / Conversas', 'Atenda e acompanhe suas conversas ativas estilo Kommo'],
-  'tab-templates': ['Modelos de Copy', 'Mensagens prontas para Plaquinhas NFC, WhatsApp, Cardápio e Biossites'],
-  'tab-academy': ['Academia & Videoaulas', 'Aprenda na prática a captar leads, limpar sua base e fechar vendas no WhatsApp'],
+  'tab-templates': ['Modelos de Copy', 'Mensagens prontas para Google Meu Negócio, Plaquinhas NFC, WhatsApp, Cardápio e Biossites'],
+  'tab-academy': ['Como Usar (Tutoriais)', 'Aprenda passo a passo a captar leads, limpar sua base e atender no WhatsApp'],
+  'tab-sales-academy': ['Academia de Vendas PRO', 'Cursos de fechamento por estratégia + VSLs prontas para baixar e divulgar'],
   'tab-settings': ['WhatsApp & Conta', 'Configure o WhatsApp por QR Code, API Oficial da Meta e seus dados'],
   'tab-admin': ['Painel Admin', 'Gerencie contas de clientes e planos do sistema'],
 };
 
 const OPP_LABELS = {
+  gmn: { label: 'Google Meu Negócio', cls: 'opp-gmn', icon: 'fa-map-pin' },
   nfc_google: { label: 'Plaquinha NFC + QR', cls: 'opp-nfc', icon: 'fa-wifi' },
   whatsapp_biz: { label: 'WhatsApp Business', cls: 'opp-wa', icon: 'fa-brands fa-whatsapp' },
   cardapio_digital: { label: 'Cardápio Digital', cls: 'opp-cardapio', icon: 'fa-utensils' },
@@ -50,6 +55,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initDrawerControls();
   initTemplateControls();
   initAcademyControls();
+  initSalesAcademyControls();
   initSettingsControls();
   initAdminControls();
   initSSE();
@@ -59,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function loadAllData() {
-  await Promise.all([loadStats(), loadLeads(), loadTemplates(), loadSegments(), loadSearchHistory(), loadChatThreads(), loadAcademyLessons()]);
+  await Promise.all([loadStats(), loadLeads(), loadTemplates(), loadSegments(), loadSearchHistory(), loadChatThreads(), loadAcademyLessons(), loadSalesAcademy()]);
   if (window.CURRENT_USER && window.CURRENT_USER.role === 'admin') {
     loadAdminUsers();
     loadAdminAcademyLessons();
@@ -238,11 +244,11 @@ function renderCharts(st) {
     STATE.charts.opps = new Chart(ctx1, {
       type: 'bar',
       data: {
-        labels: ['Plaquinha NFC + QR', 'WhatsApp Business', 'Biossite / LP', 'Cardápio Digital'],
+        labels: ['Google Meu Negócio', 'Plaquinha NFC + QR', 'WhatsApp Business', 'Biossite / LP', 'Cardápio Digital'],
         datasets: [{
           label: 'Empresas com Oportunidade',
-          data: [opps.nfc_google || 0, opps.whatsapp_biz || 0, opps.biossite || 0, opps.cardapio_digital || 0],
-          backgroundColor: ['#7c3aed', '#10b981', '#2563eb', '#f59e0b'],
+          data: [opps.gmn || 0, opps.nfc_google || 0, opps.whatsapp_biz || 0, opps.biossite || 0, opps.cardapio_digital || 0],
+          backgroundColor: ['#1d4ed8', '#7c3aed', '#10b981', '#2563eb', '#f59e0b'],
           borderRadius: 8,
         }]
       },
@@ -2065,6 +2071,193 @@ async function deleteAdminAcademyLesson(id) {
     toast('Videoaula excluída.', 'info');
     loadAdminAcademyLessons();
     loadAcademyLessons();
+  }
+}
+
+// ==================== ACADEMIA DE VENDAS PRO (CURSOS + VSLs) ====================
+function initSalesAcademyControls() {
+  document.getElementById('btn-sa-toggle-done')?.addEventListener('click', toggleSalesCourseDone);
+  document.getElementById('btn-sa-find-leads')?.addEventListener('click', () => {
+    const course = (STATE.salesAcademy.items || []).find(c => c.id === STATE.activeSalesCourseId);
+    if (course && course.target_opp) {
+      openCrmWithOpportunity(course.target_opp);
+    } else {
+      switchTab('tab-crm');
+    }
+  });
+}
+
+async function loadSalesAcademy() {
+  try {
+    const res = await apiFetch('/api/sales-academy');
+    if (!res.ok) return;
+    const d = await res.json();
+    STATE.salesAcademy = d;
+    if (!STATE.activeSalesCourseId && d.items && d.items.length) {
+      STATE.activeSalesCourseId = d.items[0].id;
+    }
+    renderSalesAcademy();
+  } catch (e) {}
+}
+
+function renderSalesAcademy() {
+  const sa = STATE.salesAcademy || { unlocked: false, items: [], completed_count: 0, total_count: 0, percent: 0 };
+  const unlocked = Boolean(sa.unlocked);
+
+  const upsellBanner = document.getElementById('sales-academy-upsell-banner');
+  if (upsellBanner) upsellBanner.classList.toggle('hidden', unlocked);
+
+  const badge = document.getElementById('badge-sales-pro');
+  if (badge) {
+    badge.textContent = unlocked ? `${sa.completed_count || 0}/${sa.total_count || 5}` : 'PRO';
+    badge.style.background = unlocked ? '#10b981' : 'linear-gradient(135deg,#f59e0b,#d97706)';
+  }
+
+  const hdrRight = document.getElementById('sales-academy-header-right');
+  if (hdrRight) {
+    if (unlocked) {
+      hdrRight.innerHTML = `
+        <div class="academy-progress-box">
+          <div class="academy-progress-meta">
+            <strong>${sa.completed_count || 0} de ${sa.total_count || 0} estratégias concluídas</strong>
+            <span>${sa.percent || 0}%</span>
+          </div>
+          <div class="academy-progress-track">
+            <div class="academy-progress-fill" style="width:${sa.percent || 0}%"></div>
+          </div>
+        </div>`;
+    } else {
+      hdrRight.innerHTML = `
+        <button type="button" class="btn btn-primary btn-sm" style="background:linear-gradient(135deg,#f59e0b,#d97706); border:none;" onclick="openUpgradeModal('Libere agora os 5 Cursos de Vendas e todas as VSLs prontas para baixar no Plano PRO!')">
+          <i class="fa-solid fa-crown"></i> Liberar no Plano PRO
+        </button>`;
+    }
+  }
+
+  const grid = document.getElementById('sales-strategy-grid');
+  if (grid) {
+    grid.innerHTML = (sa.items || []).map(item => {
+      const isActive = item.id === STATE.activeSalesCourseId;
+      return `
+        <button type="button" class="sales-strategy-card ${isActive ? 'active' : ''}" onclick="selectSalesAcademyCourse(${item.id})">
+          <div class="sales-strategy-thumb">
+            <img src="${escapeHtml(item.thumbnail_url || '/static/img/academy/gmn-hero.jpg')}" alt="${escapeHtml(item.badge_label)}">
+            ${!unlocked ? '<div class="sa-lock-overlay"><i class="fa-solid fa-lock"></i></div>' : (item.completed ? '<span class="sa-done-chip"><i class="fa-solid fa-check"></i> Concluído</span>' : '')}
+          </div>
+          <div class="sales-strategy-body">
+            <span class="academy-mod-pill">${escapeHtml(item.badge_label)}</span>
+            <strong>${escapeHtml(item.title)}</strong>
+            <div class="sales-strategy-ticket"><i class="fa-solid fa-sack-dollar"></i> ${escapeHtml(item.ticket_range || '')}</div>
+          </div>
+        </button>`;
+    }).join('');
+  }
+
+  const wsCard = document.getElementById('sales-workspace-card');
+  const course = (sa.items || []).find(c => c.id === STATE.activeSalesCourseId);
+  if (!wsCard || !course) return;
+  wsCard.classList.remove('hidden');
+
+  document.getElementById('sa-active-badge').textContent = course.badge_label;
+  document.getElementById('sa-active-ticket').innerHTML = `<i class="fa-solid fa-sack-dollar"></i> ${escapeHtml(course.ticket_range || '')}`;
+  document.getElementById('sa-active-title').textContent = STATE.salesAcademyMode === 'vsl' ? (course.vsl_title || course.title) : course.title;
+  document.getElementById('sa-active-subtitle').textContent = STATE.salesAcademyMode === 'vsl'
+    ? 'Vídeo VSL pronto para você baixar e divulgar para donos de negócios locais (Reels, WhatsApp, Anúncios).'
+    : (course.subtitle || '');
+
+  document.querySelectorAll('#sa-mode-tabs [data-sa-mode]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.saMode === STATE.salesAcademyMode);
+  });
+
+  const doneBtn = document.getElementById('btn-sa-toggle-done');
+  if (doneBtn) {
+    doneBtn.classList.toggle('hidden', !unlocked);
+    doneBtn.className = course.completed ? 'btn btn-emerald btn-sm' : 'btn btn-primary btn-sm';
+    doneBtn.innerHTML = course.completed
+      ? '<i class="fa-solid fa-circle-check"></i> Curso Concluído (Desmarcar)'
+      : '<i class="fa-regular fa-circle-check"></i> Marcar Curso Concluído';
+  }
+
+  const dlBtn = document.getElementById('btn-sa-download-vsl');
+  if (dlBtn) {
+    if (unlocked && course.download_url) {
+      dlBtn.classList.remove('hidden');
+      dlBtn.href = course.download_url;
+      dlBtn.setAttribute('download', `${course.slug || 'vsl'}.mp4`);
+    } else {
+      dlBtn.classList.add('hidden');
+    }
+  }
+
+  const stage = document.getElementById('sa-video-stage');
+  if (stage) {
+    if (!unlocked) {
+      stage.innerHTML = `
+        <div style="position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; flex-direction:column; padding:24px; text-align:center; background:linear-gradient(135deg, rgba(15,23,42,0.88), rgba(30,58,138,0.88)), url('${escapeHtml(course.thumbnail_url || '')}') center/cover;">
+          <div style="width:60px; height:60px; border-radius:999px; background:rgba(245,158,11,0.22); border:2px solid #f59e0b; color:#fde68a; display:grid; place-items:center; font-size:1.5rem; margin-bottom:12px;"><i class="fa-solid fa-lock"></i></div>
+          <h3 style="color:#fff; margin:0 0 6px;">Material Exclusivo do Plano PRO</h3>
+          <p style="color:#cbd5e1; max-width:440px; font-size:0.88rem; margin:0 0 16px;">Faça o upgrade para o Plano PRO para assistir à aula completa de vendas e baixar a VSL pronta em MP4 desta estratégia.</p>
+          <button type="button" class="btn btn-primary" style="background:linear-gradient(135deg,#f59e0b,#d97706); border:none; font-weight:800;" onclick="openUpgradeModal('Desbloqueie a Academia de Vendas e baixe todas as VSLs prontas com o Plano PRO!')">
+            <i class="fa-solid fa-crown"></i> Desbloquear no Plano PRO
+          </button>
+        </div>`;
+    } else {
+      const url = STATE.salesAcademyMode === 'vsl' ? course.vsl_video_url : course.course_video_url;
+      const embed = getEmbedUrl(url);
+      if (embed) {
+        stage.innerHTML = `<iframe src="${escapeHtml(embed)}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
+      } else {
+        stage.innerHTML = `<video src="${escapeHtml(url)}" controls playsinline preload="metadata" poster="${escapeHtml(course.thumbnail_url || '')}"></video>`;
+      }
+    }
+  }
+
+  document.getElementById('sa-script-approach').textContent = unlocked
+    ? (course.script_approach || '')
+    : 'Conteúdo completo liberado no Plano PRO.\nAssine o PRO para copiar os scripts validados de abordagem, diagnóstico e fechamento.';
+  document.getElementById('sa-script-objections').textContent = unlocked
+    ? (course.script_objections || '')
+    : 'Respostas prontas às principais objeções liberadas no Plano PRO.';
+}
+
+function selectSalesAcademyCourse(courseId) {
+  STATE.activeSalesCourseId = courseId;
+  renderSalesAcademy();
+}
+
+function setSalesAcademyMode(mode) {
+  STATE.salesAcademyMode = mode === 'vsl' ? 'vsl' : 'course';
+  renderSalesAcademy();
+}
+
+function copySalesScript(elId) {
+  if (!STATE.salesAcademy?.unlocked) {
+    openUpgradeModal('Os scripts completos de abordagem são exclusivos do Plano PRO!');
+    return;
+  }
+  const el = document.getElementById(elId);
+  if (!el) return;
+  navigator.clipboard.writeText(el.textContent || '');
+  toast('Script copiado para a área de transferência!', 'success');
+}
+
+async function toggleSalesCourseDone() {
+  const course = (STATE.salesAcademy.items || []).find(c => c.id === STATE.activeSalesCourseId);
+  if (!course) return;
+  const nextVal = !course.completed;
+  const res = await apiFetch(`/api/sales-academy/${course.id}/progress`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ completed: nextVal }),
+  });
+  const d = await res.json();
+  if (d.success) {
+    course.completed = nextVal;
+    STATE.salesAcademy.completed_count = d.completed_count;
+    STATE.salesAcademy.total_count = d.total_count;
+    STATE.salesAcademy.percent = d.percent;
+    renderSalesAcademy();
+    toast(nextVal ? 'Estratégia concluída!' : 'Estratégia marcada como pendente.', 'success');
   }
 }
 

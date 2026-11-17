@@ -21,7 +21,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 
-  <link rel="stylesheet" href="/static/css/style.css?v=4.2">
+  <link rel="stylesheet" href="/static/css/style.css?v=4.3">
 </head>
 <body>
   <script>
@@ -80,11 +80,16 @@
           <span>Modelos de Copy</span>
         </button>
 
-        <div class="nav-group-label">Aprendizado</div>
-        <button class="nav-item" data-tab="tab-academy" title="Academia &amp; Aulas">
+        <div class="nav-group-label">Aprendizado &amp; Lucro</div>
+        <button class="nav-item" data-tab="tab-academy" title="Como Usar o Sistema">
           <i class="fa-solid fa-graduation-cap"></i>
-          <span>Academia &amp; Aulas</span>
+          <span>Como Usar (Aulas)</span>
           <span class="nav-badge" id="badge-academy-progress" style="background:#2563eb;">0/5</span>
+        </button>
+        <button class="nav-item" data-tab="tab-sales-academy" title="Academia de Vendas PRO">
+          <i class="fa-solid fa-crown" style="color:#f59e0b;"></i>
+          <span>Academia de Vendas</span>
+          <span class="nav-badge" id="badge-sales-pro" style="background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff;">PRO</span>
         </button>
 
         <div class="nav-group-label">Sistema</div>
@@ -229,6 +234,13 @@
               </div>
             </div>
             <div class="offer-cards-grid">
+              <button class="offer-card" onclick="openCrmWithOpportunity('gmn')">
+                <div class="offer-icon" style="background:#eff6ff; color:#1d4ed8;"><i class="fa-solid fa-map-pin"></i></div>
+                <div>
+                  <strong>Google Meu Negócio</strong>
+                  <span>Otimização de perfil, Top 3 no Mapa &amp; gestão</span>
+                </div>
+              </button>
               <button class="offer-card" onclick="openCrmWithOpportunity('nfc_google')">
                 <div class="offer-icon bg-purple"><i class="fa-solid fa-wifi"></i></div>
                 <div>
@@ -329,6 +341,7 @@
                   <label>Foco da Oferta (Opcional)</label>
                   <select id="search-offer-focus">
                     <option value="all">Todas as Oportunidades</option>
+                    <option value="gmn">Google Meu Negócio (Otimização &amp; Ranking)</option>
                     <option value="nfc">Plaquinha NFC + QR Code</option>
                     <option value="whatsapp">WhatsApp Business</option>
                     <option value="cardapio">Cardápio Digital</option>
@@ -429,6 +442,7 @@
               </div>
               <select id="crm-filter-opportunity">
                 <option value="all">Todas as Oportunidades</option>
+                <option value="gmn">Google Meu Negócio (Otimização &amp; Ranking)</option>
                 <option value="nfc_google">Plaquinha NFC + QR (Poucas Avaliações)</option>
                 <option value="whatsapp_biz">WhatsApp Business</option>
                 <option value="cardapio_digital">Cardápio Digital (Gastronomia)</option>
@@ -656,6 +670,7 @@
                   <div class="field">
                     <label>Produto / Oferta</label>
                     <select id="tpl-product">
+                      <option value="gmn">Google Meu Negócio</option>
                       <option value="nfc">Plaquinha NFC + QR Code</option>
                       <option value="cardapio">Cardápio Digital</option>
                       <option value="whatsapp">WhatsApp Business</option>
@@ -744,6 +759,101 @@
                 </div>
               </div>
               <div class="academy-playlist" id="academy-playlist"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ==================== 5C. ACADEMIA DE VENDAS PRO (CURSOS + VSLs) ==================== -->
+        <section class="tab-view" id="tab-sales-academy">
+          <div class="card sales-academy-hero">
+            <div class="academy-hero-main">
+              <div class="academy-hero-icon" style="background:linear-gradient(135deg,#f59e0b,#ea580c);"><i class="fa-solid fa-crown"></i></div>
+              <div>
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                  <h2 style="margin:0;">Academia de Vendas PRO &amp; Kit VSLs</h2>
+                  <span class="sales-pro-pill"><i class="fa-solid fa-star"></i> Exclusivo PRO &amp; Enterprise</span>
+                </div>
+                <p class="card-sub" style="margin:4px 0 0;">Cursos práticos para fechar contratos em cada estratégia do sistema + Vídeos VSL prontos para você baixar e divulgar aos seus clientes.</p>
+              </div>
+            </div>
+            <div id="sales-academy-header-right"></div>
+          </div>
+
+          <!-- Upsell Lock Banner (shown automatically for Trial / Starter users) -->
+          <div class="card sales-upsell-banner hidden" id="sales-academy-upsell-banner">
+            <div style="display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;">
+              <div style="max-width:650px;">
+                <span class="sales-pro-pill" style="margin-bottom:8px; display:inline-flex;"><i class="fa-solid fa-lock"></i> Conteúdo Exclusivo do Plano PRO</span>
+                <h3 style="margin:0 0 6px; font-size:1.22rem;">Desbloqueie os 5 Cursos de Vendas + Pacote de VSLs Prontas para Baixar!</h3>
+                <p style="margin:0; font-size:0.9rem; color:#e2e8f0; line-height:1.5;">
+                  No <strong>Plano PRO ({{ (site_cfg.plan_pro_price if site_cfg else None) or 'R$ 79' }}/mês)</strong>, além de <strong>2.000 leads salvos</strong> e <strong>fila prioritária</strong>, você recebe acesso completo aos treinamentos de fechamento (GMN, NFC, WhatsApp, Cardápio e Biossite) e às <strong>VSLs White-Label em MP4</strong> para baixar e enviar direto para seus clientes fecharem com você.
+                </p>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:8px; min-width:240px;">
+                <button type="button" class="btn btn-lg" style="background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; border:none; font-weight:800;" onclick="openUpgradeModal('Desbloqueie a Academia de Vendas completa e baixe todas as VSLs prontas fazendo o upgrade para o Plano PRO!')">
+                  <i class="fa-solid fa-crown"></i> Fazer Upgrade para PRO
+                </button>
+                <span style="font-size:0.78rem; color:#94a3b8; text-align:center;">Liberação imediata após o pagamento</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Strategy Selector Cards Grid -->
+          <div class="sales-strategy-grid" id="sales-strategy-grid"></div>
+
+          <!-- Active Strategy Course + Downloadable VSL Workspace -->
+          <div class="card sales-workspace-card hidden" id="sales-workspace-card">
+            <div class="sales-workspace-top">
+              <div>
+                <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+                  <span class="academy-mod-pill" id="sa-active-badge">Estratégia</span>
+                  <span class="ticket-badge" id="sa-active-ticket">Ticket médio</span>
+                </div>
+                <h3 id="sa-active-title" style="margin:0 0 4px;">Título do Curso</h3>
+                <p id="sa-active-subtitle" class="text-muted" style="margin:0; font-size:0.9rem;"></p>
+              </div>
+              <div class="segmented" id="sa-mode-tabs">
+                <button type="button" class="seg-btn active" data-sa-mode="course" onclick="setSalesAcademyMode('course')">
+                  <i class="fa-solid fa-chalkboard-user"></i> Aula: Como Vender
+                </button>
+                <button type="button" class="seg-btn" data-sa-mode="vsl" onclick="setSalesAcademyMode('vsl')">
+                  <i class="fa-solid fa-clapperboard"></i> VSL Pronta p/ Divulgar
+                </button>
+              </div>
+            </div>
+
+            <div class="sales-workspace-body">
+              <div class="sales-media-col">
+                <div class="academy-video-stage" id="sa-video-stage"></div>
+                <div class="academy-actions-bar" style="margin-top:14px;">
+                  <button type="button" class="btn btn-primary btn-sm" id="btn-sa-toggle-done">
+                    <i class="fa-regular fa-circle-check"></i> Marcar Curso Concluído
+                  </button>
+                  <a href="#" class="btn btn-emerald btn-sm hidden" id="btn-sa-download-vsl" download>
+                    <i class="fa-solid fa-download"></i> Baixar Vídeo VSL (.MP4) para Divulgar
+                  </a>
+                  <button type="button" class="btn btn-outline btn-sm" id="btn-sa-find-leads">
+                    <i class="fa-solid fa-crosshairs"></i> Ver Leads dessa Oferta no CRM
+                  </button>
+                </div>
+              </div>
+
+              <div class="sales-scripts-col">
+                <div class="script-box">
+                  <div class="script-box-head">
+                    <strong><i class="fa-solid fa-comments-dollar text-emerald"></i> Script de Abordagem &amp; Oferta</strong>
+                    <button type="button" class="btn btn-outline btn-xs" onclick="copySalesScript('sa-script-approach')"><i class="fa-regular fa-copy"></i> Copiar</button>
+                  </div>
+                  <pre id="sa-script-approach" class="script-pre"></pre>
+                </div>
+                <div class="script-box">
+                  <div class="script-box-head">
+                    <strong><i class="fa-solid fa-shield-halved text-blue"></i> Quebra de Objeções</strong>
+                    <button type="button" class="btn btn-outline btn-xs" onclick="copySalesScript('sa-script-objections')"><i class="fa-regular fa-copy"></i> Copiar</button>
+                  </div>
+                  <pre id="sa-script-objections" class="script-pre"></pre>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -1243,9 +1353,12 @@
           <span><i class="fa-solid fa-rocket"></i> <strong>Plano Starter</strong> · 500 leads salvos (todas funções)</span>
           <span style="font-weight:800;">{{ (site_cfg.plan_starter_price if site_cfg else None) or 'R$ 37' }}/mês <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.8em;"></i></span>
         </a>
-        <a href="{{ (site_cfg.checkout_pro_url if site_cfg and site_cfg.checkout_pro_url else (site_cfg.enterprise_wa_url if site_cfg and site_cfg.enterprise_wa_url else '/vendas#planos')) }}" target="_blank" class="btn btn-primary btn-lg" style="justify-content:space-between; width:100%;">
-          <span><i class="fa-solid fa-crown"></i> <strong>Plano PRO</strong> · 2.000 leads salvos + Fila Prioritária</span>
-          <span style="font-weight:800;">{{ (site_cfg.plan_pro_price if site_cfg else None) or 'R$ 79' }}/mês <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.8em;"></i></span>
+        <a href="{{ (site_cfg.checkout_pro_url if site_cfg and site_cfg.checkout_pro_url else (site_cfg.enterprise_wa_url if site_cfg and site_cfg.enterprise_wa_url else '/vendas#planos')) }}" target="_blank" class="btn btn-primary btn-lg" style="justify-content:space-between; width:100%; background:linear-gradient(135deg,#2563eb,#1d4ed8); box-shadow:0 10px 25px -8px rgba(37,99,235,0.55);">
+          <span style="text-align:left;">
+            <i class="fa-solid fa-crown" style="color:#fde68a;"></i> <strong>Plano PRO</strong> · 2.000 leads + Fila Prioritária
+            <span style="display:block; font-size:0.74rem; font-weight:600; color:#fde68a; margin-top:2px;">+ Bônus: Academia de Vendas (5 Cursos) + VSLs Prontas p/ Baixar</span>
+          </span>
+          <span style="font-weight:800; white-space:nowrap;">{{ (site_cfg.plan_pro_price if site_cfg else None) or 'R$ 79' }}/mês <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.8em;"></i></span>
         </a>
         <a href="{{ (site_cfg.enterprise_wa_url if site_cfg and site_cfg.enterprise_wa_url else '/vendas#planos') }}" target="_blank" class="btn btn-emerald btn-lg" style="justify-content:space-between; width:100%;">
           <span><i class="fa-brands fa-whatsapp"></i> <strong>Enterprise</strong> · Leads Ilimitados</span>
@@ -1376,6 +1489,6 @@
     window.CURRENT_USER = {{ current_user | tojson if current_user else 'null' }};
     window.ACCESS_STATUS = {{ access_status | tojson if access_status else 'null' }};
   </script>
-  <script src="/static/js/app.js?v=4.2"></script>
+  <script src="/static/js/app.js?v=4.3"></script>
 </body>
 </html>

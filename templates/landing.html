@@ -533,6 +533,7 @@
             O MapaLeads filtra exatamente quem está perdendo clientes no Google e coloca na sua mão:
           </p>
           <ul class="price-list" style="margin:0 0 20px;">
+            <li><i class="fa-solid fa-check-circle"></i> <strong>Google Meu Negócio</strong> (R$ 400 a R$ 1.200) para fichas desatualizadas;</li>
             <li><i class="fa-solid fa-check-circle"></i> <strong>Plaquinha NFC + QR Code</strong> para negócios com poucas avaliações;</li>
             <li><i class="fa-solid fa-check-circle"></i> <strong>Biossite / Landing Page</strong> para quem não tem site próprio;</li>
             <li><i class="fa-solid fa-check-circle"></i> <strong>Cardápio Digital</strong> para restaurantes fugirem de taxas de app.</li>
@@ -608,8 +609,8 @@
     <div class="container">
       <div class="section-head">
         <span class="eyebrow">Planos &amp; Preços</span>
-        <h2>Todas as funções liberadas nos dois planos pagos</h2>
-        <p>Starter e PRO têm as <strong>mesmas ferramentas</strong>. Você só escolhe quantos leads quer salvar e a prioridade na fila.</p>
+        <h2>Comece no Starter ou escale com Academia + VSLs no PRO</h2>
+        <p>Os dois planos liberam a ferramenta completa. O <strong>PRO</strong> traz <strong>4x mais leads</strong>, <strong>Fila Prioritária</strong> e o bônus completo de <strong>Cursos de Vendas + VSLs Prontas para Baixar</strong>.</p>
       </div>
 
       <div class="pricing-grid">
@@ -649,20 +650,24 @@
         </div>
 
         <div class="price-card featured">
-          <span class="pop-badge">Mais Popular</span>
+          <span class="pop-badge">Mais Popular · Upsell PRO</span>
           <h3>Plano PRO</h3>
-          <p class="text-muted" style="font-size:0.86rem; color:var(--muted);">4x mais espaço salvo e fila prioritária para escalar.</p>
+          <p class="text-muted" style="font-size:0.86rem; color:var(--muted);">Mais espaço, velocidade e pacote completo de vendas para faturar alto.</p>
           <div style="margin-top:10px;">
-            <span style="color:var(--primary); font-size:0.82rem; font-weight:700; display:block;">Prioridade na fila · 4x mais capacidade</span>
+            <span style="color:var(--primary); font-size:0.82rem; font-weight:700; display:block;">4x mais capacidade + Cursos &amp; VSLs Exclusivas</span>
             <div class="price-val" style="margin-top:2px; color:#0f172a;">{{ site_cfg.plan_pro_price or 'R$ 79' }} <small>/ mês</small></div>
             <span style="color:#059669; font-size:0.78rem; font-weight:700; display:block;">Liberação imediata via PIX ou Cartão</span>
+          </div>
+          <div style="background:linear-gradient(135deg,#fffbeb,#fef3c7); border:1px solid #f59e0b; border-radius:12px; padding:10px 12px; margin:12px 0 4px; text-align:left;">
+            <div style="font-size:0.76rem; font-weight:800; color:#b45309; text-transform:uppercase; letter-spacing:0.03em;"><i class="fa-solid fa-crown"></i> Bônus Exclusivo do Plano PRO</div>
+            <div style="font-size:0.82rem; color:#78350f; font-weight:600; margin-top:3px; line-height:1.35;">Academia de Vendas (5 Cursos por Estratégia) + Kit de Vídeos VSL em MP4 para você baixar e divulgar aos seus clientes!</div>
           </div>
           <ul class="price-list">
             <li><i class="fa-solid fa-check"></i> Até <strong>2.000 leads salvos</strong> no programa</li>
             <li><i class="fa-solid fa-check"></i> <strong>Prioridade na fila de buscas</strong> (passa na frente!)</li>
-            <li><i class="fa-solid fa-check"></i> <strong>Todas as funções liberadas</strong> (Busca + Mapa + Multi-segmentos)</li>
-            <li><i class="fa-solid fa-check"></i> <strong>WhatsApp QR Code</strong> + <strong>API Oficial Meta (BETA)</strong></li>
-            <li><i class="fa-solid fa-check"></i> <strong>Chat estilo Kommo</strong> + CRM Kanban + CSV</li>
+            <li><i class="fa-solid fa-check"></i> <strong>Academia de Vendas PRO</strong> + Scripts de fechamento</li>
+            <li><i class="fa-solid fa-check"></i> <strong>VSLs Prontas p/ Download</strong> (GMN, NFC, WA, Cardápio, Biossite)</li>
+            <li><i class="fa-solid fa-check"></i> <strong>WhatsApp QR Code</strong> + <strong>API Oficial Meta</strong> + Chat + CRM</li>
           </ul>
           <a href="{{ site_cfg.checkout_pro_url or site_cfg.enterprise_wa_url or '/register' }}" {% if site_cfg.checkout_pro_url or site_cfg.enterprise_wa_url %}target="_blank"{% endif %} class="btn btn-primary btn-lg" style="width:100%;">
             {% if site_cfg.checkout_pro_url %}Assinar Plano PRO Agora{% else %}Quero o Plano PRO{% endif %}
@@ -709,7 +714,7 @@
       <div class="faq-list">
         <details class="faq-item" open>
           <summary>Qual a diferença do Starter para o PRO?</summary>
-          <p>Ambos têm <strong>todas as ferramentas</strong>. O <strong>Starter</strong> salva até <strong>500 leads</strong>; o <strong>PRO</strong> salva até <strong>2.000 leads</strong> e tem <strong>prioridade na fila de buscas</strong>.</p>
+          <p>O <strong>Starter</strong> libera todas as ferramentas do sistema com até <strong>500 leads</strong> e tutoriais de uso. Já o <strong>PRO</strong> libera até <strong>2.000 leads</strong>, <strong>fila prioritária</strong> e acesso exclusivo à <strong>Academia de Vendas PRO</strong> (5 cursos completos por estratégia) + <strong>Pacote de VSLs prontas para baixar e divulgar</strong>.</p>
         </details>
         <details class="faq-item">
           <summary>Preciso instalar algo?</summary>

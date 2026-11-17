@@ -71,6 +71,31 @@ DEFAULT_TEMPLATES = [
         "follow_up": "Maravilha! Tenho 2 modelos prontos para {categoria}. Posso enviar os links aqui?"
     },
     {
+        "id": "gmn_quebra_gelo",
+        "product": "gmn",
+        "title": "📍 Google Meu Negócio — Destrave Ligações & Rotas",
+        "content": (
+            "Olá, pessoal da {nome}! Vi a ficha de vocês no Google aqui em {bairro} ({avaliacao}⭐). "
+            "Percebi 3 ajustes simples no *Google Meu Negócio* que fazem a {nome} aparecer antes dos concorrentes quando buscam por {categoria}. Posso te mostrar em 1 minuto?"
+        ),
+        "follow_up": (
+            "Show! Montei um mini-diagnóstico da ficha da {nome} (fotos, palavras-chave e plano de avaliações). "
+            "Posso mandar o resumo por aqui mesmo?"
+        )
+    },
+    {
+        "id": "gmn_fechamento_top3",
+        "product": "gmn",
+        "title": "📈 Google Meu Negócio — Top 3 no Mapa & Gestão Mensal",
+        "content": (
+            "Oi, {nome}! Coloco negócios de {categoria} no *Top 3 do Google Maps* sem gastar com anúncios. "
+            "Consigo otimizar a ficha da {nome} ainda esta semana para gerar mais ligações e rotas em {bairro}. Quer ver um exemplo?"
+        ),
+        "follow_up": (
+            "Perfeito! O pacote inclui otimização completa do perfil, respostas estratégicas e rotina para multiplicar avaliações 5⭐. Qual melhor horário para falarmos?"
+        )
+    },
+    {
         "id": "combo_presenca_local",
         "product": "combo",
         "title": "Combo Presença Local (WhatsApp + NFC + Biossite)",
@@ -108,6 +133,8 @@ def compute_lead_opportunities(lead: Dict[str, Any]) -> List[str]:
         opps.append("biossite")
     if reviews < 50 or (rating > 0 and rating < 4.6):
         opps.append("nfc_google")
+    if reviews < 80 or (rating > 0 and rating < 4.7) or wtype in ("none", "social"):
+        opps.append("gmn")
     if any(k in category for k in FOOD_KEYWORDS):
         opps.append("cardapio_digital")
     if lead.get("clean_phone"):
@@ -467,6 +494,41 @@ def init_db():
     )
     """)
     _seed_academy_lessons(cursor)
+
+    # 9. Academia de Vendas PRO (Cursos por Estratégia + VSLs White-Label)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS sales_academy_courses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        slug TEXT UNIQUE,
+        strategy_key TEXT NOT NULL,
+        badge_label TEXT NOT NULL,
+        title TEXT NOT NULL,
+        subtitle TEXT DEFAULT '',
+        ticket_range TEXT DEFAULT '',
+        thumbnail_url TEXT DEFAULT '',
+        course_video_url TEXT NOT NULL,
+        course_duration TEXT DEFAULT '00:40',
+        vsl_video_url TEXT DEFAULT '',
+        vsl_title TEXT DEFAULT '',
+        vsl_duration TEXT DEFAULT '00:30',
+        script_approach TEXT DEFAULT '',
+        script_objections TEXT DEFAULT '',
+        target_opp TEXT DEFAULT '',
+        sort_order INTEGER DEFAULT 0,
+        is_published INTEGER DEFAULT 1,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS sales_academy_progress (
+        user_id INTEGER NOT NULL,
+        course_id INTEGER NOT NULL,
+        completed INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (user_id, course_id)
+    )
+    """)
+    _seed_sales_academy_courses(cursor)
 
     conn.commit()
 
@@ -1557,7 +1619,7 @@ def get_stats(user_id: int = 1) -> Dict[str, Any]:
 
     # Contagem de oportunidades por oferta
     cursor.execute("SELECT website_type, website, reviews_count, rating, category, clean_phone, phone_type FROM leads WHERE user_id = ?", (user_id,))
-    opp_counts = {"biossite": 0, "nfc_google": 0, "cardapio_digital": 0, "whatsapp_biz": 0}
+    opp_counts = {"biossite": 0, "nfc_google": 0, "gmn": 0, "cardapio_digital": 0, "whatsapp_biz": 0}
     for row in cursor.fetchall():
         for o in compute_lead_opportunities(dict(row)):
             opp_counts[o] = opp_counts.get(o, 0) + 1
@@ -1806,6 +1868,320 @@ def delete_academy_lesson(lesson_id: int) -> bool:
     try:
         cur.execute("DELETE FROM academy_progress WHERE lesson_id = ?", (lesson_id,))
         cur.execute("DELETE FROM academy_lessons WHERE id = ?", (lesson_id,))
+        conn.commit()
+        return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+# ==================== ACADEMIA DE VENDAS PRO (EXCLUSIVO PRO/ENTERPRISE) ====================
+DEFAULT_SALES_ACADEMY = [
+    {
+        "slug": "estrategia-gmn",
+        "strategy_key": "gmn",
+        "badge_label": "Google Meu Negócio",
+        "title": "Como Vender Otimização & Top 3 no Google Meu Negócio",
+        "subtitle": "Audite fichas desatualizadas em 2 minutos e feche setup de R$ 400 a R$ 1.200 + recorrência mensal de gestão.",
+        "ticket_range": "R$ 400 a R$ 1.200 + mensalidade",
+        "thumbnail_url": "/static/img/academy/gmn-hero.jpg",
+        "course_video_url": "/static/video/sales-academy/curso-gmn.mp4",
+        "course_duration": "00:34",
+        "vsl_video_url": "/static/video/sales-academy/vsl-gmn.mp4",
+        "vsl_title": "VSL Pronta para Divulgar · Google Meu Negócio",
+        "vsl_duration": "00:26",
+        "script_approach": (
+            "1) Quebra-Gelo: 'Olá, pessoal da {nome}! Vi a ficha de vocês no Google aqui em {bairro}. Notei 3 ajustes simples no Google Meu Negócio que colocam vocês na frente dos concorrentes sem pagar anúncio. Posso enviar um áudio rápido mostrando?'\n"
+            "2) Diagnóstico em 2 min: Mostre 3 falhas reais da ficha (poucas fotos recentes, categorias secundárias vazias e falta de respostas com palavras-chave).\n"
+            "3) Oferta: Otimização Completa em 48h (R$ 497) ou Pacote Mensal Top 3 + Gestão de Avaliações (R$ 397/mês)."
+        ),
+        "script_objections": (
+            "• 'Já temos agência / já estamos no Google': 'Estar no Google é diferente de aparecer entre os 3 primeiros quando alguém digita o serviço no seu bairro. Meu trabalho é destravar ligações e pedidos de rota orgânicos sem depender de tráfego pago.'\n"
+            "• 'Vou pensar e te aviso': 'Consigo fazer a auditoria completa da {nome} e entregar o plano pronto até sexta com garantia de melhoria visual na primeira semana.'"
+        ),
+        "target_opp": "gmn",
+        "sort_order": 1,
+    },
+    {
+        "slug": "estrategia-nfc",
+        "strategy_key": "nfc",
+        "badge_label": "Plaquinha NFC + QR",
+        "title": "Como Vender Plaquinha NFC + QR Code de Avaliações 5⭐",
+        "subtitle": "Produto físico de entrada irresistível: encostou o celular, avaliou no Google. Ticket rápido de R$ 150 a R$ 350 por unidade.",
+        "ticket_range": "R$ 150 a R$ 350 / plaquinha",
+        "thumbnail_url": "/static/img/academy/nfc-hero.jpg",
+        "course_video_url": "/static/video/sales-academy/curso-nfc.mp4",
+        "course_duration": "00:33",
+        "vsl_video_url": "/static/video/sales-academy/vsl-nfc.mp4",
+        "vsl_title": "VSL Pronta para Divulgar · Plaquinha NFC & QR",
+        "vsl_duration": "00:26",
+        "script_approach": (
+            "1) Quebra-Gelo: 'Oi, {nome}! Vi vocês no Google com {avaliacao}⭐. Trabalho com Plaquinhas NFC de balcão: seu cliente encosta o celular e já cai direto na tela de avaliação 5 estrelas, Instagram ou Pix. Posso te mandar uma foto modelo com a sua logo?'\n"
+            "2) Demonstração: Envie a VSL pronta junto com uma prévia visual da plaquinha.\n"
+            "3) Combo Upsell: 1 plaquinha por R$ 197 ou kit com 3 plaquinhas de mesa/caixa por R$ 447 + otimização do Google de bônus."
+        ),
+        "script_objections": (
+            "• 'Cliente não costuma avaliar': 'Exatamente porque ninguém lembra! Quando você coloca a placa no caixa e o atendente diz só \"encosta aqui se gostou\", suas avaliações multiplicam sem esforço.'\n"
+            "• 'É caro?': 'Com apenas 2 clientes novos que escolherem vocês no Google por terem mais avaliações, a plaquinha já se pagou para sempre — sem mensalidade.'"
+        ),
+        "target_opp": "nfc_google",
+        "sort_order": 2,
+    },
+    {
+        "slug": "estrategia-whatsapp",
+        "strategy_key": "whatsapp",
+        "badge_label": "WhatsApp Business",
+        "title": "Como Vender Estruturação de WhatsApp Business & Catálogo",
+        "subtitle": "Transforme atendimento bagunçado em máquina organizada com etiquetas, catálogo de serviços e respostas instantâneas.",
+        "ticket_range": "R$ 500 a R$ 1.500",
+        "thumbnail_url": "/static/img/academy/whatsapp-hero.jpg",
+        "course_video_url": "/static/video/sales-academy/curso-whatsapp.mp4",
+        "course_duration": "00:32",
+        "vsl_video_url": "/static/video/sales-academy/vsl-whatsapp.mp4",
+        "vsl_title": "VSL Pronta para Divulgar · WhatsApp Business PRO",
+        "vsl_duration": "00:25",
+        "script_approach": (
+            "1) Quebra-Gelo: 'Olá, equipe da {nome}! Peguei o contato no Google. Eu estruturo o WhatsApp Business de empresas de {categoria} com catálogo, mensagens de boas-vindas e etiquetas de funil para nenhum orçamento esfriar. Posso mostrar como funciona?'\n"
+            "2) Diagnóstico: Pergunte quantos orçamentos ficam sem resposta no fim de semana.\n"
+            "3) Fechamento: Setup completo em 24h com catálogo visual + 10 scripts prontos por R$ 590."
+        ),
+        "script_objections": (
+            "• 'Já usamos WhatsApp normal': 'Justamente por usar o comum você perde histórico, não tem catálogo clicável nem mensagem automática quando está ocupado. No Business profissional o cliente já escolhe e pede sozinho.'"
+        ),
+        "target_opp": "whatsapp_biz",
+        "sort_order": 3,
+    },
+    {
+        "slug": "estrategia-cardapio",
+        "strategy_key": "cardapio",
+        "badge_label": "Cardápio Digital",
+        "title": "Como Vender Cardápio Digital + QR na Mesa Sem Taxas",
+        "subtitle": "Ajude restaurantes, pizzarias e hamburguerias a economizar até 27% de comissão de aplicativos recebendo pedidos direto no WhatsApp.",
+        "ticket_range": "R$ 297 setup + R$ 97 a R$ 297/mês",
+        "thumbnail_url": "/static/img/academy/cardapio-hero.jpg",
+        "course_video_url": "/static/video/sales-academy/curso-cardapio.mp4",
+        "course_duration": "00:33",
+        "vsl_video_url": "/static/video/sales-academy/vsl-cardapio.mp4",
+        "vsl_title": "VSL Pronta para Divulgar · Cardápio Digital & QR",
+        "vsl_duration": "00:26",
+        "script_approach": (
+            "1) Quebra-Gelo: 'Oi, pessoal da {nome}! Vi vocês aqui em {bairro}. Vocês já trabalham com Cardápio Digital próprio sem pagar comissão por pedido, ligado direto no WhatsApp? Quer ver um modelo ao vivo funcionando?'\n"
+            "2) Gancho Financeiro: Mostre quanto R$ 5.000 em apps custam de taxa todo mês vs um link próprio com QR Code na mesa.\n"
+            "3) Oferta: Cardápio montado com fotos + QR Code para imprimir nas mesas em 48h."
+        ),
+        "script_objections": (
+            "• 'Não temos tempo para cadastrar produtos': 'Nós cadastramos todo o seu cardápio inicial com fotos e preços em até 48 horas; você só recebe o pedido mastigado no WhatsApp.'"
+        ),
+        "target_opp": "cardapio_digital",
+        "sort_order": 4,
+    },
+    {
+        "slug": "estrategia-biossite",
+        "strategy_key": "biossite",
+        "badge_label": "Biossite & Landing Page",
+        "title": "Como Vender Biossites & Landing Pages para Quem Não Tem Site",
+        "subtitle": "Feche vendas rápidas em 48 horas para empresas que só têm link do Instagram ou nenhum site listado no Google Maps.",
+        "ticket_range": "R$ 400 a R$ 1.500",
+        "thumbnail_url": "/static/img/academy/biossite-hero.jpg",
+        "course_video_url": "/static/video/sales-academy/curso-biossite.mp4",
+        "course_duration": "00:32",
+        "vsl_video_url": "/static/video/sales-academy/vsl-biossite.mp4",
+        "vsl_title": "VSL Pronta para Divulgar · Biossite & Site Rápido",
+        "vsl_duration": "00:25",
+        "script_approach": (
+            "1) Quebra-Gelo: 'Olá, {nome}! Vi que no Google vocês ainda não têm um site oficial clicável. Eu crio páginas rápidas com seus serviços, avaliações 5⭐ e botão direto para o WhatsApp. Posso te mandar uma prévia sem compromisso?'\n"
+            "2) Técnica da Prévia: Envie um mockup personalizado usando o nome e fotos do negócio.\n"
+            "3) Fechamento: Entrega expressa em 48h conectada direto ao perfil do Google Maps."
+        ),
+        "script_objections": (
+            "• 'Instagram já basta': 'Quem pesquisa no Google já está com o cartão na mão pronto para comprar hoje e muitas vezes não entra no Instagram. Um Biossite oficial no Google passa confiança imediata.'"
+        ),
+        "target_opp": "biossite",
+        "sort_order": 5,
+    },
+]
+
+
+def _seed_sales_academy_courses(cursor):
+    for item in DEFAULT_SALES_ACADEMY:
+        cursor.execute(
+            """
+            INSERT OR IGNORE INTO sales_academy_courses (
+                slug, strategy_key, badge_label, title, subtitle, ticket_range,
+                thumbnail_url, course_video_url, course_duration,
+                vsl_video_url, vsl_title, vsl_duration,
+                script_approach, script_objections, target_opp, sort_order, is_published
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            """,
+            (
+                item["slug"], item["strategy_key"], item["badge_label"], item["title"],
+                item["subtitle"], item["ticket_range"], item["thumbnail_url"],
+                item["course_video_url"], item["course_duration"],
+                item["vsl_video_url"], item["vsl_title"], item["vsl_duration"],
+                item["script_approach"], item["script_objections"],
+                item["target_opp"], item["sort_order"],
+            ),
+        )
+
+
+def has_pro_sales_access(user_id: int) -> bool:
+    user = get_user_by_id(user_id)
+    if not user:
+        return False
+    if user.get("role") == "admin":
+        return True
+    acc = get_user_access_status(user_id)
+    if not acc.get("active"):
+        return False
+    return normalize_plan_name(acc.get("plan")) in ("pro", "enterprise")
+
+
+def get_sales_academy_for_user(user_id: int, include_unpublished: bool = False) -> Dict[str, Any]:
+    unlocked = has_pro_sales_access(user_id)
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        where = "" if include_unpublished else "WHERE c.is_published = 1"
+        cur.execute(
+            f"""
+            SELECT c.*, COALESCE(p.completed, 0) AS completed
+            FROM sales_academy_courses c
+            LEFT JOIN sales_academy_progress p
+              ON p.course_id = c.id AND p.user_id = ?
+            {where}
+            ORDER BY c.sort_order ASC, c.id ASC
+            """,
+            (user_id,),
+        )
+        items = []
+        for r in cur.fetchall():
+            d = dict(r)
+            d["completed"] = bool(d.get("completed"))
+            d["is_published"] = bool(d.get("is_published"))
+            if not unlocked and not include_unpublished:
+                d["course_video_url"] = ""
+                d["vsl_video_url"] = ""
+                d["download_url"] = ""
+            else:
+                d["download_url"] = f"/api/sales-academy/download/{d['slug']}"
+            items.append(d)
+        done = sum(1 for x in items if x["completed"])
+        total = len(items)
+        return {
+            "unlocked": unlocked,
+            "items": items,
+            "completed_count": done,
+            "total_count": total,
+            "percent": int(round((done / total) * 100)) if total else 0,
+        }
+    finally:
+        conn.close()
+
+
+def get_sales_academy_course_by_slug(slug: str) -> Optional[Dict[str, Any]]:
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT * FROM sales_academy_courses WHERE slug = ?", (slug,))
+        r = cur.fetchone()
+        return dict(r) if r else None
+    finally:
+        conn.close()
+
+
+def set_sales_academy_progress(user_id: int, course_id: int, completed: bool) -> Dict[str, Any]:
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        now = datetime.now().isoformat()
+        cur.execute(
+            """
+            INSERT INTO sales_academy_progress (user_id, course_id, completed, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id, course_id) DO UPDATE SET completed = excluded.completed, updated_at = excluded.updated_at
+            """,
+            (user_id, course_id, 1 if completed else 0, now),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    res = get_sales_academy_for_user(user_id, include_unpublished=False)
+    return {
+        "completed_count": res["completed_count"],
+        "total_count": res["total_count"],
+        "percent": res["percent"],
+    }
+
+
+def upsert_sales_academy_course(data: Dict[str, Any], course_id: Optional[int] = None) -> int:
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        strategy_key = (data.get("strategy_key") or "gmn").strip()
+        badge_label = (data.get("badge_label") or "Estratégia").strip()
+        title = (data.get("title") or "Novo Curso").strip()
+        subtitle = (data.get("subtitle") or "").strip()
+        ticket_range = (data.get("ticket_range") or "").strip()
+        thumbnail_url = (data.get("thumbnail_url") or "/static/img/academy/gmn-hero.jpg").strip()
+        course_video_url = (data.get("course_video_url") or "").strip()
+        course_duration = (data.get("course_duration") or "01:00").strip()
+        vsl_video_url = (data.get("vsl_video_url") or "").strip()
+        vsl_title = (data.get("vsl_title") or "VSL Pronta para Divulgar").strip()
+        vsl_duration = (data.get("vsl_duration") or "00:30").strip()
+        script_approach = (data.get("script_approach") or "").strip()
+        script_objections = (data.get("script_objections") or "").strip()
+        target_opp = (data.get("target_opp") or "").strip()
+        sort_order = int(data.get("sort_order") or 0)
+        is_published = 1 if data.get("is_published", True) else 0
+        if course_id:
+            cur.execute(
+                """
+                UPDATE sales_academy_courses SET
+                    strategy_key=?, badge_label=?, title=?, subtitle=?, ticket_range=?,
+                    thumbnail_url=?, course_video_url=?, course_duration=?,
+                    vsl_video_url=?, vsl_title=?, vsl_duration=?,
+                    script_approach=?, script_objections=?, target_opp=?,
+                    sort_order=?, is_published=?
+                WHERE id=?
+                """,
+                (
+                    strategy_key, badge_label, title, subtitle, ticket_range,
+                    thumbnail_url, course_video_url, course_duration,
+                    vsl_video_url, vsl_title, vsl_duration,
+                    script_approach, script_objections, target_opp,
+                    sort_order, is_published, course_id,
+                ),
+            )
+            conn.commit()
+            return course_id
+        slug = (data.get("slug") or "").strip() or f"curso-{int(datetime.now().timestamp() * 1000)}"
+        cur.execute(
+            """
+            INSERT INTO sales_academy_courses (
+                slug, strategy_key, badge_label, title, subtitle, ticket_range,
+                thumbnail_url, course_video_url, course_duration,
+                vsl_video_url, vsl_title, vsl_duration,
+                script_approach, script_objections, target_opp, sort_order, is_published
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                slug, strategy_key, badge_label, title, subtitle, ticket_range,
+                thumbnail_url, course_video_url, course_duration,
+                vsl_video_url, vsl_title, vsl_duration,
+                script_approach, script_objections, target_opp, sort_order, is_published,
+            ),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+    finally:
+        conn.close()
+
+
+def delete_sales_academy_course(course_id: int) -> bool:
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute("DELETE FROM sales_academy_progress WHERE course_id = ?", (course_id,))
+        cur.execute("DELETE FROM sales_academy_courses WHERE id = ?", (course_id,))
         conn.commit()
         return cur.rowcount > 0
     finally:
