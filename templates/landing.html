@@ -313,7 +313,7 @@
 <body>
   <div class="promo-bar">
     <i class="fa-solid fa-fire"></i>
-    <strong>CONDIÇÃO DE LANÇAMENTO:</strong> Starter por <strong>{{ site_cfg.plan_starter_price or 'R$ 37' }}/mês</strong> (de R$ 97) ou comece hoje mesmo no <strong>Teste Grátis de 24h</strong>!
+    Lançamento: <strong>Starter por {{ site_cfg.plan_starter_price or 'R$ 37' }}/mês</strong> (de R$ 97) · Vagas limitadas
   </div>
 
   <header class="nav">
@@ -340,23 +340,23 @@
   <section class="hero">
     <div class="container hero-grid">
       <div>
-        <div class="hero-badge"><i class="fa-solid fa-bolt"></i> Radar Google + WhatsApp + CRM Kanban em 1 Só Lugar</div>
-        <h1>Pare de caçar cliente no braço. Ache quem precisa de você hoje e <span>feche no WhatsApp</span>.</h1>
+        <div class="hero-badge"><i class="fa-solid fa-bolt"></i> Radar Google + WhatsApp + CRM</div>
+        <h1>Encontre clientes no Google e <span>feche pelo WhatsApp</span>.</h1>
         <p>
-          O <strong>MapaLeads PRO</strong> varre ruas, bairros e cidades inteiras no Google, extrai o WhatsApp do estabelecimento e mostra <strong>exatamente qual serviço vender</strong>: Plaquinha NFC + QR Code, Cardápio Digital, WhatsApp Business ou Biossite.
+          Capte empresas por rua, bairro ou cidade com telefone válido, falha digital detectada e abordagem pronta para fechar contratos todos os dias.
         </p>
         <div class="hero-actions">
           <a href="/register" class="btn btn-emerald btn-lg">
-            <i class="fa-solid fa-rocket"></i> Testar Grátis por 1 Dia (25 Leads)
+            <i class="fa-solid fa-rocket"></i> Testar Grátis 24h (25 Leads)
           </a>
           <a href="#planos" class="btn btn-outline btn-lg" style="background:rgba(255,255,255,0.08); color:#fff; border-color:rgba(255,255,255,0.22);">
-            Ver Planos a partir de {{ site_cfg.plan_starter_price or 'R$ 37' }}
+            Ver Planos · a partir de {{ site_cfg.plan_starter_price or 'R$ 37' }}
           </a>
         </div>
         <div class="hero-trust">
-          <span><i class="fa-solid fa-check-circle"></i> Sem cartão no teste de 24h</span>
-          <span><i class="fa-solid fa-check-circle"></i> Copys Quebra-Gelo anti-bloqueio</span>
-          <span><i class="fa-solid fa-check-circle"></i> 100% online no PC e celular</span>
+          <span><i class="fa-solid fa-check-circle"></i> Sem cartão no teste</span>
+          <span><i class="fa-solid fa-check-circle"></i> Anti-bloqueio</span>
+          <span><i class="fa-solid fa-check-circle"></i> PC e Celular</span>
         </div>
       </div>
 
@@ -389,21 +389,21 @@
         <div class="roi-icon" style="background:#eff6ff; color:#2563eb;"><i class="fa-solid fa-sack-dollar"></i></div>
         <div>
           <strong>1 venda paga 1 ano inteiro</strong>
-          <span>Vendeu 1 plaquinha NFC ou Biossite (R$ 250+)? O sistema já se pagou com folga.</span>
+          <span>Fechou 1 Plaquinha NFC ou Biossite? Sistema pago com lucro.</span>
         </div>
       </div>
       <div class="roi-card">
         <div class="roi-icon" style="background:#ecfdf5; color:#059669;"><i class="fa-solid fa-crosshairs"></i></div>
         <div>
-          <strong>Zero lead frio ou perdido</strong>
-          <span>Cada empresa já entra com telefone válido, avaliação do Google e falha detectada.</span>
+          <strong>Só contato quente</strong>
+          <span>Telefone válido + falha digital já marcada no CRM.</span>
         </div>
       </div>
       <div class="roi-card">
         <div class="roi-icon" style="background:#fef3c7; color:#d97706;"><i class="fa-solid fa-shield-halved"></i></div>
         <div>
-          <strong>Feito para não tomar bloqueio</strong>
-          <span>Abordagens curtas de Quebra-Gelo + WhatsApp Web 1-Clique e API Oficial Meta.</span>
+          <strong>Zero bloqueio no WhatsApp</strong>
+          <span>Quebra-gelo seguro, QR Code e API Oficial Meta.</span>
         </div>
       </div>
     </div>
@@ -413,9 +413,9 @@
   <section class="section" id="sistema">
     <div class="container">
       <div class="section-head">
-        <span class="eyebrow">Telas Reais do Sistema</span>
-        <h2>Veja o MapaLeads PRO trabalhando por você por dentro</h2>
-        <p>Sem enrolação ou promessa vazia: clique nas abas abaixo e veja as telas reais onde você encontra empresas, organiza negociações e fecha pelo WhatsApp.</p>
+        <span class="eyebrow">Por Dentro do Painel</span>
+        <h2>Telas reais do seu novo motor de vendas</h2>
+        <p>Busque, organize no Kanban e atenda tudo no WhatsApp em um só lugar.</p>
       </div>
 
       <div class="tour-tabs">
@@ -445,8 +445,8 @@
           <img src="/static/img/sales/ui-crm.png" alt="CRM Kanban MapaLeads PRO com etiquetas de oportunidades">
           <div class="tour-caption">
             <div>
-              <strong>CRM Kanban Visual com Diagnóstico Automático</strong>
-              <span>O sistema lê o perfil da empresa no Google e já marca se ela precisa de <em>Plaquinha NFC</em>, <em>Cardápio Digital</em>, <em>Biossite / LP</em> ou <em>WhatsApp Business</em>.</span>
+              <strong>CRM Kanban + Diagnóstico Automático</strong>
+              <span>Etiqueta na hora se a empresa precisa de <em>Plaquinha NFC</em>, <em>Cardápio</em> ou <em>Biossite</em>.</span>
             </div>
             <a href="/register" class="btn btn-primary btn-sm">Testar CRM Grátis</a>
           </div>
@@ -456,8 +456,8 @@
           <img src="/static/img/sales/ui-chat.png" alt="Chat / Inbox integrado estilo Kommo no MapaLeads PRO">
           <div class="tour-caption">
             <div>
-              <strong>Central de Conversas Estilo Kommo (QR Code, API Meta ou 1-Clique)</strong>
-              <span>Responda clientes, insira modelos prontos com 1 clique e altere a etapa do funil sem sair da tela de atendimento.</span>
+              <strong>Chat / Inbox Estilo Kommo</strong>
+              <span>Responda ao vivo por QR Code, API Oficial Meta ou 1-Clique sem trocar de tela.</span>
             </div>
             <a href="/register" class="btn btn-emerald btn-sm">Ver na Prática</a>
           </div>
@@ -467,8 +467,8 @@
           <img src="/static/img/sales/ui-search.png" alt="Busca por Rua, Bairro ou Cidade no Google dentro do MapaLeads PRO">
           <div class="tour-caption">
             <div>
-              <strong>Varredura Cirúrgica por Rua Inteira, Bairro ou Cidade</strong>
-              <span>Escolha um nicho ou faça varredura completa de comércios. Os leads aparecem em tempo real já com telefone limpo para WhatsApp.</span>
+              <strong>Radar por Rua, Bairro ou Cidade</strong>
+              <span>Extrai negócios locais com WhatsApp limpo em tempo real.</span>
             </div>
             <a href="/register" class="btn btn-primary btn-sm">Fazer Minha 1ª Busca</a>
           </div>
@@ -481,35 +481,35 @@
   <section class="section section-alt" id="ofertas">
     <div class="container">
       <div class="section-head">
-        <span class="eyebrow">Dinheiro Rápido em Negócios Locais</span>
-        <h2>O sistema acha quem tem dor real e entrega o gancho perfeito para você vender</h2>
-        <p>Você não vai tentar "empurrar" nada. O MapaLeads PRO filtra exatamente quem está perdendo clientes hoje por não ter estrutura digital.</p>
+        <span class="eyebrow">Ofertas Prontas Para Lucrar</span>
+        <h2>Venda o que o comércio local já precisa hoje</h2>
+        <p>O sistema aponta a falha do negócio e entrega a mensagem pronta para você ofertar.</p>
       </div>
 
       <div class="spotlight-grid">
         <div class="spotlight-photo">
           <img src="/static/img/sales/nfc-plaque.jpg" alt="Plaquinha NFC + QR Code de Avaliações 5 Estrelas no Google no balcão">
           <div class="spotlight-badge">
-            <span><i class="fa-solid fa-star" style="color:#fbbf24;"></i> Oferta Campeã de Entrada</span>
-            <strong>Ticket médio: R$ 150 a R$ 350 / plaquinha</strong>
+            <span><i class="fa-solid fa-star" style="color:#fbbf24;"></i> Oferta de Entrada</span>
+            <strong>Ticket: R$ 150 a R$ 350</strong>
           </div>
         </div>
 
         <div>
-          <span class="eyebrow" style="background:#ecfdf5; color:#047857;">Exemplo de Oportunidade Detectada</span>
-          <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.65rem; font-weight:800; line-height:1.2; margin-bottom:14px;">
-            Clínicas, restaurantes e barbearias com poucas avaliações no Google compram na hora
+          <span class="eyebrow" style="background:#ecfdf5; color:#047857;">Oportunidade Detectada</span>
+          <h3 style="font-family:'Plus Jakarta Sans',sans-serif; font-size:1.55rem; font-weight:800; line-height:1.2; margin-bottom:12px;">
+            Poucas avaliações ou sem site = dinheiro na mesa
           </h3>
-          <p style="color:var(--muted); margin-bottom:16px;">
-            Empresas com menos de 50 avaliações perdem clientes todo dia para o concorrente ao lado. O MapaLeads PRO lista esses negócios para você em segundos com a mensagem de abordagem pronta — sem parecer robô.
+          <p style="color:var(--muted); margin-bottom:14px;">
+            O MapaLeads filtra exatamente quem está perdendo clientes no Google e coloca na sua mão:
           </p>
-          <ul class="price-list" style="margin:0 0 22px;">
-            <li><i class="fa-solid fa-check-circle"></i> <strong>Filtro automático de poucas avaliações</strong> para vender Plaquinha NFC + QR Code;</li>
-            <li><i class="fa-solid fa-check-circle"></i> <strong>Detector de "Sem Site" ou "Só Instagram"</strong> para fechar Biossite, Landing Page ou Google Meu Negócio;</li>
-            <li><i class="fa-solid fa-check-circle"></i> <strong>Categoria Gastronomia destacada</strong> para fechar Cardápio Digital com pedido no WhatsApp sem taxa de iFood.</li>
+          <ul class="price-list" style="margin:0 0 20px;">
+            <li><i class="fa-solid fa-check-circle"></i> <strong>Plaquinha NFC + QR Code</strong> para negócios com poucas avaliações;</li>
+            <li><i class="fa-solid fa-check-circle"></i> <strong>Biossite / Landing Page</strong> para quem não tem site próprio;</li>
+            <li><i class="fa-solid fa-check-circle"></i> <strong>Cardápio Digital</strong> para restaurantes fugirem de taxas de app.</li>
           </ul>
           <a href="/register" class="btn btn-primary btn-lg">
-            <i class="fa-solid fa-crosshairs"></i> Achar Empresas na Minha Cidade Agora
+            <i class="fa-solid fa-crosshairs"></i> Buscar Clientes na Minha Cidade
           </a>
         </div>
       </div>
@@ -518,20 +518,20 @@
         <div class="card">
           <div class="card-icon" style="background:#eff6ff; color:#2563eb;"><i class="fa-solid fa-globe"></i></div>
           <h3>Biossites &amp; Landing Pages</h3>
-          <p>Encontre comércios bons que só têm link quebrado ou Instagram e venda presença profissional que traz clientes do Google.</p>
-          <span class="ticket-tag">Ticket típico: R$ 400 a R$ 1.500</span>
+          <p>Para comércios sem site ou só com Instagram.</p>
+          <span class="ticket-tag">R$ 400 a R$ 1.500</span>
         </div>
         <div class="card">
           <div class="card-icon" style="background:#fef3c7; color:#d97706;"><i class="fa-solid fa-utensils"></i></div>
-          <h3>Cardápio Digital &amp; Delivery</h3>
-          <p>Hamburguerias, pizzarias e açaís pagam até 27% de taxa no aplicativo. Mostre como vender direto no WhatsApp sem comissão.</p>
-          <span class="ticket-tag">Recorrência: R$ 97 a R$ 297/mês</span>
+          <h3>Cardápio Digital</h3>
+          <p>Pedidos direto no WhatsApp sem comissão de app.</p>
+          <span class="ticket-tag">R$ 97 a R$ 297/mês</span>
         </div>
         <div class="card">
           <div class="card-icon" style="background:#ecfdf5; color:#059669;"><i class="fa-brands fa-whatsapp"></i></div>
           <h3>WhatsApp Business + API</h3>
-          <p>Organize o atendimento de clínicas e escritórios usando WhatsApp QR Code conectado, templates prontos ou API Oficial Meta.</p>
-          <span class="ticket-tag">Ticket típico: R$ 500 a R$ 2.000</span>
+          <p>Atendimento organizado no QR Code ou API Oficial.</p>
+          <span class="ticket-tag">R$ 500 a R$ 2.000</span>
         </div>
       </div>
     </div>
@@ -541,34 +541,34 @@
   <section class="section section-dark" id="como-funciona">
     <div class="container">
       <div class="section-head">
-        <span class="eyebrow" style="background:rgba(37,99,235,0.22); color:#93c5fd;">Passo a Passo Completo</span>
-        <h2>Do zero ao dinheiro no bolso em 3 passos simples</h2>
-        <p>Você não precisa saber programar nem gastar R$ 1 com tráfego pago para gerar reuniões e vendas todos os dias.</p>
+        <span class="eyebrow" style="background:rgba(37,99,235,0.22); color:#93c5fd;">Como Funciona</span>
+        <h2>3 passos para fechar clientes todo dia</h2>
+        <p>Sem anúncios pagos e sem depender de indicação.</p>
       </div>
       <div class="grid-3">
         <div class="step-card">
           <div class="step-top">
             <div class="step-num">1</div>
-            <span class="step-time"><i class="fa-regular fa-clock"></i> ~2 minutos</span>
+            <span class="step-time">~2 min</span>
           </div>
-          <h3>Digite a Rua, Bairro ou Cidade</h3>
-          <p>Escolha o nicho (ex: Barbearia, Dentista, Pizzaria) ou faça uma varredura completa. O motor busca empresas reais no Google já filtrando telefones e oportunidades.</p>
+          <h3>Busque no Google</h3>
+          <p>Escolha rua, bairro ou cidade e receba telefones válidos e oportunidades.</p>
         </div>
         <div class="step-card">
           <div class="step-top">
             <div class="step-num">2</div>
-            <span class="step-time"><i class="fa-regular fa-clock"></i> ~5 minutos</span>
+            <span class="step-time">~5 min</span>
           </div>
-          <h3>Dispare o Quebra-Gelo Seguro</h3>
-          <p>Selecione o lead no CRM e use os modelos curtos Anti-Bloqueio com o nome da empresa preenchido automaticamente via WhatsApp Web 1-Clique, QR Code ou API Oficial.</p>
+          <h3>Envie o Quebra-Gelo</h3>
+          <p>Dispare mensagens curtas prontas por 1-Clique, QR Code ou API Meta.</p>
         </div>
         <div class="step-card">
           <div class="step-top">
             <div class="step-num">3</div>
-            <span class="step-time"><i class="fa-solid fa-check"></i> Todo dia</span>
+            <span class="step-time">Todo dia</span>
           </div>
-          <h3>Atenda no Chat e Feche Contratos</h3>
-          <p>Quem responder sobe para o topo do seu Chat/Inbox estilo Kommo. Arraste no funil Kanban, envie proposta e registre o valor fechado direto no seu painel financeiro.</p>
+          <h3>Feche no Chat + CRM</h3>
+          <p>Atenda no Inbox, avance no Kanban e registre seu faturamento.</p>
         </div>
       </div>
     </div>
@@ -578,9 +578,9 @@
   <section class="section section-alt" id="planos">
     <div class="container">
       <div class="section-head">
-        <span class="eyebrow">Sem Surpresas · Sem Taxas Escondidas</span>
-        <h2>Todas as ferramentas liberadas nos dois planos pagos</h2>
-        <p>Tanto o <strong>Starter</strong> quanto o <strong>PRO</strong> contam com 100% das ferramentas (WhatsApp QR, Chat estilo Kommo, API Oficial Meta, Mapa e CSV). Você só escolhe o limite de leads salvos e se quer prioridade na fila.</p>
+        <span class="eyebrow">Planos &amp; Preços</span>
+        <h2>Todas as funções liberadas nos dois planos pagos</h2>
+        <p>Starter e PRO têm as <strong>mesmas ferramentas</strong>. Você só escolhe quantos leads quer salvar e a prioridade na fila.</p>
       </div>
 
       <div class="pricing-grid">
@@ -660,12 +660,12 @@
       </div>
 
       <div class="guarantee-box">
-        <div style="width:52px; height:52px; border-radius:14px; background:#ecfdf5; color:#059669; display:grid; place-items:center; font-size:1.5rem; flex-shrink:0;">
+        <div style="width:48px; height:48px; border-radius:12px; background:#ecfdf5; color:#059669; display:grid; place-items:center; font-size:1.35rem; flex-shrink:0;">
           <i class="fa-solid fa-shield-check"></i>
         </div>
         <div>
-          <strong style="display:block; font-size:1rem;">Garantia Incondicional de 7 Dias + Cancelamento com 1 Clique</strong>
-          <span style="font-size:0.88rem; color:var(--muted);">Pagamento 100% processado com segurança pela Kiwify. Se testar e achar que não é para você nos primeiros 7 dias, devolvemos 100% do seu dinheiro sem perguntas.</span>
+          <strong style="display:block; font-size:0.98rem;">Garantia de 7 Dias + Cancele Quando Quiser</strong>
+          <span style="font-size:0.86rem; color:var(--muted);">Checkout seguro pela Kiwify. Se não gostar em 7 dias, devolvemos 100% sem burocracia.</span>
         </div>
       </div>
     </div>
@@ -675,24 +675,24 @@
   <section class="section" id="faq">
     <div class="container">
       <div class="section-head">
-        <h2>Perguntas Frequentes</h2>
+        <h2>Dúvidas Rápidas</h2>
       </div>
       <div class="faq-list">
         <details class="faq-item" open>
-          <summary>Qual a diferença entre o Plano Starter e o Plano PRO?</summary>
-          <p>Os dois planos liberam <strong>exatamente as mesmas ferramentas</strong> (WhatsApp QR, API Oficial Meta, Chat estilo Kommo, Busca por Rua/Bairro/Cidade, Mapa e CSV). A diferença é que o <strong>Starter</strong> comporta até <strong>500 leads salvos</strong> no programa, enquanto o <strong>PRO</strong> comporta até <strong>2.000 leads salvos</strong> e ainda tem <strong>prioridade na fila de buscas</strong>.</p>
+          <summary>Qual a diferença do Starter para o PRO?</summary>
+          <p>Ambos têm <strong>todas as ferramentas</strong>. O <strong>Starter</strong> salva até <strong>500 leads</strong>; o <strong>PRO</strong> salva até <strong>2.000 leads</strong> e tem <strong>prioridade na fila de buscas</strong>.</p>
         </details>
         <details class="faq-item">
-          <summary>Preciso instalar algum programa no meu computador?</summary>
-          <p>Não! O MapaLeads PRO funciona 100% online direto no seu navegador, tanto no computador quanto no celular (modo claro e modo escuro inclusos).</p>
+          <summary>Preciso instalar algo?</summary>
+          <p>Não. Funciona 100% online no navegador do PC ou celular.</p>
         </details>
         <details class="faq-item">
-          <summary>Tem risco de bloqueio no meu WhatsApp?</summary>
-          <p>O sistema traz o modo <strong>WhatsApp Web 1-Clique</strong> (envio manual humano com zero risco de bloqueio) e modelos curtos de <strong>Quebra-Gelo</strong> para você iniciar conversas naturais antes de enviar links ou propostas, além da integração com a <strong>API Oficial Meta</strong>.</p>
+          <summary>Tem risco de bloqueio no WhatsApp?</summary>
+          <p>Não no modo <strong>WhatsApp Web 1-Clique</strong> nem na <strong>API Oficial Meta</strong>, além das copys curtas de Quebra-Gelo.</p>
         </details>
         <details class="faq-item">
-          <summary>Como recebo meu acesso após pagar na Kiwify?</summary>
-          <p>A liberação é automática em segundos logo após a confirmação do PIX ou Cartão. Se você já criou seu Teste Grátis usando o mesmo e-mail da compra, sua conta sobe para o plano escolhido na hora!</p>
+          <summary>Em quanto tempo recebo o acesso?</summary>
+          <p>Na hora após o PIX ou Cartão. Se já tiver conta Teste Grátis no mesmo e-mail, ela é liberada automaticamente.</p>
         </details>
       </div>
     </div>
@@ -701,14 +701,14 @@
   <!-- CTA FINAL -->
   <section class="final-cta">
     <div class="container">
-      <h2>Suas próximas vendas já estão no Google agora mesmo.</h2>
-      <p>Abra sua conta grátis de 24h, faça sua primeira busca na sua cidade e veja quantas empresas estão esperando uma abordagem pelo WhatsApp.</p>
+      <h2>Comece a prospectar na sua cidade hoje.</h2>
+      <p>Teste grátis por 24h e veja os primeiros clientes aparecerem na tela em minutos.</p>
       <div style="display:flex; gap:12px; justify-content:center; flex-wrap:wrap;">
         <a href="/register" class="btn btn-emerald btn-lg">
-          <i class="fa-solid fa-rocket"></i> Começar Teste Grátis Agora
+          <i class="fa-solid fa-rocket"></i> Começar Teste Grátis
         </a>
         <a href="#planos" class="btn btn-outline btn-lg" style="background:rgba(255,255,255,0.1); color:#fff; border-color:rgba(255,255,255,0.28);">
-          Assinar Plano Pago
+          Ver Planos
         </a>
       </div>
     </div>
