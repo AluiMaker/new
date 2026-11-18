@@ -1321,122 +1321,6 @@
               </table>
             </div>
           </div>
-
-          <div class="card" id="admin-instagram-card" style="margin-top: 20px;">
-            <div class="card-header">
-              <div>
-                <h3><i class="fa-brands fa-instagram" style="color:#e1306c;"></i> Instagram Auto-Poster 24h (Geração &amp; Postagem Automática)</h3>
-                <p class="card-sub">Gera novos criativos todo dia, posta no horário agendado pela API Oficial da Meta e exibe métricas ao vivo mesmo com seu PC desligado</p>
-              </div>
-              <div style="display:flex; gap:8px; align-items:center;">
-                <span class="status-pill" id="ig-status-pill">Desconectado</span>
-                <button type="button" class="btn btn-outline btn-sm" id="btn-ig-refresh-insights"><i class="fa-solid fa-rotate"></i> Atualizar Feed &amp; Métricas</button>
-              </div>
-            </div>
-
-            <div class="info-banner" style="margin-bottom:16px; display:block;">
-              <strong><i class="fa-solid fa-key"></i> Conexão única (1 vez) pela Graph API Oficial da Meta:</strong>
-              <div style="font-size:0.82rem; margin-top:4px; line-height:1.5; color:#475569;">
-                1) Sua conta do Instagram deve estar em <strong>Conta Profissional (Criador ou Empresa)</strong> vinculada a uma Página do Facebook.<br>
-                2) No <strong>Meta for Developers → Ferramentas → Graph API Explorer</strong> do seu App, marque <code>instagram_basic</code>, <code>instagram_content_publish</code>, <code>pages_show_list</code> e <code>pages_read_engagement</code>, gere o Token e cole abaixo.<br>
-                3) Clique em <strong>Descobrir Conta Instagram</strong> — o sistema puxa seu ID e converte para token estendido automaticamente (se App ID/Secret estiverem salvos acima).
-              </div>
-            </div>
-
-            <form id="form-admin-ig-config" class="form-grid" style="margin-bottom: 18px;">
-              <div class="field col-span-2">
-                <label>Meta Access Token (User / Page Token)</label>
-                <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                  <input type="password" id="ig-access-token" placeholder="Cole seu Access Token da Meta aqui..." style="flex:1; min-width:240px;">
-                  <button type="button" class="btn btn-outline btn-sm" id="btn-ig-discover"><i class="fa-solid fa-wand-magic-sparkles"></i> Descobrir Conta Instagram</button>
-                </div>
-              </div>
-              <div class="field">
-                <label>Instagram Business Account ID</label>
-                <input type="text" id="ig-user-id" placeholder="Preenchido ao descobrir conta (ex: 178414...)">
-              </div>
-              <div class="field">
-                <label>Perfil Detectado (@arroba)</label>
-                <input type="text" id="ig-username" placeholder="@seuinstagram" readonly>
-              </div>
-              <div class="field">
-                <label>Horário Diário (Brasília) &amp; Modo de Conteúdo</label>
-                <div style="display:grid; grid-template-columns:120px 1fr; gap:8px;">
-                  <input type="time" id="ig-post-time" value="09:00">
-                  <select id="ig-content-mode">
-                    <option value="mixed">Misto (Criativos Estúdio + Novos Gerados Diários)</option>
-                    <option value="generated">Gerar Criativo Novo com IA Visual Todo Dia</option>
-                    <option value="studio">Rodar Apenas Criativos de Estúdio 4:5</option>
-                    <option value="reels">Reels VSL 9:16 Automático</option>
-                  </select>
-                </div>
-              </div>
-              <div class="field">
-                <label>URL Pública HTTPS do Servidor</label>
-                <input type="text" id="ig-public-url" value="https://mapaleadspro.online" placeholder="https://mapaleadspro.online">
-              </div>
-              <div class="field col-span-2" style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-                <label class="checkbox-inline" style="font-weight:700;">
-                  <input type="checkbox" id="ig-enabled">
-                  <span>Ativar Postagem Automática Todo Dia (24h no servidor)</span>
-                </label>
-                <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-floppy-disk"></i> Salvar Automação Instagram</button>
-              </div>
-            </form>
-
-            <!-- Preview & Post Now Studio -->
-            <div style="border-top:1px solid var(--border); padding-top:18px; display:grid; grid-template-columns:minmax(220px, 320px) 1fr; gap:18px; align-items:start;">
-              <div>
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-                  <strong style="font-size:0.86rem;">Prévia Visual (1080×1350)</strong>
-                  <button type="button" class="btn btn-outline btn-xs" id="btn-ig-gen-preview"><i class="fa-solid fa-wand-magic-sparkles"></i> Gerar Novo</button>
-                </div>
-                <div id="ig-preview-box" style="aspect-ratio:4/5; border-radius:14px; overflow:hidden; border:1px solid var(--border); background:#060b16; display:grid; place-items:center; color:#94a3b8; font-size:0.82rem; text-align:center; padding:12px;">
-                  Clique em "Gerar Novo" para visualizar o criativo antes de postar ou agendar.
-                </div>
-              </div>
-              <div class="form-stack">
-                <input type="hidden" id="ig-preview-media-url">
-                <input type="hidden" id="ig-preview-media-type" value="IMAGE">
-                <input type="hidden" id="ig-preview-topic" value="">
-                <div class="field">
-                  <label>Legenda do Post (editável)</label>
-                  <textarea id="ig-preview-caption" rows="6" placeholder="Gere um post ou escreva sua legenda aqui..."></textarea>
-                </div>
-                <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                  <button type="button" class="btn btn-outline btn-sm" id="btn-ig-add-queue"><i class="fa-solid fa-calendar-plus"></i> Adicionar à Fila Diária</button>
-                  <button type="button" class="btn btn-emerald btn-sm" id="btn-ig-post-now"><i class="fa-brands fa-instagram"></i> Postar no Instagram Agora</button>
-                </div>
-                <div style="margin-top:8px;">
-                  <strong style="font-size:0.84rem; display:block; margin-bottom:6px;">Fila de Próximas Postagens (<span id="ig-queue-count">0</span>)</strong>
-                  <div id="ig-queue-list" style="display:flex; flex-direction:column; gap:6px; max-height:170px; overflow-y:auto;"></div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Live Instagram Profile & Feed Insights -->
-            <div style="border-top:1px solid var(--border); margin-top:18px; padding-top:16px;">
-              <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:12px;">
-                <strong style="font-size:0.9rem;"><i class="fa-solid fa-chart-line text-emerald"></i> Visualização ao Vivo do seu Instagram &amp; Histórico</strong>
-                <span id="ig-profile-stats" class="text-muted" style="font-size:0.82rem;">Conecte seu token para carregar métricas e posts reais.</span>
-              </div>
-              <div id="ig-live-feed-grid" style="display:grid; grid-template-columns:repeat(auto-fill, minmax(170px, 1fr)); gap:12px; margin-bottom:16px;"></div>
-              <div class="table-wrap">
-                <table class="data-table">
-                  <thead>
-                    <tr>
-                      <th>Data</th>
-                      <th>Tipo</th>
-                      <th>Legenda</th>
-                      <th>Status</th>
-                      <th>Link</th>
-                    </tr>
-                  </thead>
-                  <tbody id="ig-history-tbody"></tbody>
-                </table>
-              </div>
-            </div>
-          </div>
         </section>
         {% endif %}
       </main>
@@ -1605,6 +1489,6 @@
     window.CURRENT_USER = {{ current_user | tojson if current_user else 'null' }};
     window.ACCESS_STATUS = {{ access_status | tojson if access_status else 'null' }};
   </script>
-  <script src="/static/js/app.js?v=4.4"></script>
+  <script src="/static/js/app.js?v=4.3"></script>
 </body>
 </html>
