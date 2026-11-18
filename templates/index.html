@@ -21,7 +21,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 
-  <link rel="stylesheet" href="/static/css/style.css?v=5.1">
+  <link rel="stylesheet" href="/static/css/style.css?v=5.3">
 </head>
 <body>
   <script>
@@ -909,10 +909,17 @@
               <div class="academy-hero-icon" style="background:linear-gradient(135deg,#f59e0b,#ea580c);"><i class="fa-solid fa-crown"></i></div>
               <div>
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
-                  <h2 style="margin:0;">Academia de Vendas PRO &amp; Kit VSLs</h2>
+                  <h2 style="margin:0;">Academia de Vendas PRO &amp; Kit VSLs White-Label</h2>
                   <span class="sales-pro-pill"><i class="fa-solid fa-star"></i> Exclusivo PRO &amp; Enterprise</span>
                 </div>
-                <p class="card-sub" style="margin:4px 0 0;">Cursos práticos para fechar contratos em cada estratégia do sistema + Vídeos VSL prontos para você baixar e divulgar aos seus clientes.</p>
+                <p class="card-sub" style="margin:4px 0 8px;">6 Formações Completas (30 Aulas Passo a Passo + Manuais Técnicos de Entrega + Calculadora de Precificação + Scripts + VSLs em MP4 Prontas para Baixar).</p>
+                <div class="sa-hero-kpis">
+                  <span class="sa-kpi-chip"><i class="fa-solid fa-graduation-cap"></i> 6 Cursos Completos</span>
+                  <span class="sa-kpi-chip"><i class="fa-solid fa-book-open"></i> 30 Aulas Práticas</span>
+                  <span class="sa-kpi-chip"><i class="fa-solid fa-clapperboard"></i> 6 VSLs White-Label (.MP4)</span>
+                  <span class="sa-kpi-chip"><i class="fa-solid fa-screwdriver-wrench"></i> Manuais de Entrega &amp; Fornecedores</span>
+                  <span class="sa-kpi-chip"><i class="fa-solid fa-file-signature"></i> 24 Scripts &amp; Propostas Prontas</span>
+                </div>
               </div>
             </div>
             <div id="sales-academy-header-right"></div>
@@ -921,15 +928,15 @@
           <!-- Upsell Lock Banner (shown automatically for Trial / Starter users) -->
           <div class="card sales-upsell-banner hidden" id="sales-academy-upsell-banner">
             <div style="display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap;">
-              <div style="max-width:650px;">
+              <div style="max-width:680px;">
                 <span class="sales-pro-pill" style="margin-bottom:8px; display:inline-flex;"><i class="fa-solid fa-lock"></i> Conteúdo Exclusivo do Plano PRO</span>
-                <h3 style="margin:0 0 6px; font-size:1.22rem;">Desbloqueie os 5 Cursos de Vendas + Pacote de VSLs Prontas para Baixar!</h3>
+                <h3 style="margin:0 0 6px; font-size:1.22rem;">Desbloqueie os 6 Cursos Completos (30 Aulas) + Manuais de Entrega + 6 VSLs Prontas!</h3>
                 <p style="margin:0; font-size:0.9rem; color:#e2e8f0; line-height:1.5;">
-                  No <strong>Plano PRO ({{ (site_cfg.plan_pro_price if site_cfg else None) or 'R$ 79' }}/mês)</strong>, além de <strong>2.000 leads salvos</strong> e <strong>fila prioritária</strong>, você recebe acesso completo aos treinamentos de fechamento (GMN, NFC, WhatsApp, Cardápio e Biossite) e às <strong>VSLs White-Label em MP4</strong> para baixar e enviar direto para seus clientes fecharem com você.
+                  No <strong>Plano PRO ({{ (site_cfg.plan_pro_price if site_cfg else None) or 'R$ 79' }}/mês)</strong>, além de <strong>2.000 leads salvos</strong> e <strong>fila prioritária</strong>, você recebe acesso completo aos 6 cursos passo a passo (GMN Top 3, Plaquinhas NFC, WhatsApp PRO, Cardápio Sem Taxas, Biossites e Combo 360°), manuais técnicos de fornecedores e às <strong>VSLs White-Label em MP4</strong> para baixar e enviar direto para seus clientes fecharem com você.
                 </p>
               </div>
               <div style="display:flex; flex-direction:column; gap:8px; min-width:240px;">
-                <button type="button" class="btn btn-lg" style="background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; border:none; font-weight:800;" onclick="openUpgradeModal('Desbloqueie a Academia de Vendas completa e baixe todas as VSLs prontas fazendo o upgrade para o Plano PRO!')">
+                <button type="button" class="btn btn-lg" style="background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; border:none; font-weight:800;" onclick="openUpgradeModal('Desbloqueie a Academia de Vendas completa (30 aulas + manuais técnicos + 6 VSLs prontas) fazendo o upgrade para o Plano PRO!')">
                   <i class="fa-solid fa-crown"></i> Fazer Upgrade para PRO
                 </button>
                 <span style="font-size:0.78rem; color:#94a3b8; text-align:center;">Liberação imediata após o pagamento</span>
@@ -937,60 +944,229 @@
             </div>
           </div>
 
-          <!-- Strategy Selector Cards Grid -->
+          <!-- Strategy Selector Cards Grid (6 Courses) -->
           <div class="sales-strategy-grid" id="sales-strategy-grid"></div>
 
-          <!-- Active Strategy Course + Downloadable VSL Workspace -->
+          <!-- Active Strategy Course + Multi-Tab Learning & Execution Workspace -->
           <div class="card sales-workspace-card hidden" id="sales-workspace-card">
             <div class="sales-workspace-top">
-              <div>
+              <div style="flex:1; min-width:280px;">
                 <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
                   <span class="academy-mod-pill" id="sa-active-badge">Estratégia</span>
+                  <span class="sa-duration-pill" id="sa-active-duration"><i class="fa-regular fa-clock"></i> 5 Aulas</span>
                   <span class="ticket-badge" id="sa-active-ticket">Ticket médio</span>
                 </div>
-                <h3 id="sa-active-title" style="margin:0 0 4px;">Título do Curso</h3>
-                <p id="sa-active-subtitle" class="text-muted" style="margin:0; font-size:0.9rem;"></p>
+                <h3 id="sa-active-title" style="margin:0 0 4px; font-size:1.25rem;">Título do Curso</h3>
+                <p id="sa-active-subtitle" class="text-muted" style="margin:0; font-size:0.9rem; line-height:1.45;"></p>
               </div>
-              <div class="segmented" id="sa-mode-tabs">
-                <button type="button" class="seg-btn active" data-sa-mode="course" onclick="setSalesAcademyMode('course')">
-                  <i class="fa-solid fa-chalkboard-user"></i> Aula: Como Vender
+              <div class="sa-top-actions">
+                <button type="button" class="btn btn-primary btn-sm" id="btn-sa-toggle-done">
+                  <i class="fa-regular fa-circle-check"></i> Marcar Curso Concluído
                 </button>
-                <button type="button" class="seg-btn" data-sa-mode="vsl" onclick="setSalesAcademyMode('vsl')">
-                  <i class="fa-solid fa-clapperboard"></i> VSL Pronta p/ Divulgar
+                <a href="#" class="btn btn-emerald btn-sm hidden" id="btn-sa-download-vsl" download>
+                  <i class="fa-solid fa-download"></i> Baixar VSL (.MP4)
+                </a>
+                <button type="button" class="btn btn-outline btn-sm" id="btn-sa-find-leads">
+                  <i class="fa-solid fa-crosshairs"></i> Ver Leads no CRM
                 </button>
               </div>
             </div>
 
-            <div class="sales-workspace-body">
-              <div class="sales-media-col">
-                <div class="academy-video-stage" id="sa-video-stage"></div>
-                <div class="academy-actions-bar" style="margin-top:14px;">
-                  <button type="button" class="btn btn-primary btn-sm" id="btn-sa-toggle-done">
-                    <i class="fa-regular fa-circle-check"></i> Marcar Curso Concluído
-                  </button>
-                  <a href="#" class="btn btn-emerald btn-sm hidden" id="btn-sa-download-vsl" download>
-                    <i class="fa-solid fa-download"></i> Baixar Vídeo VSL (.MP4) para Divulgar
-                  </a>
-                  <button type="button" class="btn btn-outline btn-sm" id="btn-sa-find-leads">
-                    <i class="fa-solid fa-crosshairs"></i> Ver Leads dessa Oferta no CRM
-                  </button>
+            <!-- 5 Mode Tabs Bar -->
+            <div class="sa-tabs-nav" id="sa-mode-tabs">
+              <button type="button" class="sa-tab-btn active" data-sa-mode="course" onclick="setSalesAcademyMode('course')">
+                <i class="fa-solid fa-book-open-reader"></i> 1. Aulas do Curso <span class="sa-tab-count" id="sa-tab-lessons-count">5 Aulas</span>
+              </button>
+              <button type="button" class="sa-tab-btn" data-sa-mode="delivery" onclick="setSalesAcademyMode('delivery')">
+                <i class="fa-solid fa-screwdriver-wrench"></i> 2. Como Entregar na Prática &amp; Checklist
+              </button>
+              <button type="button" class="sa-tab-btn" data-sa-mode="pricing" onclick="setSalesAcademyMode('pricing')">
+                <i class="fa-solid fa-sack-dollar"></i> 3. Precificação, Custos &amp; Simulador
+              </button>
+              <button type="button" class="sa-tab-btn" data-sa-mode="scripts" onclick="setSalesAcademyMode('scripts')">
+                <i class="fa-solid fa-comments-dollar"></i> 4. Scripts, Objeções &amp; Proposta
+              </button>
+              <button type="button" class="sa-tab-btn" data-sa-mode="vsl" onclick="setSalesAcademyMode('vsl')">
+                <i class="fa-solid fa-clapperboard"></i> 5. VSL Pronta p/ Baixar (.MP4)
+              </button>
+            </div>
+
+            <!-- PANE 1: TRILHA DE AULAS DO CURSO (5 MÓDULOS + VÍDEO RESUMO) -->
+            <div class="sa-mode-pane" id="sa-pane-course">
+              <div class="sa-course-layout">
+                <div class="sa-course-sidebar">
+                  <div class="sa-video-card">
+                    <div class="sa-mini-label"><i class="fa-solid fa-circle-play"></i> Resumo Executivo em Vídeo da Estratégia</div>
+                    <div class="academy-video-stage" id="sa-video-stage"></div>
+                  </div>
+                  <div class="sa-lessons-box">
+                    <div class="sa-lessons-box-head">
+                      <strong><i class="fa-solid fa-list-check"></i> Grade Curricular do Curso</strong>
+                      <span class="text-muted" style="font-size:0.76rem;">Clique na aula para estudar</span>
+                    </div>
+                    <div class="sa-lessons-playlist" id="sa-lessons-playlist"></div>
+                  </div>
+                </div>
+
+                <div class="sa-lesson-reader-card" id="sa-lesson-reader">
+                  <div class="sa-lesson-reader-head">
+                    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:6px;">
+                      <span class="academy-mod-pill" id="sa-lesson-module">Módulo 1</span>
+                      <span class="sa-lesson-time" id="sa-lesson-duration"><i class="fa-regular fa-clock"></i> 10 min de leitura e prática</span>
+                    </div>
+                    <h3 id="sa-lesson-title" style="margin:0 0 6px; font-size:1.22rem;">Título da Aula</h3>
+                    <p id="sa-lesson-summary" class="text-muted" style="margin:0; font-size:0.88rem; line-height:1.45;"></p>
+                  </div>
+                  <div class="sa-lesson-body" id="sa-lesson-body"></div>
+                  <div class="sa-lesson-footer">
+                    <button type="button" class="btn btn-outline btn-sm" id="btn-sa-prev-lesson" onclick="stepSalesCourseLesson(-1)">
+                      <i class="fa-solid fa-arrow-left"></i> Aula Anterior
+                    </button>
+                    <span class="text-muted" id="sa-lesson-step-indicator" style="font-size:0.82rem; font-weight:600;">Aula 1 de 5</span>
+                    <button type="button" class="btn btn-primary btn-sm" id="btn-sa-next-lesson" onclick="stepSalesCourseLesson(1)">
+                      Próxima Aula <i class="fa-solid fa-arrow-right"></i>
+                    </button>
+                  </div>
                 </div>
               </div>
+            </div>
 
-              <div class="sales-scripts-col">
+            <!-- PANE 2: COMO ENTREGAR NA PRÁTICA (MANUAL TÉCNICO & CHECKLIST INTERATIVO) -->
+            <div class="sa-mode-pane hidden" id="sa-pane-delivery">
+              <div class="sa-delivery-layout">
+                <div class="sa-delivery-manual-col">
+                  <div class="script-box" style="height:100%;">
+                    <div class="script-box-head">
+                      <strong><i class="fa-solid fa-gears text-blue"></i> Manual Técnico de Produção, Fornecedores &amp; Entrega Passo a Passo</strong>
+                      <button type="button" class="btn btn-outline btn-xs" onclick="copySalesScript('sa-delivery-pre')"><i class="fa-regular fa-copy"></i> Copiar Manual</button>
+                    </div>
+                    <pre id="sa-delivery-pre" class="script-pre sa-pre-tall"></pre>
+                  </div>
+                </div>
+                <div class="sa-delivery-check-col">
+                  <div class="sa-blueprint-banner">
+                    <img src="/static/img/academy/delivery-blueprint.jpg" alt="Bastidores de Entrega">
+                    <div class="sa-blueprint-overlay">
+                      <strong><i class="fa-solid fa-clipboard-check"></i> Checklist Prático de Execução</strong>
+                      <span>Marque cada etapa abaixo enquanto prospecta e entrega o projeto ao seu cliente</span>
+                    </div>
+                  </div>
+                  <div class="sa-checklist-card">
+                    <div class="sa-checklist-head">
+                      <span id="sa-checklist-progress-text">0 de 9 etapas concluídas</span>
+                      <button type="button" class="btn btn-outline btn-xs" onclick="resetSalesCourseChecklist()">Limpar marcações</button>
+                    </div>
+                    <div class="sa-checklist-items" id="sa-checklist-items"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- PANE 3: PRECIFICAÇÃO, CUSTOS, PACOTES & SIMULADOR DE LUCRO -->
+            <div class="sa-mode-pane hidden" id="sa-pane-pricing">
+              <div class="sa-pricing-grid" id="sa-pricing-grid"></div>
+              <div class="sa-simulator-card">
+                <div class="sa-simulator-left">
+                  <h4><i class="fa-solid fa-calculator text-emerald"></i> Simulador de Faturamento Mensal nesta Estratégia</h4>
+                  <p class="text-muted" style="margin:4px 0 12px; font-size:0.86rem;">Deslize para simular quantos clientes por mês você deseja fechar usando o MapaLeads PRO:</p>
+                  <div class="sa-sim-control">
+                    <label for="sa-sim-clients">Clientes fechados por mês: <strong id="sa-sim-clients-label" style="color:var(--primary); font-size:1.05rem;">5 clientes/mês</strong></label>
+                    <input type="range" id="sa-sim-clients" min="1" max="25" value="5" oninput="updateSalesProfitSimulator()">
+                  </div>
+                </div>
+                <div class="sa-simulator-kpis">
+                  <div class="sa-sim-kpi">
+                    <span>Faturamento Imediato (Setups)</span>
+                    <strong id="sa-sim-setup-total">R$ 2.485</strong>
+                  </div>
+                  <div class="sa-sim-kpi">
+                    <span>Nova Recorrência Mensal (MRR)</span>
+                    <strong id="sa-sim-mrr-total" class="text-emerald">+ R$ 1.250/mês</strong>
+                  </div>
+                  <div class="sa-sim-kpi sa-sim-kpi-highlight">
+                    <span>Potencial Acumulado em 6 Meses</span>
+                    <strong id="sa-sim-6m-total">R$ 29.910</strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- PANE 4: ARSENAL DE SCRIPTS, FOLLOW-UP, OBJEÇÕES & PROPOSTA COMERCIAL -->
+            <div class="sa-mode-pane hidden" id="sa-pane-scripts">
+              <div class="sa-scripts-grid-4">
                 <div class="script-box">
                   <div class="script-box-head">
-                    <strong><i class="fa-solid fa-comments-dollar text-emerald"></i> Script de Abordagem &amp; Oferta</strong>
+                    <strong><i class="fa-solid fa-comments-dollar text-emerald"></i> 1. Script de Abordagem Inicial &amp; Envio da VSL</strong>
                     <button type="button" class="btn btn-outline btn-xs" onclick="copySalesScript('sa-script-approach')"><i class="fa-regular fa-copy"></i> Copiar</button>
                   </div>
                   <pre id="sa-script-approach" class="script-pre"></pre>
                 </div>
                 <div class="script-box">
                   <div class="script-box-head">
-                    <strong><i class="fa-solid fa-shield-halved text-blue"></i> Quebra de Objeções</strong>
+                    <strong><i class="fa-solid fa-microphone-lines text-amber"></i> 2. Follow-up (24h / 72h) &amp; Roteiro de Áudio 30s</strong>
+                    <button type="button" class="btn btn-outline btn-xs" onclick="copySalesScript('sa-script-followup')"><i class="fa-regular fa-copy"></i> Copiar</button>
+                  </div>
+                  <pre id="sa-script-followup" class="script-pre"></pre>
+                </div>
+                <div class="script-box">
+                  <div class="script-box-head">
+                    <strong><i class="fa-solid fa-shield-halved text-blue"></i> 3. Matriz Completa de Quebra de Objeções</strong>
                     <button type="button" class="btn btn-outline btn-xs" onclick="copySalesScript('sa-script-objections')"><i class="fa-regular fa-copy"></i> Copiar</button>
                   </div>
                   <pre id="sa-script-objections" class="script-pre"></pre>
+                </div>
+                <div class="script-box">
+                  <div class="script-box-head">
+                    <strong><i class="fa-solid fa-file-invoice-dollar text-purple"></i> 4. Proposta Comercial Pronta &amp; Fechamento Pix 50/50</strong>
+                    <button type="button" class="btn btn-outline btn-xs" onclick="copySalesScript('sa-script-proposal')"><i class="fa-regular fa-copy"></i> Copiar</button>
+                  </div>
+                  <pre id="sa-script-proposal" class="script-pre"></pre>
+                </div>
+              </div>
+            </div>
+
+            <!-- PANE 5: VSL WHITE-LABEL PRONTA PARA BAIXAR E ENVIAR -->
+            <div class="sa-mode-pane hidden" id="sa-pane-vsl">
+              <div class="sa-vsl-layout">
+                <div class="sa-vsl-player-col">
+                  <div class="academy-video-stage" id="sa-vsl-stage"></div>
+                  <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
+                    <a href="#" class="btn btn-emerald" id="btn-sa-download-vsl-pane" download style="flex:1; justify-content:center; font-weight:700;">
+                      <i class="fa-solid fa-download"></i> Baixar Vídeo VSL White-Label (.MP4)
+                    </a>
+                    <button type="button" class="btn btn-outline" onclick="setSalesAcademyMode('scripts')">
+                      <i class="fa-regular fa-copy"></i> Ver Script para Enviar Junto com a VSL
+                    </button>
+                  </div>
+                </div>
+                <div class="sa-vsl-guide-col">
+                  <div class="sa-vsl-guide-card">
+                    <h4><i class="fa-solid fa-rocket text-amber"></i> Como Usar Esta VSL White-Label para Fechar Vendas Todos os Dias</h4>
+                    <p class="text-muted" style="font-size:0.86rem; margin:4px 0 14px;">Esta VSL foi produzida <strong>sem citar a marca MapaLeads</strong> (100% White-Label) para você usar como se tivesse sido gravada pela sua própria agência ou consultoria!</p>
+                    <div class="sa-vsl-steps">
+                      <div class="sa-vsl-step">
+                        <span class="sa-vsl-step-num">1</span>
+                        <div>
+                          <strong>Envio Direto no WhatsApp do Empresário</strong>
+                          <p>Mande a Mensagem 1 de quebra-gelo. Assim que o dono da empresa responder <em>"Pode mandar"</em>, anexe este arquivo MP4 junto com a Mensagem 2 da aba de Scripts.</p>
+                        </div>
+                      </div>
+                      <div class="sa-vsl-step">
+                        <span class="sa-vsl-step-num">2</span>
+                        <div>
+                          <strong>Status do WhatsApp &amp; Stories do Instagram</strong>
+                          <p>Poste este vídeo nos seus Status do WhatsApp após salvar os contatos dos leads prospectados no dia. Muitos empresários assistem aos seus Status e chamam perguntando o valor!</p>
+                        </div>
+                      </div>
+                      <div class="sa-vsl-step">
+                        <span class="sa-vsl-step-num">3</span>
+                        <div>
+                          <strong>Anúncio Local de R$ 10/dia (Meta Ads)</strong>
+                          <p>Suba este MP4 no Gerenciador de Anúncios segmentado para donos de pequenos negócios no raio de 15km da sua cidade com botão levando direto para o seu WhatsApp.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1772,6 +1948,6 @@
     window.CURRENT_USER = {{ current_user | tojson if current_user else 'null' }};
     window.ACCESS_STATUS = {{ access_status | tojson if access_status else 'null' }};
   </script>
-  <script src="/static/js/app.js?v=5.2"></script>
+  <script src="/static/js/app.js?v=5.4"></script>
 </body>
 </html>

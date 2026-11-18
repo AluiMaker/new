@@ -2199,6 +2199,16 @@ async function deleteAdminAcademyLesson(id) {
 }
 
 // ==================== ACADEMIA DE VENDAS PRO (CURSOS + VSLs) ====================
+const SA_VALID_MODES = ['course', 'delivery', 'pricing', 'scripts', 'vsl'];
+const SA_SIMULATOR_BENCHMARKS = {
+  gmn: { setup: 497, mrr: 250 },
+  nfc: { setup: 247, mrr: 0 },
+  whatsapp: { setup: 497, mrr: 97 },
+  cardapio: { setup: 597, mrr: 97 },
+  biossite: { setup: 597, mrr: 67 },
+  combo: { setup: 1197, mrr: 297 },
+};
+
 function initSalesAcademyControls() {
   document.getElementById('btn-sa-toggle-done')?.addEventListener('click', toggleSalesCourseDone);
   document.getElementById('btn-sa-find-leads')?.addEventListener('click', () => {
@@ -2220,8 +2230,42 @@ async function loadSalesAcademy() {
     if (!STATE.activeSalesCourseId && d.items && d.items.length) {
       STATE.activeSalesCourseId = d.items[0].id;
     }
+    if (!STATE.activeSalesLessonNum) {
+      STATE.activeSalesLessonNum = 1;
+    }
     renderSalesAcademy();
   } catch (e) {}
+}
+
+function renderSalesLockedPlaceholder(thumbnailUrl, titleText) {
+  return `
+    <div style="position:relative; width:100%; height:100%; min-height:240px; display:flex; align-items:center; justify-content:center; flex-direction:column; padding:24px; text-align:center; background:linear-gradient(135deg, rgba(15,23,42,0.9), rgba(30,58,138,0.88)), url('${escapeHtml(thumbnailUrl || '')}') center/cover; border-radius:12px;">
+      <div style="width:56px; height:56px; border-radius:999px; background:rgba(245,158,11,0.22); border:2px solid #f59e0b; color:#fde68a; display:grid; place-items:center; font-size:1.35rem; margin-bottom:10px;"><i class="fa-solid fa-lock"></i></div>
+      <h3 style="color:#fff; margin:0 0 6px; font-size:1.05rem;">${escapeHtml(titleText || 'Material Exclusivo do Plano PRO')}</h3>
+      <p style="color:#cbd5e1; max-width:440px; font-size:0.85rem; margin:0 0 14px;">Faça o upgrade para o Plano PRO para estudar todas as 30 aulas passo a passo, acessar os manuais técnicos de fornecedores e baixar as 6 VSLs prontas em MP4.</p>
+      <button type="button" class="btn btn-primary btn-sm" style="background:linear-gradient(135deg,#f59e0b,#d97706); border:none; font-weight:800;" onclick="openUpgradeModal('Desbloqueie a Academia de Vendas completa (6 Cursos + 30 Aulas + 6 VSLs Prontas) com o Plano PRO!')">
+        <i class="fa-solid fa-crown"></i> Desbloquear no Plano PRO
+      </button>
+    </div>`;
+}
+
+function renderSalesVideoElement(stageEl, url, posterUrl, unlocked, lockTitle) {
+  if (!stageEl) return;
+  if (!unlocked) {
+    stageEl.innerHTML = renderSalesLockedPlaceholder(posterUrl, lockTitle);
+    return;
+  }
+  const prevUrl = stageEl.dataset.renderedUrl || '';
+  if (prevUrl === String(url || '') && stageEl.querySelector('video, iframe')) {
+    return;
+  }
+  stageEl.dataset.renderedUrl = String(url || '');
+  const embed = getEmbedUrl(url);
+  if (embed) {
+    stageEl.innerHTML = `<iframe src="${escapeHtml(embed)}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
+  } else {
+    stageEl.innerHTML = `<video src="${escapeHtml(url)}" controls playsinline preload="metadata" poster="${escapeHtml(posterUrl || '')}"></video>`;
+  }
 }
 
 function renderSalesAcademy() {
@@ -2233,7 +2277,7 @@ function renderSalesAcademy() {
 
   const badge = document.getElementById('badge-sales-pro');
   if (badge) {
-    badge.textContent = unlocked ? `${sa.completed_count || 0}/${sa.total_count || 5}` : 'PRO';
+    badge.textContent = unlocked ? `${sa.completed_count || 0}/${sa.total_count || 6}` : 'PRO';
     badge.style.background = unlocked ? '#10b981' : 'linear-gradient(135deg,#f59e0b,#d97706)';
   }
 
@@ -2243,7 +2287,7 @@ function renderSalesAcademy() {
       hdrRight.innerHTML = `
         <div class="academy-progress-box">
           <div class="academy-progress-meta">
-            <strong>${sa.completed_count || 0} de ${sa.total_count || 0} estratégias concluídas</strong>
+            <strong>${sa.completed_count || 0} de ${sa.total_count || 0} formações concluídas</strong>
             <span>${sa.percent || 0}%</span>
           </div>
           <div class="academy-progress-track">
@@ -2252,7 +2296,7 @@ function renderSalesAcademy() {
         </div>`;
     } else {
       hdrRight.innerHTML = `
-        <button type="button" class="btn btn-primary btn-sm" style="background:linear-gradient(135deg,#f59e0b,#d97706); border:none;" onclick="openUpgradeModal('Libere agora os 5 Cursos de Vendas e todas as VSLs prontas para baixar no Plano PRO!')">
+        <button type="button" class="btn btn-primary btn-sm" style="background:linear-gradient(135deg,#f59e0b,#d97706); border:none;" onclick="openUpgradeModal('Libere agora os 6 Cursos Completos (30 Aulas) e todas as VSLs prontas para baixar no Plano PRO!')">
           <i class="fa-solid fa-crown"></i> Liberar no Plano PRO
         </button>`;
     }
@@ -2262,15 +2306,18 @@ function renderSalesAcademy() {
   if (grid) {
     grid.innerHTML = (sa.items || []).map(item => {
       const isActive = item.id === STATE.activeSalesCourseId;
+      const lessonsCount = Array.isArray(item.lessons) && item.lessons.length ? item.lessons.length : 5;
       return `
         <button type="button" class="sales-strategy-card ${isActive ? 'active' : ''}" onclick="selectSalesAcademyCourse(${item.id})">
           <div class="sales-strategy-thumb">
             <img src="${escapeHtml(item.thumbnail_url || '/static/img/academy/gmn-hero.jpg')}" alt="${escapeHtml(item.badge_label)}">
+            <span class="sa-lessons-chip"><i class="fa-solid fa-book-open"></i> ${lessonsCount} Aulas + VSL</span>
             ${!unlocked ? '<div class="sa-lock-overlay"><i class="fa-solid fa-lock"></i></div>' : (item.completed ? '<span class="sa-done-chip"><i class="fa-solid fa-check"></i> Concluído</span>' : '')}
           </div>
           <div class="sales-strategy-body">
             <span class="academy-mod-pill">${escapeHtml(item.badge_label)}</span>
             <strong>${escapeHtml(item.title)}</strong>
+            <div class="sales-strategy-sub">${escapeHtml(item.subtitle || '')}</div>
             <div class="sales-strategy-ticket"><i class="fa-solid fa-sack-dollar"></i> ${escapeHtml(item.ticket_range || '')}</div>
           </div>
         </button>`;
@@ -2282,15 +2329,29 @@ function renderSalesAcademy() {
   if (!wsCard || !course) return;
   wsCard.classList.remove('hidden');
 
+  const mode = SA_VALID_MODES.includes(STATE.salesAcademyMode) ? STATE.salesAcademyMode : 'course';
+  STATE.salesAcademyMode = mode;
+
   document.getElementById('sa-active-badge').textContent = course.badge_label;
+  const durEl = document.getElementById('sa-active-duration');
+  if (durEl) durEl.innerHTML = `<i class="fa-regular fa-clock"></i> ${escapeHtml(course.course_duration || '5 Aulas • ~45 min')}`;
   document.getElementById('sa-active-ticket').innerHTML = `<i class="fa-solid fa-sack-dollar"></i> ${escapeHtml(course.ticket_range || '')}`;
-  document.getElementById('sa-active-title').textContent = STATE.salesAcademyMode === 'vsl' ? (course.vsl_title || course.title) : course.title;
-  document.getElementById('sa-active-subtitle').textContent = STATE.salesAcademyMode === 'vsl'
-    ? 'Vídeo VSL pronto para você baixar e divulgar para donos de negócios locais (Reels, WhatsApp, Anúncios).'
+  document.getElementById('sa-active-title').textContent = mode === 'vsl' ? (course.vsl_title || course.title) : course.title;
+  document.getElementById('sa-active-subtitle').textContent = mode === 'vsl'
+    ? 'Vídeo VSL White-Label (sem marca MapaLeads) pronto para você baixar em MP4 e enviar para empresários no WhatsApp, Reels ou Anúncios.'
     : (course.subtitle || '');
 
+  const lessons = Array.isArray(course.lessons) ? course.lessons : [];
+  const countBadge = document.getElementById('sa-tab-lessons-count');
+  if (countBadge) countBadge.textContent = `${lessons.length || 5} Aulas`;
+
   document.querySelectorAll('#sa-mode-tabs [data-sa-mode]').forEach(btn => {
-    btn.classList.toggle('active', btn.dataset.saMode === STATE.salesAcademyMode);
+    btn.classList.toggle('active', btn.dataset.saMode === mode);
+  });
+
+  SA_VALID_MODES.forEach(m => {
+    const pane = document.getElementById(`sa-pane-${m}`);
+    if (pane) pane.classList.toggle('hidden', m !== mode);
   });
 
   const doneBtn = document.getElementById('btn-sa-toggle-done');
@@ -2302,67 +2363,270 @@ function renderSalesAcademy() {
       : '<i class="fa-regular fa-circle-check"></i> Marcar Curso Concluído';
   }
 
-  const dlBtn = document.getElementById('btn-sa-download-vsl');
-  if (dlBtn) {
+  for (const dlId of ['btn-sa-download-vsl', 'btn-sa-download-vsl-pane']) {
+    const dlBtn = document.getElementById(dlId);
+    if (!dlBtn) continue;
     if (unlocked && course.download_url) {
       dlBtn.classList.remove('hidden');
       dlBtn.href = course.download_url;
       dlBtn.setAttribute('download', `${course.slug || 'vsl'}.mp4`);
     } else {
-      dlBtn.classList.add('hidden');
+      dlBtn.href = '#';
+      dlBtn.onclick = (ev) => {
+        if (!unlocked) {
+          ev.preventDefault();
+          openUpgradeModal('O download das VSLs White-Label em MP4 é exclusivo do Plano PRO!');
+        }
+      };
     }
   }
 
-  const stage = document.getElementById('sa-video-stage');
-  if (stage) {
+  // Render Pane 1: Video + 5 Lessons Playlist + Active Lesson Reader
+  renderSalesVideoElement(
+    document.getElementById('sa-video-stage'),
+    course.course_video_url,
+    course.thumbnail_url,
+    unlocked,
+    'Vídeo Resumo & 5 Aulas Práticas Exclusivas do Plano PRO'
+  );
+  renderSalesCourseLessons(course, unlocked);
+
+  // Render Pane 2: Technical Delivery Manual + Interactive Checklist
+  const deliveryPre = document.getElementById('sa-delivery-pre');
+  if (deliveryPre) {
+    deliveryPre.textContent = unlocked
+      ? (course.delivery_guide || '')
+      : 'Manual Técnico de Produção, Fornecedores e Entrega Passo a Passo liberado no Plano PRO.\nFaça o upgrade para ver exatamente onde comprar os insumos, quais ferramentas gratuitas usar e como entregar o serviço em 24h a 48h.';
+  }
+  renderSalesCourseChecklist(course);
+
+  // Render Pane 3: Pricing Tiers + Simulator
+  renderSalesCoursePricing(course);
+  updateSalesProfitSimulator();
+
+  // Render Pane 4: 4 Scripts
+  const lockedMsg = 'Conteúdo completo liberado no Plano PRO.\nAssine o Plano PRO para copiar todos os scripts validados de abordagem, follow-up, quebra de objeções e proposta comercial.';
+  const setScriptText = (id, text) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = unlocked ? (text || '') : lockedMsg;
+  };
+  setScriptText('sa-script-approach', course.script_approach);
+  setScriptText('sa-script-followup', course.script_followup);
+  setScriptText('sa-script-objections', course.script_objections);
+  setScriptText('sa-script-proposal', course.proposal_script);
+
+  // Render Pane 5: VSL Player
+  if (mode === 'vsl') {
+    renderSalesVideoElement(
+      document.getElementById('sa-vsl-stage'),
+      course.vsl_video_url,
+      course.thumbnail_url,
+      unlocked,
+      'VSL White-Label Pronta para Baixar (.MP4) — Exclusivo PRO'
+    );
+  }
+}
+
+function renderSalesCourseLessons(course, unlocked) {
+  const lessons = Array.isArray(course.lessons) && course.lessons.length ? course.lessons : [];
+  const playlistEl = document.getElementById('sa-lessons-playlist');
+  if (!playlistEl) return;
+
+  if (!lessons.length) {
+    playlistEl.innerHTML = '<div class="text-muted" style="font-size:0.82rem;">Nenhuma aula cadastrada neste módulo.</div>';
+    return;
+  }
+
+  let activeLesson = lessons.find(l => Number(l.num) === Number(STATE.activeSalesLessonNum));
+  if (!activeLesson) {
+    activeLesson = lessons[0];
+    STATE.activeSalesLessonNum = activeLesson.num || 1;
+  }
+
+  playlistEl.innerHTML = lessons.map((l, idx) => {
+    const num = l.num || (idx + 1);
+    const isAct = Number(num) === Number(STATE.activeSalesLessonNum);
+    return `
+      <button type="button" class="sa-lesson-item ${isAct ? 'active' : ''}" onclick="selectSalesCourseLesson(${num})">
+        <div class="sa-lesson-num">${num}</div>
+        <div class="sa-lesson-meta">
+          <small>${escapeHtml(l.module || `Módulo ${num}`)}</small>
+          <strong>${escapeHtml(l.title || `Aula ${num}`)}</strong>
+          <span><i class="fa-regular fa-clock"></i> ${escapeHtml(l.duration || '10 min')} ${!unlocked ? '· <i class="fa-solid fa-lock text-amber"></i> PRO' : ''}</span>
+        </div>
+      </button>`;
+  }).join('');
+
+  const modEl = document.getElementById('sa-lesson-module');
+  const durEl = document.getElementById('sa-lesson-duration');
+  const titleEl = document.getElementById('sa-lesson-title');
+  const sumEl = document.getElementById('sa-lesson-summary');
+  const bodyEl = document.getElementById('sa-lesson-body');
+  const stepEl = document.getElementById('sa-lesson-step-indicator');
+  const prevBtn = document.getElementById('btn-sa-prev-lesson');
+  const nextBtn = document.getElementById('btn-sa-next-lesson');
+
+  const activeIdx = lessons.findIndex(l => Number(l.num) === Number(activeLesson.num));
+  if (modEl) modEl.textContent = activeLesson.module || `Módulo ${activeLesson.num}`;
+  if (durEl) durEl.innerHTML = `<i class="fa-regular fa-clock"></i> ${escapeHtml(activeLesson.duration || '10 min')} de estudo prático`;
+  if (titleEl) titleEl.textContent = `Aula 0${activeLesson.num} — ${activeLesson.title || ''}`;
+  if (sumEl) sumEl.textContent = activeLesson.summary || '';
+  if (stepEl) stepEl.textContent = `Aula ${activeIdx + 1} de ${lessons.length}`;
+  if (prevBtn) prevBtn.disabled = activeIdx <= 0;
+  if (nextBtn) nextBtn.disabled = activeIdx >= lessons.length - 1;
+
+  if (bodyEl) {
     if (!unlocked) {
-      stage.innerHTML = `
-        <div style="position:relative; width:100%; height:100%; display:flex; align-items:center; justify-content:center; flex-direction:column; padding:24px; text-align:center; background:linear-gradient(135deg, rgba(15,23,42,0.88), rgba(30,58,138,0.88)), url('${escapeHtml(course.thumbnail_url || '')}') center/cover;">
-          <div style="width:60px; height:60px; border-radius:999px; background:rgba(245,158,11,0.22); border:2px solid #f59e0b; color:#fde68a; display:grid; place-items:center; font-size:1.5rem; margin-bottom:12px;"><i class="fa-solid fa-lock"></i></div>
-          <h3 style="color:#fff; margin:0 0 6px;">Material Exclusivo do Plano PRO</h3>
-          <p style="color:#cbd5e1; max-width:440px; font-size:0.88rem; margin:0 0 16px;">Faça o upgrade para o Plano PRO para assistir à aula completa de vendas e baixar a VSL pronta em MP4 desta estratégia.</p>
-          <button type="button" class="btn btn-primary" style="background:linear-gradient(135deg,#f59e0b,#d97706); border:none; font-weight:800;" onclick="openUpgradeModal('Desbloqueie a Academia de Vendas e baixe todas as VSLs prontas com o Plano PRO!')">
-            <i class="fa-solid fa-crown"></i> Desbloquear no Plano PRO
-          </button>
-        </div>`;
+      bodyEl.innerHTML = renderSalesLockedPlaceholder(course.thumbnail_url, `Aula 0${activeLesson.num}: ${activeLesson.title}`);
     } else {
-      const url = STATE.salesAcademyMode === 'vsl' ? course.vsl_video_url : course.course_video_url;
-      const embed = getEmbedUrl(url);
-      if (embed) {
-        stage.innerHTML = `<iframe src="${escapeHtml(embed)}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen></iframe>`;
-      } else {
-        stage.innerHTML = `<video src="${escapeHtml(url)}" controls playsinline preload="metadata" poster="${escapeHtml(course.thumbnail_url || '')}"></video>`;
-      }
+      bodyEl.innerHTML = activeLesson.content_html || `<p>${escapeHtml(activeLesson.summary || '')}</p>`;
     }
   }
+}
 
-  document.getElementById('sa-script-approach').textContent = unlocked
-    ? (course.script_approach || '')
-    : 'Conteúdo completo liberado no Plano PRO.\nAssine o PRO para copiar os scripts validados de abordagem, diagnóstico e fechamento.';
-  document.getElementById('sa-script-objections').textContent = unlocked
-    ? (course.script_objections || '')
-    : 'Respostas prontas às principais objeções liberadas no Plano PRO.';
+function selectSalesCourseLesson(num) {
+  STATE.activeSalesLessonNum = Number(num) || 1;
+  const course = (STATE.salesAcademy?.items || []).find(c => c.id === STATE.activeSalesCourseId);
+  if (course) {
+    renderSalesCourseLessons(course, Boolean(STATE.salesAcademy?.unlocked));
+    document.getElementById('sa-lesson-reader')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function stepSalesCourseLesson(delta) {
+  const course = (STATE.salesAcademy?.items || []).find(c => c.id === STATE.activeSalesCourseId);
+  if (!course || !Array.isArray(course.lessons) || !course.lessons.length) return;
+  const idx = course.lessons.findIndex(l => Number(l.num) === Number(STATE.activeSalesLessonNum));
+  const nextLesson = course.lessons[idx + delta];
+  if (nextLesson) {
+    selectSalesCourseLesson(nextLesson.num);
+  }
+}
+
+function getSalesChecklistStorageKey(courseSlug) {
+  const uid = window.CURRENT_USER?.id || 0;
+  return `ml_sa_check_${uid}_${courseSlug || 'default'}`;
+}
+
+function renderSalesCourseChecklist(course) {
+  const itemsEl = document.getElementById('sa-checklist-items');
+  const progEl = document.getElementById('sa-checklist-progress-text');
+  if (!itemsEl) return;
+  const list = Array.isArray(course.checklist) ? course.checklist : [];
+  const key = getSalesChecklistStorageKey(course.slug);
+  let saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(key) || '{}');
+  } catch (e) {
+    saved = {};
+  }
+  const doneCount = list.filter((_, idx) => Boolean(saved[idx])).length;
+  if (progEl) progEl.textContent = `${doneCount} de ${list.length} etapas concluídas`;
+
+  itemsEl.innerHTML = list.map((text, idx) => {
+    const isChecked = Boolean(saved[idx]);
+    return `
+      <label class="sa-check-row ${isChecked ? 'checked' : ''}">
+        <input type="checkbox" ${isChecked ? 'checked' : ''} onchange="toggleSalesChecklistItem(${idx}, this.checked)">
+        <span><strong>Etapa ${idx + 1}:</strong> ${escapeHtml(text)}</span>
+      </label>`;
+  }).join('');
+}
+
+function toggleSalesChecklistItem(idx, checked) {
+  const course = (STATE.salesAcademy?.items || []).find(c => c.id === STATE.activeSalesCourseId);
+  if (!course) return;
+  const key = getSalesChecklistStorageKey(course.slug);
+  let saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(key) || '{}');
+  } catch (e) {
+    saved = {};
+  }
+  saved[idx] = Boolean(checked);
+  localStorage.setItem(key, JSON.stringify(saved));
+  renderSalesCourseChecklist(course);
+}
+
+function resetSalesCourseChecklist() {
+  const course = (STATE.salesAcademy?.items || []).find(c => c.id === STATE.activeSalesCourseId);
+  if (!course) return;
+  localStorage.removeItem(getSalesChecklistStorageKey(course.slug));
+  renderSalesCourseChecklist(course);
+  toast('Checklist reiniciado para um novo cliente!', 'info');
+}
+
+function renderSalesCoursePricing(course) {
+  const grid = document.getElementById('sa-pricing-grid');
+  if (!grid) return;
+  const tiers = Array.isArray(course.pricing_tiers) ? course.pricing_tiers : [];
+  grid.innerHTML = tiers.map((t, idx) => {
+    const isFeatured = idx === 1 || String(t.badge || '').includes('★');
+    const delivs = Array.isArray(t.deliverables) ? t.deliverables : [];
+    return `
+      <div class="sa-pricing-card ${isFeatured ? 'featured' : ''}">
+        <span class="sa-pricing-badge">${escapeHtml(t.badge || 'Pacote')}</span>
+        <h4>${escapeHtml(t.name || '')}</h4>
+        <div class="sa-price-big">${escapeHtml(t.setup_price || '')}</div>
+        <div class="sa-price-mrr"><i class="fa-solid fa-repeat"></i> ${escapeHtml(t.monthly_price || 'Venda única')}</div>
+        <div class="sa-price-meta-box">
+          <span><strong>Custo de Produção:</strong> ${escapeHtml(t.cost || 'R$ 0,00')}</span>
+          <span><strong>Margem Estimada:</strong> ${escapeHtml(t.profit_margin || '100%')}</span>
+        </div>
+        <ul class="sa-price-list">
+          ${delivs.map(d => `<li>${escapeHtml(d)}</li>`).join('')}
+        </ul>
+      </div>`;
+  }).join('');
+}
+
+function updateSalesProfitSimulator() {
+  const course = (STATE.salesAcademy?.items || []).find(c => c.id === STATE.activeSalesCourseId);
+  const slider = document.getElementById('sa-sim-clients');
+  if (!slider) return;
+  const clientsPerMonth = Math.max(1, parseInt(slider.value || '5', 10));
+  const bench = SA_SIMULATOR_BENCHMARKS[course?.strategy_key] || { setup: 497, mrr: 197 };
+
+  const monthlySetup = clientsPerMonth * bench.setup;
+  const newMrrPerMonth = clientsPerMonth * bench.mrr;
+  // In 6 months: 6 months of setup + cumulative MRR (1 + 2 + 3 + 4 + 5 + 6 = 21 client-months of MRR)
+  const total6Months = (monthlySetup * 6) + (newMrrPerMonth * 21);
+
+  const fmtBRL = (val) => 'R$ ' + Number(val || 0).toLocaleString('pt-BR');
+  const lbl = document.getElementById('sa-sim-clients-label');
+  if (lbl) lbl.textContent = `${clientsPerMonth} ${clientsPerMonth === 1 ? 'cliente/mês' : 'clientes/mês'}`;
+  const setupEl = document.getElementById('sa-sim-setup-total');
+  if (setupEl) setupEl.textContent = `${fmtBRL(monthlySetup)}/mês`;
+  const mrrEl = document.getElementById('sa-sim-mrr-total');
+  if (mrrEl) mrrEl.textContent = bench.mrr > 0 ? `+ ${fmtBRL(newMrrPerMonth)}/mês` : 'Venda à Vista (800% Lucro)';
+  const sixEl = document.getElementById('sa-sim-6m-total');
+  if (sixEl) sixEl.textContent = fmtBRL(total6Months);
 }
 
 function selectSalesAcademyCourse(courseId) {
   STATE.activeSalesCourseId = courseId;
+  STATE.activeSalesLessonNum = 1;
+  const stage1 = document.getElementById('sa-video-stage');
+  if (stage1) stage1.dataset.renderedUrl = '';
+  const stage2 = document.getElementById('sa-vsl-stage');
+  if (stage2) stage2.dataset.renderedUrl = '';
   renderSalesAcademy();
 }
 
 function setSalesAcademyMode(mode) {
-  STATE.salesAcademyMode = mode === 'vsl' ? 'vsl' : 'course';
+  STATE.salesAcademyMode = SA_VALID_MODES.includes(mode) ? mode : 'course';
   renderSalesAcademy();
 }
 
 function copySalesScript(elId) {
   if (!STATE.salesAcademy?.unlocked) {
-    openUpgradeModal('Os scripts completos de abordagem são exclusivos do Plano PRO!');
+    openUpgradeModal('Os scripts completos, manuais técnicos e propostas são exclusivos do Plano PRO!');
     return;
   }
   const el = document.getElementById(elId);
   if (!el) return;
   navigator.clipboard.writeText(el.textContent || '');
-  toast('Script copiado para a área de transferência!', 'success');
+  toast('Conteúdo copiado para a área de transferência!', 'success');
 }
 
 async function toggleSalesCourseDone() {
@@ -2381,7 +2645,7 @@ async function toggleSalesCourseDone() {
     STATE.salesAcademy.total_count = d.total_count;
     STATE.salesAcademy.percent = d.percent;
     renderSalesAcademy();
-    toast(nextVal ? 'Estratégia concluída!' : 'Estratégia marcada como pendente.', 'success');
+    toast(nextVal ? 'Formação marcada como concluída!' : 'Formação marcada como pendente.', 'success');
   }
 }
 

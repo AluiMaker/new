@@ -1218,9 +1218,42 @@ body.dark-theme .live-pill { color: #34d399; border-color: rgba(16, 185, 129, 0.
 }
 .sales-strategy-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 18px;
+}
+@media (max-width: 1180px) {
+  .sales-strategy-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 680px) {
+  .sales-strategy-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.sa-hero-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 6px;
+}
+.sa-kpi-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--primary);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+}
+body.dark-theme .sa-kpi-chip {
+  background: rgba(59, 130, 246, 0.16);
+  color: #93c5fd;
+  border-color: rgba(59, 130, 246, 0.3);
 }
 .sales-strategy-card {
   border: 2px solid var(--border);
@@ -1276,20 +1309,47 @@ body.dark-theme .live-pill { color: #34d399; border-color: rgba(16, 185, 129, 0.
   padding: 3px 8px;
   border-radius: 999px;
 }
+.sales-strategy-thumb .sa-lessons-chip {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(15, 23, 42, 0.85);
+  color: #f8fafc;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 999px;
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
 .sales-strategy-body {
-  padding: 12px 13px 14px;
+  padding: 12px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 .sales-strategy-body strong {
   display: block;
-  font-size: 0.88rem;
+  font-size: 0.92rem;
   line-height: 1.35;
   margin-top: 6px;
 }
+.sales-strategy-sub {
+  font-size: 0.77rem;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.38;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .sales-strategy-ticket {
-  font-size: 0.75rem;
+  font-size: 0.76rem;
   color: #059669;
   font-weight: 700;
-  margin-top: 5px;
+  margin-top: auto;
+  padding-top: 8px;
 }
 .sales-workspace-top {
   display: flex;
@@ -1297,7 +1357,24 @@ body.dark-theme .live-pill { color: #34d399; border-color: rgba(16, 185, 129, 0.
   align-items: flex-start;
   gap: 16px;
   flex-wrap: wrap;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
+}
+.sa-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.sa-duration-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  background: rgba(148, 163, 184, 0.14);
+  color: var(--text-muted);
 }
 .ticket-badge {
   display: inline-flex;
@@ -1310,21 +1387,488 @@ body.dark-theme .live-pill { color: #34d399; border-color: rgba(16, 185, 129, 0.
   background: rgba(16, 185, 129, 0.14);
   color: #059669;
 }
-.sales-workspace-body {
+
+/* 5 Mode Tabs Navigation */
+.sa-tabs-nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 6px;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-bottom: 18px;
+}
+.sa-tab-btn {
+  flex: 1;
+  min-width: 175px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 10px 12px;
+  border-radius: 9px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.sa-tab-btn:hover {
+  color: var(--text-main);
+  background: rgba(148, 163, 184, 0.12);
+}
+.sa-tab-btn.active {
+  background: var(--primary, #2563eb);
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.28);
+}
+.sa-tab-count {
+  font-size: 0.7rem;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* Pane 1: Course Lesson Reader + Video + Playlist */
+.sa-course-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 1fr);
+  grid-template-columns: 380px minmax(0, 1fr);
   gap: 18px;
   align-items: start;
 }
-.sales-scripts-col {
+.sa-course-sidebar {
   display: flex;
   flex-direction: column;
+  gap: 14px;
+}
+.sa-video-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px;
+  background: rgba(148, 163, 184, 0.04);
+}
+.sa-mini-label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.sa-lessons-box {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(148, 163, 184, 0.04);
+}
+.sa-lessons-box-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+}
+.sa-lessons-playlist {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sa-lesson-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card-bg, #ffffff);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  color: inherit;
+  transition: all 0.14s ease;
+}
+.sa-lesson-item:hover {
+  border-color: var(--primary, #2563eb);
+}
+.sa-lesson-item.active {
+  border-color: var(--primary, #2563eb);
+  background: rgba(37, 99, 235, 0.07);
+}
+.sa-lesson-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--primary, #2563eb);
+  font-size: 0.76rem;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.sa-lesson-item.active .sa-lesson-num {
+  background: var(--primary, #2563eb);
+  color: #ffffff;
+}
+.sa-lesson-meta {
+  flex: 1;
+  min-width: 0;
+}
+.sa-lesson-meta small {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--primary, #2563eb);
+  margin-bottom: 2px;
+}
+.sa-lesson-meta strong {
+  display: block;
+  font-size: 0.81rem;
+  line-height: 1.32;
+}
+.sa-lesson-meta span {
+  display: inline-block;
+  font-size: 0.71rem;
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+
+.sa-lesson-reader-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 22px;
+  background: var(--card-bg, #ffffff);
+  display: flex;
+  flex-direction: column;
+  min-height: 460px;
+}
+.sa-lesson-reader-head {
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+.sa-lesson-time {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+.sa-lesson-body {
+  font-size: 0.9rem;
+  line-height: 1.65;
+  color: var(--text-main);
+  flex: 1;
+}
+.sa-lesson-body h4 {
+  margin: 16px 0 8px;
+  font-size: 1rem;
+  color: var(--text-main);
+}
+.sa-lesson-body h4:first-child {
+  margin-top: 0;
+}
+.sa-lesson-body p {
+  margin: 0 0 12px;
+}
+.sa-lesson-body ul,
+.sa-lesson-body ol {
+  margin: 0 0 14px;
+  padding-left: 20px;
+}
+.sa-lesson-body li {
+  margin-bottom: 6px;
+}
+.sa-lesson-body code {
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--primary);
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-size: 0.82rem;
+}
+.sa-callout {
+  padding: 13px 15px;
+  border-radius: 11px;
+  margin: 12px 0 14px;
+  border-left: 4px solid #2563eb;
+  background: rgba(37, 99, 235, 0.06);
+}
+.sa-callout-emerald {
+  border-left-color: #10b981;
+  background: rgba(16, 185, 129, 0.08);
+}
+.sa-callout-amber {
+  border-left-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.09);
+}
+.sa-callout strong {
+  display: block;
+  margin-bottom: 6px;
+}
+.sa-callout ul {
+  margin-bottom: 0;
+}
+.sa-lesson-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 12px 0 14px;
+}
+.sa-lesson-card {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 11px 13px;
+  background: rgba(148, 163, 184, 0.05);
+}
+.sa-lesson-card strong {
+  display: block;
+  font-size: 0.84rem;
+  margin-bottom: 4px;
+  color: var(--primary);
+}
+.sa-lesson-card p {
+  margin: 0;
+  font-size: 0.81rem;
+  line-height: 1.48;
+  color: var(--text-muted);
+}
+.sa-lesson-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   gap: 12px;
+  padding-top: 16px;
+  margin-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+/* Pane 2: Delivery Manual + Blueprint + Interactive Checklist */
+.sa-delivery-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(300px, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.sa-pre-tall {
+  max-height: 520px;
+  overflow-y: auto;
+  padding-right: 6px;
+}
+.sa-blueprint-banner {
+  position: relative;
+  border-radius: 12px;
+  overflow: hidden;
+  height: 165px;
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+}
+.sa-blueprint-banner img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.sa-blueprint-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.25) 0%, rgba(15, 23, 42, 0.88) 100%);
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  padding: 14px 16px;
+  color: #ffffff;
+}
+.sa-blueprint-overlay strong {
+  font-size: 0.95rem;
+}
+.sa-blueprint-overlay span {
+  font-size: 0.78rem;
+  color: #cbd5e1;
+  margin-top: 2px;
+}
+.sa-checklist-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px;
+  background: rgba(148, 163, 184, 0.04);
+}
+.sa-checklist-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.sa-checklist-items {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sa-check-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 11px;
+  border-radius: 9px;
+  border: 1px solid var(--border);
+  background: var(--card-bg, #ffffff);
+  cursor: pointer;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  transition: all 0.14s ease;
+}
+.sa-check-row input[type="checkbox"] {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: #10b981;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.sa-check-row.checked {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.35);
+  text-decoration: line-through;
+  color: var(--text-muted);
+}
+
+/* Pane 3: Pricing Tiers & Revenue Simulator */
+.sa-pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 18px;
+}
+.sa-pricing-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  background: var(--card-bg, #ffffff);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+.sa-pricing-card.featured {
+  border: 2px solid #2563eb;
+  box-shadow: 0 12px 28px -14px rgba(37, 99, 235, 0.45);
+}
+.sa-pricing-badge {
+  display: inline-flex;
+  align-self: flex-start;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  background: rgba(37, 99, 235, 0.12);
+  color: var(--primary);
+  margin-bottom: 8px;
+}
+.sa-pricing-card.featured .sa-pricing-badge {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  color: #ffffff;
+}
+.sa-pricing-card h4 {
+  margin: 0 0 10px;
+  font-size: 1.02rem;
+}
+.sa-price-big {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: #059669;
+  margin-bottom: 4px;
+}
+.sa-price-mrr {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--primary);
+  margin-bottom: 10px;
+}
+.sa-price-meta-box {
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgba(148, 163, 184, 0.08);
+  font-size: 0.77rem;
+  margin-bottom: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.sa-price-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 0.81rem;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.sa-price-list li {
+  margin-bottom: 5px;
+}
+.sa-simulator-card {
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.06), rgba(37, 99, 235, 0.06));
+  border-radius: 14px;
+  padding: 18px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.sa-simulator-left {
+  flex: 1;
+  min-width: 260px;
+}
+.sa-simulator-left h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+.sa-sim-control input[type="range"] {
+  width: 100%;
+  margin-top: 8px;
+  accent-color: #2563eb;
+  cursor: pointer;
+}
+.sa-simulator-kpis {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.sa-sim-kpi {
+  border: 1px solid var(--border);
+  background: var(--card-bg, #ffffff);
+  border-radius: 12px;
+  padding: 12px 16px;
+  min-width: 165px;
+}
+.sa-sim-kpi span {
+  display: block;
+  font-size: 0.74rem;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.sa-sim-kpi strong {
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+.sa-sim-kpi-highlight {
+  border-color: #f59e0b;
+  background: rgba(245, 158, 11, 0.08);
+}
+
+/* Pane 4: 4 Scripts Grid */
+.sa-scripts-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
 }
 .script-box {
   border: 1px solid var(--border);
   border-radius: 12px;
-  padding: 12px 14px;
+  padding: 13px 15px;
   background: rgba(148, 163, 184, 0.05);
 }
 .script-box-head {
@@ -1341,11 +1885,74 @@ body.dark-theme .live-pill { color: #34d399; border-color: rgba(16, 185, 129, 0.
   word-break: break-word;
   font-family: inherit;
   font-size: 0.82rem;
-  line-height: 1.5;
+  line-height: 1.55;
   color: var(--text-muted);
+  max-height: 320px;
+  overflow-y: auto;
 }
-@media (max-width: 1020px) {
-  .sales-workspace-body {
+
+/* Pane 5: VSL Player & Usage Guide */
+.sa-vsl-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(300px, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.sa-vsl-guide-card {
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 18px;
+  background: rgba(148, 163, 184, 0.04);
+}
+.sa-vsl-guide-card h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+.sa-vsl-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.sa-vsl-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 11px 13px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card-bg, #ffffff);
+}
+.sa-vsl-step-num {
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #ffffff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+}
+.sa-vsl-step strong {
+  display: block;
+  font-size: 0.85rem;
+  margin-bottom: 3px;
+}
+.sa-vsl-step p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+@media (max-width: 1060px) {
+  .sa-course-layout,
+  .sa-delivery-layout,
+  .sa-pricing-grid,
+  .sa-scripts-grid-4,
+  .sa-vsl-layout,
+  .sa-lesson-grid {
     grid-template-columns: 1fr;
   }
 }

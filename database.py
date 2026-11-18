@@ -748,12 +748,30 @@ def init_db():
         vsl_duration TEXT DEFAULT '00:30',
         script_approach TEXT DEFAULT '',
         script_objections TEXT DEFAULT '',
+        script_followup TEXT DEFAULT '',
+        proposal_script TEXT DEFAULT '',
+        delivery_guide TEXT DEFAULT '',
+        lessons_json TEXT DEFAULT '[]',
+        pricing_tiers_json TEXT DEFAULT '[]',
+        checklist_json TEXT DEFAULT '[]',
         target_opp TEXT DEFAULT '',
         sort_order INTEGER DEFAULT 0,
         is_published INTEGER DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
+    for col_name, col_type in (
+        ("script_followup", "TEXT DEFAULT ''"),
+        ("proposal_script", "TEXT DEFAULT ''"),
+        ("delivery_guide", "TEXT DEFAULT ''"),
+        ("lessons_json", "TEXT DEFAULT '[]'"),
+        ("pricing_tiers_json", "TEXT DEFAULT '[]'"),
+        ("checklist_json", "TEXT DEFAULT '[]'"),
+    ):
+        try:
+            cursor.execute(f"ALTER TABLE sales_academy_courses ADD COLUMN {col_name} {col_type}")
+        except sqlite3.OperationalError:
+            pass
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS sales_academy_progress (
         user_id INTEGER NOT NULL,
@@ -2317,142 +2335,24 @@ def delete_academy_lesson(lesson_id: int) -> bool:
 
 
 # ==================== ACADEMIA DE VENDAS PRO (EXCLUSIVO PRO/ENTERPRISE) ====================
-DEFAULT_SALES_ACADEMY = [
-    {
-        "slug": "estrategia-gmn",
-        "strategy_key": "gmn",
-        "badge_label": "Google Meu Negócio",
-        "title": "Como Vender Otimização & Top 3 no Google Meu Negócio",
-        "subtitle": "Audite fichas desatualizadas em 2 minutos e feche setup de R$ 400 a R$ 1.200 + recorrência mensal de gestão.",
-        "ticket_range": "R$ 400 a R$ 1.200 + mensalidade",
-        "thumbnail_url": "/static/img/academy/gmn-hero.jpg",
-        "course_video_url": "/static/video/sales-academy/curso-gmn.mp4",
-        "course_duration": "00:34",
-        "vsl_video_url": "/static/video/sales-academy/vsl-gmn.mp4",
-        "vsl_title": "VSL Pronta para Divulgar · Google Meu Negócio",
-        "vsl_duration": "00:26",
-        "script_approach": (
-            "1) Quebra-Gelo: 'Olá, pessoal da {nome}! Vi a ficha de vocês no Google aqui em {bairro}. Notei 3 ajustes simples no Google Meu Negócio que colocam vocês na frente dos concorrentes sem pagar anúncio. Posso enviar um áudio rápido mostrando?'\n"
-            "2) Diagnóstico em 2 min: Mostre 3 falhas reais da ficha (poucas fotos recentes, categorias secundárias vazias e falta de respostas com palavras-chave).\n"
-            "3) Oferta: Otimização Completa em 48h (R$ 497) ou Pacote Mensal Top 3 + Gestão de Avaliações (R$ 397/mês)."
-        ),
-        "script_objections": (
-            "• 'Já temos agência / já estamos no Google': 'Estar no Google é diferente de aparecer entre os 3 primeiros quando alguém digita o serviço no seu bairro. Meu trabalho é destravar ligações e pedidos de rota orgânicos sem depender de tráfego pago.'\n"
-            "• 'Vou pensar e te aviso': 'Consigo fazer a auditoria completa da {nome} e entregar o plano pronto até sexta com garantia de melhoria visual na primeira semana.'"
-        ),
-        "target_opp": "gmn",
-        "sort_order": 1,
-    },
-    {
-        "slug": "estrategia-nfc",
-        "strategy_key": "nfc",
-        "badge_label": "Plaquinha NFC + QR",
-        "title": "Como Vender Plaquinha NFC + QR Code de Avaliações 5⭐",
-        "subtitle": "Produto físico de entrada irresistível: encostou o celular, avaliou no Google. Ticket rápido de R$ 150 a R$ 350 por unidade.",
-        "ticket_range": "R$ 150 a R$ 350 / plaquinha",
-        "thumbnail_url": "/static/img/academy/nfc-hero.jpg",
-        "course_video_url": "/static/video/sales-academy/curso-nfc.mp4",
-        "course_duration": "00:33",
-        "vsl_video_url": "/static/video/sales-academy/vsl-nfc.mp4",
-        "vsl_title": "VSL Pronta para Divulgar · Plaquinha NFC & QR",
-        "vsl_duration": "00:26",
-        "script_approach": (
-            "1) Quebra-Gelo: 'Oi, {nome}! Vi vocês no Google com {avaliacao}⭐. Trabalho com Plaquinhas NFC de balcão: seu cliente encosta o celular e já cai direto na tela de avaliação 5 estrelas, Instagram ou Pix. Posso te mandar uma foto modelo com a sua logo?'\n"
-            "2) Demonstração: Envie a VSL pronta junto com uma prévia visual da plaquinha.\n"
-            "3) Combo Upsell: 1 plaquinha por R$ 197 ou kit com 3 plaquinhas de mesa/caixa por R$ 447 + otimização do Google de bônus."
-        ),
-        "script_objections": (
-            "• 'Cliente não costuma avaliar': 'Exatamente porque ninguém lembra! Quando você coloca a placa no caixa e o atendente diz só \"encosta aqui se gostou\", suas avaliações multiplicam sem esforço.'\n"
-            "• 'É caro?': 'Com apenas 2 clientes novos que escolherem vocês no Google por terem mais avaliações, a plaquinha já se pagou para sempre — sem mensalidade.'"
-        ),
-        "target_opp": "nfc_google",
-        "sort_order": 2,
-    },
-    {
-        "slug": "estrategia-whatsapp",
-        "strategy_key": "whatsapp",
-        "badge_label": "WhatsApp Business",
-        "title": "Como Vender Estruturação de WhatsApp Business & Catálogo",
-        "subtitle": "Transforme atendimento bagunçado em máquina organizada com etiquetas, catálogo de serviços e respostas instantâneas.",
-        "ticket_range": "R$ 500 a R$ 1.500",
-        "thumbnail_url": "/static/img/academy/whatsapp-hero.jpg",
-        "course_video_url": "/static/video/sales-academy/curso-whatsapp.mp4",
-        "course_duration": "00:32",
-        "vsl_video_url": "/static/video/sales-academy/vsl-whatsapp.mp4",
-        "vsl_title": "VSL Pronta para Divulgar · WhatsApp Business PRO",
-        "vsl_duration": "00:25",
-        "script_approach": (
-            "1) Quebra-Gelo: 'Olá, equipe da {nome}! Peguei o contato no Google. Eu estruturo o WhatsApp Business de empresas de {categoria} com catálogo, mensagens de boas-vindas e etiquetas de funil para nenhum orçamento esfriar. Posso mostrar como funciona?'\n"
-            "2) Diagnóstico: Pergunte quantos orçamentos ficam sem resposta no fim de semana.\n"
-            "3) Fechamento: Setup completo em 24h com catálogo visual + 10 scripts prontos por R$ 590."
-        ),
-        "script_objections": (
-            "• 'Já usamos WhatsApp normal': 'Justamente por usar o comum você perde histórico, não tem catálogo clicável nem mensagem automática quando está ocupado. No Business profissional o cliente já escolhe e pede sozinho.'"
-        ),
-        "target_opp": "whatsapp_biz",
-        "sort_order": 3,
-    },
-    {
-        "slug": "estrategia-cardapio",
-        "strategy_key": "cardapio",
-        "badge_label": "Cardápio Digital",
-        "title": "Como Vender Cardápio Digital + QR na Mesa Sem Taxas",
-        "subtitle": "Ajude restaurantes, pizzarias e hamburguerias a economizar até 27% de comissão de aplicativos recebendo pedidos direto no WhatsApp.",
-        "ticket_range": "R$ 297 setup + R$ 97 a R$ 297/mês",
-        "thumbnail_url": "/static/img/academy/cardapio-hero.jpg",
-        "course_video_url": "/static/video/sales-academy/curso-cardapio.mp4",
-        "course_duration": "00:33",
-        "vsl_video_url": "/static/video/sales-academy/vsl-cardapio.mp4",
-        "vsl_title": "VSL Pronta para Divulgar · Cardápio Digital & QR",
-        "vsl_duration": "00:26",
-        "script_approach": (
-            "1) Quebra-Gelo: 'Oi, pessoal da {nome}! Vi vocês aqui em {bairro}. Vocês já trabalham com Cardápio Digital próprio sem pagar comissão por pedido, ligado direto no WhatsApp? Quer ver um modelo ao vivo funcionando?'\n"
-            "2) Gancho Financeiro: Mostre quanto R$ 5.000 em apps custam de taxa todo mês vs um link próprio com QR Code na mesa.\n"
-            "3) Oferta: Cardápio montado com fotos + QR Code para imprimir nas mesas em 48h."
-        ),
-        "script_objections": (
-            "• 'Não temos tempo para cadastrar produtos': 'Nós cadastramos todo o seu cardápio inicial com fotos e preços em até 48 horas; você só recebe o pedido mastigado no WhatsApp.'"
-        ),
-        "target_opp": "cardapio_digital",
-        "sort_order": 4,
-    },
-    {
-        "slug": "estrategia-biossite",
-        "strategy_key": "biossite",
-        "badge_label": "Biossite & Landing Page",
-        "title": "Como Vender Biossites & Landing Pages para Quem Não Tem Site",
-        "subtitle": "Feche vendas rápidas em 48 horas para empresas que só têm link do Instagram ou nenhum site listado no Google Maps.",
-        "ticket_range": "R$ 400 a R$ 1.500",
-        "thumbnail_url": "/static/img/academy/biossite-hero.jpg",
-        "course_video_url": "/static/video/sales-academy/curso-biossite.mp4",
-        "course_duration": "00:32",
-        "vsl_video_url": "/static/video/sales-academy/vsl-biossite.mp4",
-        "vsl_title": "VSL Pronta para Divulgar · Biossite & Site Rápido",
-        "vsl_duration": "00:25",
-        "script_approach": (
-            "1) Quebra-Gelo: 'Olá, {nome}! Vi que no Google vocês ainda não têm um site oficial clicável. Eu crio páginas rápidas com seus serviços, avaliações 5⭐ e botão direto para o WhatsApp. Posso te mandar uma prévia sem compromisso?'\n"
-            "2) Técnica da Prévia: Envie um mockup personalizado usando o nome e fotos do negócio.\n"
-            "3) Fechamento: Entrega expressa em 48h conectada direto ao perfil do Google Maps."
-        ),
-        "script_objections": (
-            "• 'Instagram já basta': 'Quem pesquisa no Google já está com o cartão na mão pronto para comprar hoje e muitas vezes não entra no Instagram. Um Biossite oficial no Google passa confiança imediata.'"
-        ),
-        "target_opp": "biossite",
-        "sort_order": 5,
-    },
-]
+from sales_academy_curriculum import SALES_ACADEMY_CURRICULUM as DEFAULT_SALES_ACADEMY
 
 
 def _seed_sales_academy_courses(cursor):
     for item in DEFAULT_SALES_ACADEMY:
+        lessons_str = json.dumps(item.get("lessons") or [], ensure_ascii=False)
+        pricing_str = json.dumps(item.get("pricing_tiers") or [], ensure_ascii=False)
+        checklist_str = json.dumps(item.get("checklist") or [], ensure_ascii=False)
         cursor.execute(
             """
             INSERT OR IGNORE INTO sales_academy_courses (
                 slug, strategy_key, badge_label, title, subtitle, ticket_range,
                 thumbnail_url, course_video_url, course_duration,
                 vsl_video_url, vsl_title, vsl_duration,
-                script_approach, script_objections, target_opp, sort_order, is_published
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                script_approach, script_objections, script_followup, proposal_script,
+                delivery_guide, lessons_json, pricing_tiers_json, checklist_json,
+                target_opp, sort_order, is_published
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             """,
             (
                 item["slug"], item["strategy_key"], item["badge_label"], item["title"],
@@ -2460,7 +2360,45 @@ def _seed_sales_academy_courses(cursor):
                 item["course_video_url"], item["course_duration"],
                 item["vsl_video_url"], item["vsl_title"], item["vsl_duration"],
                 item["script_approach"], item["script_objections"],
+                item.get("script_followup", ""), item.get("proposal_script", ""),
+                item.get("delivery_guide", ""), lessons_str, pricing_str, checklist_str,
                 item["target_opp"], item["sort_order"],
+            ),
+        )
+        # Atualiza cursos padrão existentes que ainda não tinham o currículo completo de 5 aulas
+        cursor.execute(
+            """
+            UPDATE sales_academy_courses
+            SET badge_label = ?,
+                title = ?,
+                subtitle = ?,
+                ticket_range = ?,
+                thumbnail_url = ?,
+                course_video_url = ?,
+                course_duration = ?,
+                vsl_video_url = ?,
+                vsl_title = ?,
+                vsl_duration = ?,
+                script_approach = ?,
+                script_objections = ?,
+                script_followup = ?,
+                proposal_script = ?,
+                delivery_guide = ?,
+                lessons_json = ?,
+                pricing_tiers_json = ?,
+                checklist_json = ?,
+                target_opp = ?,
+                sort_order = ?
+            WHERE slug = ? AND (lessons_json IS NULL OR lessons_json = '' OR lessons_json = '[]')
+            """,
+            (
+                item["badge_label"], item["title"], item["subtitle"], item["ticket_range"],
+                item["thumbnail_url"], item["course_video_url"], item["course_duration"],
+                item["vsl_video_url"], item["vsl_title"], item["vsl_duration"],
+                item["script_approach"], item["script_objections"],
+                item.get("script_followup", ""), item.get("proposal_script", ""),
+                item.get("delivery_guide", ""), lessons_str, pricing_str, checklist_str,
+                item["target_opp"], item["sort_order"], item["slug"],
             ),
         )
 
@@ -2499,12 +2437,44 @@ def get_sales_academy_for_user(user_id: int, include_unpublished: bool = False) 
             d = dict(r)
             d["completed"] = bool(d.get("completed"))
             d["is_published"] = bool(d.get("is_published"))
+            try:
+                raw_lessons = json.loads(d.get("lessons_json") or "[]")
+            except Exception:
+                raw_lessons = []
+            try:
+                raw_pricing = json.loads(d.get("pricing_tiers_json") or "[]")
+            except Exception:
+                raw_pricing = []
+            try:
+                raw_checklist = json.loads(d.get("checklist_json") or "[]")
+            except Exception:
+                raw_checklist = []
+
             if not unlocked and not include_unpublished:
                 d["course_video_url"] = ""
                 d["vsl_video_url"] = ""
                 d["download_url"] = ""
+                d["delivery_guide"] = ""
+                d["script_followup"] = ""
+                d["proposal_script"] = ""
+                d["lessons"] = [
+                    {
+                        "num": l.get("num"),
+                        "module": l.get("module"),
+                        "title": l.get("title"),
+                        "duration": l.get("duration"),
+                        "summary": l.get("summary"),
+                        "content_html": "",
+                    }
+                    for l in raw_lessons
+                ]
+                d["pricing_tiers"] = raw_pricing
+                d["checklist"] = raw_checklist
             else:
                 d["download_url"] = f"/api/sales-academy/download/{d['slug']}"
+                d["lessons"] = raw_lessons
+                d["pricing_tiers"] = raw_pricing
+                d["checklist"] = raw_checklist
             items.append(d)
         done = sum(1 for x in items if x["completed"])
         total = len(items)
