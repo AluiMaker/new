@@ -150,6 +150,9 @@
           <button class="icon-btn" id="btn-toggle-theme" title="Alternar modo Claro / Escuro" aria-label="Alternar tema">
             <i class="fa-solid fa-moon"></i>
           </button>
+          <button class="btn btn-outline btn-sm" id="btn-open-onboarding" onclick="reopenOnboardingChecklist()" title="Ver ou refazer o tutorial de primeiros passos">
+            <i class="fa-solid fa-compass"></i> Primeiros Passos
+          </button>
           <button class="btn btn-outline btn-sm" id="btn-export-csv">
             <i class="fa-solid fa-file-csv"></i> Exportar Excel/CSV
           </button>
@@ -160,6 +163,37 @@
       </header>
 
       <main class="content-area">
+        <!-- P0.4 — Notificação Inteligente de Ativação -->
+        <div id="activation-smart-banner" class="card hidden" style="margin-bottom:14px; padding:12px 18px; border-left:4px solid #2563eb; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;"></div>
+
+        <!-- P0.1 — Onboarding Inteligente (Checklist de Primeiros Passos) -->
+        <div id="onboarding-checklist-card" class="card hidden" style="margin-bottom:18px; border:1px solid rgba(37,99,235,0.28); background:linear-gradient(135deg, rgba(37,99,235,0.06), rgba(16,185,129,0.04));">
+          <div class="card-header" style="flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+            <div>
+              <h3 style="display:flex; align-items:center; gap:8px;">
+                <i class="fa-solid fa-rocket text-blue"></i> Bem-vindo ao MapaLeads PRO — Guia de Primeiros Passos
+                <span class="pill-counter" id="onboarding-progress-pill">0/5 concluídos</span>
+              </h3>
+              <p class="card-sub">Siga os 5 passos abaixo para encontrar empresas reais, analisar oportunidades com IA e iniciar suas primeiras conversas comerciais</p>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <button type="button" class="btn btn-primary btn-xs" id="btn-onboarding-continue" onclick="continueOnboardingNextStep()">
+                <i class="fa-solid fa-play"></i> Continuar de onde parei
+              </button>
+              <button type="button" class="btn btn-outline btn-xs" onclick="restartOnboardingTutorial()">
+                <i class="fa-solid fa-rotate-left"></i> Refazer Tutorial
+              </button>
+              <button type="button" class="btn btn-outline btn-xs" onclick="dismissOnboardingChecklist()">
+                <i class="fa-solid fa-eye-slash"></i> Ocultar
+              </button>
+            </div>
+          </div>
+          <div class="progress-track" style="margin-bottom:14px; height:8px;">
+            <div class="progress-fill" id="onboarding-progress-bar" style="width: 0%;"></div>
+          </div>
+          <div id="onboarding-steps-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(195px, 1fr)); gap:10px;"></div>
+        </div>
+
         <!-- ==================== 1. DASHBOARD ==================== -->
         <section class="tab-view active" id="tab-dashboard">
           <div class="kpi-grid">
@@ -270,6 +304,63 @@
                 </div>
               </button>
             </div>
+          </div>
+
+          <!-- P1.4 — DASHBOARD INDIVIDUAL DE RESULTADOS DO ASSINANTE -->
+          <div class="card" id="user-results-dashboard-card" style="margin-top: 20px;">
+            <div class="card-header" style="flex-wrap:wrap; gap:10px;">
+              <div>
+                <h3><i class="fa-solid fa-chart-line text-emerald"></i> Meus Resultados Comerciais (Desempenho Real)</h3>
+                <p class="card-sub">Acompanhe o retorno real da sua operação: empresas encontradas, abordadas, em negociação e vendas concluídas</p>
+              </div>
+              <div style="display:flex; gap:8px; align-items:center;">
+                <select id="my-results-period" onchange="loadMyResultsDashboard()" style="width:auto; font-size:0.84rem;">
+                  <option value="7d">Últimos 7 dias</option>
+                  <option value="30d" selected>Últimos 30 dias</option>
+                  <option value="90d">Últimos 90 dias</option>
+                  <option value="all">Todo o histórico</option>
+                </select>
+              </div>
+            </div>
+            <div class="kpi-grid" style="grid-template-columns:repeat(auto-fit, minmax(155px, 1fr)); margin-bottom:14px;">
+              <div class="kpi-card">
+                <div class="kpi-body">
+                  <span class="kpi-label">Leads Encontrados / Salvos</span>
+                  <strong class="kpi-value"><span id="res-leads-found">0</span> <small class="text-muted">/ <span id="res-leads-saved">0</span></small></strong>
+                </div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-body">
+                  <span class="kpi-label">Empresas no CRM</span>
+                  <strong class="kpi-value" id="res-in-crm">0</strong>
+                </div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-body">
+                  <span class="kpi-label">Contatos Realizados</span>
+                  <strong class="kpi-value" id="res-contacts-made">0</strong>
+                </div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-body">
+                  <span class="kpi-label">Em Andamento (Responderam)</span>
+                  <strong class="kpi-value text-blue" id="res-in-progress">0</strong>
+                </div>
+              </div>
+              <div class="kpi-card">
+                <div class="kpi-body">
+                  <span class="kpi-label">Vendas Concluídas</span>
+                  <strong class="kpi-value text-emerald"><span id="res-closed-sales">0</span> <small class="text-muted">(<span id="res-conv-rate">0%</span>)</small></strong>
+                </div>
+              </div>
+              <div class="kpi-card highlight-card">
+                <div class="kpi-body">
+                  <span class="kpi-label">Receita Fechada no Período</span>
+                  <strong class="kpi-value text-emerald" id="res-closed-rev">R$ 0,00</strong>
+                </div>
+              </div>
+            </div>
+            <div id="my-results-timeline-bar" style="font-size:0.82rem; color:var(--text-muted);"></div>
           </div>
         </section>
 
@@ -430,12 +521,46 @@
 
         <!-- ==================== 4. CRM & PIPELINE ==================== -->
         <section class="tab-view" id="tab-crm">
+          <!-- P1.3 — Painel de Follow-ups e Próximas Ações -->
+          <div class="card" id="crm-followup-strip" style="margin-bottom:14px; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+            <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+              <strong style="font-size:0.88rem;"><i class="fa-solid fa-bell text-amber"></i> Radar de Follow-up &amp; Acompanhamento:</strong>
+              <button type="button" class="btn btn-outline btn-xs" onclick="applyFollowupFilter('due')">
+                ⏰ Pendentes Hoje / Atrasados: <strong id="fu-cnt-due" style="margin-left:4px;">0</strong>
+              </button>
+              <button type="button" class="btn btn-outline btn-xs" onclick="applyFollowupFilter('scheduled')">
+                📅 Agendados: <strong id="fu-cnt-upcoming" style="margin-left:4px;">0</strong>
+              </button>
+              <button type="button" class="btn btn-outline btn-xs" onclick="applyFollowupFilter('all')">
+                Limpar Filtro Follow-up
+              </button>
+            </div>
+            <span id="fu-next-suggestion" class="text-muted" style="font-size:0.8rem;">Clique em qualquer empresa para agendar retorno ou usar o Copiloto IA.</span>
+          </div>
+
           <div class="crm-toolbar card">
             <div class="crm-filters">
               <div class="input-icon-wrap compact">
                 <i class="fa-solid fa-magnifying-glass"></i>
                 <input type="text" id="crm-search-input" placeholder="Buscar empresa, categoria, bairro...">
               </div>
+              <select id="crm-filter-score" title="Filtrar por Potencial Comercial (Lead Score)">
+                <option value="all">Todos os Potenciais (Score)</option>
+                <option value="alta">🔥 Alta Oportunidade (70+ pts)</option>
+                <option value="media">⚡ Média Oportunidade (45–69 pts)</option>
+                <option value="baixa">Baixa Oportunidade (&lt;45 pts)</option>
+              </select>
+              <select id="crm-sort-by" title="Ordenar empresas">
+                <option value="recent">Ordenar: Mais Recentes</option>
+                <option value="lead_score">🔥 Maior Lead Score</option>
+                <option value="reviews">⭐ Mais Avaliações</option>
+                <option value="followup">⏰ Próximo Follow-up</option>
+              </select>
+              <select id="crm-filter-followup" title="Filtrar por Follow-up">
+                <option value="all">Todos os Follow-ups</option>
+                <option value="due">⏰ Follow-up Hoje / Atrasado</option>
+                <option value="scheduled">📅 Com Follow-up Agendado</option>
+              </select>
               <select id="crm-filter-opportunity">
                 <option value="all">Todas as Oportunidades</option>
                 <option value="gmn">Google Meu Negócio (Otimização &amp; Ranking)</option>
@@ -1046,44 +1171,79 @@
         <!-- ==================== 7. PAINEL ADMIN ==================== -->
         {% if current_user and current_user.role == 'admin' %}
         <section class="tab-view" id="tab-admin">
-          <!-- KPIs SaaS -->
-          <div class="kpi-grid" style="margin-bottom: 18px;">
+          <!-- P0.2 — Barra Executiva de Filtros & Indicadores SaaS Reais -->
+          <div class="card" style="margin-bottom: 16px; padding:14px 18px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+            <div>
+              <h3 style="margin:0;"><i class="fa-solid fa-chart-pie text-blue"></i> Inteligência Executiva SaaS &amp; Operação</h3>
+              <p class="card-sub" style="margin:2px 0 0;">Indicadores calculados em tempo real com dados reais de assinaturas, webhooks e eventos</p>
+            </div>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+              <select id="adm-period-filter" onchange="loadAdminSaasOverview()" style="width:auto; font-size:0.84rem;">
+                <option value="7d">Período: 7 dias</option>
+                <option value="30d" selected>Período: 30 dias</option>
+                <option value="90d">Período: 90 dias</option>
+                <option value="all">Período: Tudo</option>
+              </select>
+              <select id="adm-plan-filter" onchange="loadAdminSaasOverview()" style="width:auto; font-size:0.84rem;">
+                <option value="all">Plano: Todos</option>
+                <option value="trial">Teste Grátis (Trial)</option>
+                <option value="starter">Starter</option>
+                <option value="pro">PRO</option>
+                <option value="enterprise">Enterprise</option>
+              </select>
+              <button type="button" class="btn btn-outline btn-sm" onclick="loadAdminSaasOverview()">
+                <i class="fa-solid fa-rotate"></i> Atualizar
+              </button>
+            </div>
+          </div>
+
+          <!-- KPIs SaaS Primários & Financeiros -->
+          <div class="kpi-grid" style="margin-bottom: 14px;">
             <div class="kpi-card highlight-card">
-              <div class="kpi-icon bg-emerald-solid"><i class="fa-solid fa-crown"></i></div>
+              <div class="kpi-icon bg-emerald-solid"><i class="fa-solid fa-sack-dollar"></i></div>
               <div class="kpi-body">
-                <span class="kpi-label">Assinantes Pagos</span>
-                <strong class="kpi-value text-emerald" id="adm-kpi-paid">0</strong>
+                <span class="kpi-label">MRR Real / Receita Acumulada</span>
+                <strong class="kpi-value text-emerald"><span id="adm-kpi-mrr">R$ 0,00</span> <small class="text-muted">/ <span id="adm-kpi-rev">R$ 0,00</span></small></strong>
+              </div>
+            </div>
+            <div class="kpi-card">
+              <div class="kpi-icon bg-emerald"><i class="fa-solid fa-crown"></i></div>
+              <div class="kpi-body">
+                <span class="kpi-label">Assinantes Pagos / Conversão</span>
+                <strong class="kpi-value"><span id="adm-kpi-paid">0</span> <small class="text-muted">(<span id="adm-kpi-conv">0%</span>)</small></strong>
               </div>
             </div>
             <div class="kpi-card">
               <div class="kpi-icon bg-amber"><i class="fa-solid fa-hourglass-half"></i></div>
               <div class="kpi-body">
-                <span class="kpi-label">Em Teste Grátis (1d)</span>
-                <strong class="kpi-value" id="adm-kpi-trial">0</strong>
+                <span class="kpi-label">Gratuitos (Trial) / Novos</span>
+                <strong class="kpi-value"><span id="adm-kpi-trial">0</span> <small class="text-muted">(+<span id="adm-kpi-new">0</span>)</small></strong>
               </div>
             </div>
             <div class="kpi-card">
               <div class="kpi-icon" style="background:#fef2f2; color:#dc2626;"><i class="fa-solid fa-circle-xmark"></i></div>
               <div class="kpi-body">
-                <span class="kpi-label">Vencidos / Bloqueados</span>
-                <strong class="kpi-value" id="adm-kpi-expired">0</strong>
+                <span class="kpi-label">Atrasados / Cancelados (Churn)</span>
+                <strong class="kpi-value"><span id="adm-kpi-expired">0</span> <small class="text-muted">/ <span id="adm-kpi-canceled">0</span> (<span id="adm-kpi-churn">0%</span>)</small></strong>
               </div>
             </div>
             <div class="kpi-card">
               <div class="kpi-icon bg-blue"><i class="fa-solid fa-users"></i></div>
               <div class="kpi-body">
-                <span class="kpi-label">Total de Clientes</span>
-                <strong class="kpi-value" id="adm-kpi-clients">0</strong>
+                <span class="kpi-label">Total Clientes / Ativação</span>
+                <strong class="kpi-value"><span id="adm-kpi-clients">0</span> <small class="text-muted">(<span id="adm-kpi-act-rate">0%</span> ativ.)</small></strong>
               </div>
             </div>
             <div class="kpi-card">
               <div class="kpi-icon bg-purple"><i class="fa-solid fa-database"></i></div>
               <div class="kpi-body">
-                <span class="kpi-label">Leads no Servidor</span>
-                <strong class="kpi-value" id="adm-kpi-leads">0</strong>
+                <span class="kpi-label">Leads / Buscas no Servidor</span>
+                <strong class="kpi-value"><span id="adm-kpi-leads">0</span> <small class="text-muted">/ <span id="adm-kpi-searches">0</span> buscas</small></strong>
               </div>
             </div>
           </div>
+
+          <div id="adm-plan-dist-bar" class="card" style="margin-bottom:18px; padding:10px 16px; font-size:0.82rem; display:flex; justify-content:space-between; flex-wrap:wrap; gap:10px;"></div>
 
           <div class="info-banner" style="margin-bottom: 18px; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
             <div>
@@ -1147,7 +1307,11 @@
                 <input type="password" id="site-meta-app-secret" placeholder="Chave secreta do seu App na Meta">
               </div>
               <div class="field col-span-2">
-                <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-floppy-disk"></i> Salvar Planos, Meta App &amp; Página de Vendas</button>
+                <label>OCI Object Storage PAR URL (Opcional · Envio Automático de Backups Externos Criptografados)</label>
+                <input type="password" id="site-oci-par-url" placeholder="https://objectstorage.sa-vinhedo-1.oraclecloud.com/p/.../b/mapaleads-backups/o/">
+              </div>
+              <div class="field col-span-2">
+                <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-floppy-disk"></i> Salvar Planos, Meta App, Backup OCI &amp; Página de Vendas</button>
               </div>
             </form>
           </div>
@@ -1317,6 +1481,59 @@
               </table>
             </div>
           </div>
+
+          <!-- P0.3 & P0.4 — Analytics de Eventos & Sequência Automática de Ativação -->
+          <div class="card" style="margin-top: 20px;">
+            <div class="card-header">
+              <div>
+                <h3><i class="fa-solid fa-bolt text-amber"></i> Funil de Analytics (P0.3) &amp; Sequência Automática de Ativação (P0.4)</h3>
+                <p class="card-sub">Acompanhe eventos reais da jornada do usuário e personalize as regras automáticas de ativação</p>
+              </div>
+            </div>
+            <div id="adm-analytics-funnel-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(150px, 1fr)); gap:10px; margin-bottom:16px;"></div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Gatilho Automático</th>
+                    <th>Mensagem de Ativação</th>
+                    <th>Disparos</th>
+                    <th>Status</th>
+                    <th>Salvar</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-activation-rules-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Fase 1.1 & 1.6 — Saúde da Infraestrutura OCI & Backups Consistentes Criptografados -->
+          <div class="card" style="margin-top: 20px;">
+            <div class="card-header" style="flex-wrap:wrap; gap:10px;">
+              <div>
+                <h3><i class="fa-solid fa-shield-halved text-emerald"></i> Saúde do Servidor OCI &amp; Backups Consistentes (SQLite WAL + Sessões WA)</h3>
+                <p class="card-sub">Snapshots via <code>sqlite3.Connection.backup()</code> criptografados e validados com teste real de restauração</p>
+              </div>
+              <button type="button" class="btn btn-emerald btn-sm" id="btn-admin-run-backup" onclick="triggerAdminBackupNow()">
+                <i class="fa-solid fa-cloud-arrow-up"></i> Criar Backup + Testar Restauração Agora
+              </button>
+            </div>
+            <div id="adm-system-health-strip" style="margin-bottom:14px; font-size:0.84rem; display:flex; gap:14px; flex-wrap:wrap;"></div>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Arquivo de Backup</th>
+                    <th>Tipo</th>
+                    <th>Tamanho</th>
+                    <th>Criptografia</th>
+                    <th>Data</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-backups-tbody"></tbody>
+              </table>
+            </div>
+          </div>
         </section>
         {% endif %}
       </main>
@@ -1388,6 +1605,39 @@
     <div class="drawer-body">
       <div class="drawer-badges" id="drawer-opps"></div>
 
+      <!-- P1.1 — Lead Score & Justificativas Auditáveis -->
+      <div class="drawer-section" id="drawer-score-section" style="padding:12px 14px; border-radius:12px; border:1px solid var(--border); background:rgba(37,99,235,0.04);">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+          <strong style="font-size:0.88rem;"><i class="fa-solid fa-gauge-high text-blue"></i> Lead Score &amp; Potencial Comercial</strong>
+          <span class="status-pill" id="drawer-lead-score-pill">0/100</span>
+        </div>
+        <div id="drawer-next-action-line" style="font-size:0.81rem; font-weight:700; color:#2563eb; margin-bottom:6px;"></div>
+        <div id="drawer-score-reasons" style="font-size:0.78rem; line-height:1.45; color:var(--text-muted);"></div>
+      </div>
+
+      <!-- P1.2 — Copiloto de Vendas com IA -->
+      <div class="drawer-section" style="padding:12px 14px; border-radius:12px; border:1px solid rgba(16,185,129,0.3); background:rgba(16,185,129,0.04);">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+          <label style="margin:0; font-weight:800; color:#059669;"><i class="fa-solid fa-robot"></i> Copiloto de Vendas com IA</label>
+          <small id="drawer-ai-quota-label" class="text-muted" style="font-size:0.74rem;">Baseado nos dados reais da ficha</small>
+        </div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px;">
+          <button type="button" class="btn btn-outline btn-xs" onclick="runLeadAiCopilot('analyze')"><i class="fa-solid fa-magnifying-glass-chart"></i> Analisar empresa</button>
+          <button type="button" class="btn btn-outline btn-xs" onclick="runLeadAiCopilot('suggest_product')"><i class="fa-solid fa-lightbulb"></i> Sugerir produto</button>
+          <button type="button" class="btn btn-outline btn-xs" onclick="runLeadAiCopilot('approach')"><i class="fa-solid fa-bullseye"></i> Gerar abordagem</button>
+          <button type="button" class="btn btn-outline btn-xs" onclick="runLeadAiCopilot('whatsapp')"><i class="fa-brands fa-whatsapp"></i> Criar msg WhatsApp</button>
+          <button type="button" class="btn btn-outline btn-xs" onclick="runLeadAiCopilot('call_script')"><i class="fa-solid fa-phone"></i> Roteiro de ligação</button>
+          <button type="button" class="btn btn-outline btn-xs" onclick="runLeadAiCopilot('followup')"><i class="fa-solid fa-rotate"></i> Gerar follow-up</button>
+        </div>
+        <div id="drawer-ai-output-wrap" class="hidden">
+          <textarea id="drawer-ai-output" rows="6" readonly style="font-size:0.8rem; background:var(--card-bg, #fff); margin-bottom:6px;"></textarea>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-primary btn-xs" onclick="useCopilotTextInWhatsApp()"><i class="fa-solid fa-arrow-down"></i> Usar no Campo de Mensagem</button>
+            <button type="button" class="btn btn-outline btn-xs" onclick="copyCopilotOutput()"><i class="fa-regular fa-copy"></i> Copiar Análise</button>
+          </div>
+        </div>
+      </div>
+
       <div class="drawer-info-grid">
         <div><small>Telefone / WhatsApp</small><strong id="drawer-phone">-</strong></div>
         <div><small>Avaliação Google</small><strong id="drawer-rating">-</strong></div>
@@ -1456,6 +1706,16 @@
         </div>
       </div>
 
+      <!-- P1.3 — Agendamento de Follow-up & Histórico de Interações -->
+      <div class="drawer-section">
+        <label><i class="fa-regular fa-calendar-check text-blue"></i> Agendar Follow-up &amp; Lembrete</label>
+        <div style="display:grid; grid-template-columns:145px 1fr auto; gap:8px; align-items:center;">
+          <input type="date" id="drawer-followup-date">
+          <input type="text" id="drawer-followup-note" placeholder="Ex: Cobrar retorno da prévia do GMN...">
+          <button type="button" class="btn btn-outline btn-sm" onclick="saveDrawerFollowup()">Agendar</button>
+        </div>
+      </div>
+
       <div class="drawer-section">
         <label>Anotações Internas</label>
         <textarea id="drawer-notes" rows="3" placeholder="Observações sobre este cliente..."></textarea>
@@ -1472,7 +1732,16 @@
       </div>
 
       <div class="drawer-section">
-        <label>Histórico de Mensagens</label>
+        <label>Linha do Tempo de Interações (CRM)</label>
+        <div style="display:flex; gap:6px; margin-bottom:8px;">
+          <input type="text" id="drawer-new-interaction" placeholder="Registrar ligação, reunião ou observação..." style="flex:1;">
+          <button type="button" class="btn btn-outline btn-xs" onclick="addDrawerManualInteraction()">+ Registrar</button>
+        </div>
+        <div class="conv-list" id="drawer-interactions-list" style="max-height:140px; overflow-y:auto;"></div>
+      </div>
+
+      <div class="drawer-section">
+        <label>Histórico de Mensagens WhatsApp</label>
         <div class="conv-list" id="drawer-conversation"></div>
       </div>
     </div>
@@ -1485,6 +1754,6 @@
     window.CURRENT_USER = {{ current_user | tojson if current_user else 'null' }};
     window.ACCESS_STATUS = {{ access_status | tojson if access_status else 'null' }};
   </script>
-  <script src="/static/js/app.js?v=4.5"></script>
+  <script src="/static/js/app.js?v=5.0"></script>
 </body>
 </html>

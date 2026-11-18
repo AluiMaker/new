@@ -14,26 +14,33 @@ import io
 from curl_cffi import requests as cffi_requests
 
 from database import (
-    DB_PATH, upsert_lead, get_leads, update_lead, delete_lead,
+    DB_PATH, upsert_lead, get_leads, get_lead_by_id, update_lead, delete_lead,
     get_stats, record_search, get_search_history,
     get_pitch_templates, save_pitch_template, delete_pitch_template, reset_user_templates,
     init_db, deduplicate_database, batch_verify_whatsapp, is_phone_already_contacted,
     get_connection, create_user, authenticate_user, get_user_by_id, find_user_by_email,
     list_users, update_user, get_wa_user_config, save_wa_user_config,
     get_user_access_status, extend_user_subscription, count_recent_signups_by_ip,
-    cleanup_expired_trials, log_billing_event, complete_first_access, get_admin_dashboard_stats,
+    cleanup_expired_trials, log_billing_event, is_billing_event_processed,
+    complete_first_access, get_admin_dashboard_stats,
     get_site_settings, save_site_settings, normalize_plan_name,
     cleanup_leads_by_criteria,
     get_academy_lessons_for_user, set_academy_lesson_progress,
     upsert_academy_lesson, delete_academy_lesson,
     has_pro_sales_access, get_sales_academy_for_user,
     get_sales_academy_course_by_slug, set_sales_academy_progress,
-    upsert_sales_academy_course, delete_sales_academy_course
+    upsert_sales_academy_course, delete_sales_academy_course,
+    get_user_onboarding, update_user_onboarding, track_event,
+    get_activation_rules, save_activation_rule, evaluate_user_activations,
+    get_admin_saas_analytics, add_lead_interaction, get_lead_interactions,
+    get_followup_agenda, get_user_results_dashboard,
+    check_ai_quota, log_ai_usage, generate_ai_copilot_response
 )
 from scraper_engine import GoogleMapsScraper, DEFAULT_SEGMENTS, SWEEP_ALL_TERMS
 from exporter import export_to_csv_bytes, export_to_json_bytes
 import wa_automation as wa
 import wa_official
+import backup_manager
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config["TEMPLATES_AUTO_RELOAD"] = True
@@ -140,32 +147,61 @@ def _clear_login_failures(ip: str):
         _login_attempts.pop(ip, None)
 
 
+@app.before_request
+def _csrf_origin_protection():
+    """Proteção contra CSRF em rotas autenticadas de mutação validando Origin/Referer."""
+    if request.method in ("POST", "PUT", "DELETE", "PATCH") and request.path.startswith("/api/"):
+        exempt = ("/api/billing/webhook", "/api/wa/official/webhook", "/api/wa/incoming")
+        if any(request.path.startswith(p) for p in exempt):
+            return None
+        origin = request.headers.get("Origin", "").strip()
+        if origin:
+            from urllib.parse import urlparse
+            orig_host = urlparse(origin).netloc.lower()
+            req_host = (request.headers.get("X-Forwarded-Host") or request.host or "").split(",")[0].strip().lower()
+            if orig_host and req_host and orig_host != req_host:
+                return jsonify({"success": False, "error": "Origem de requisição não autorizada (CSRF)."}), 403
+    return None
+
+
 @app.after_request
 def _add_security_headers(resp):
     resp.headers.setdefault("X-Content-Type-Options", "nosniff")
     resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     resp.headers.setdefault("Referrer-Policy", "strict-origin-when-cross-origin")
+    if request.is_secure or request.headers.get("X-Forwarded-Proto", "").lower() == "https":
+        resp.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
     return resp
+
 
 def _load_secret_key() -> str:
     env_key = os.environ.get("SECRET_KEY")
     if env_key:
         return env_key
-    key_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".secret_key")
-    if os.path.exists(key_file):
+    db_dir = os.path.dirname(os.path.abspath(DB_PATH))
+    persistent_key_file = os.path.join(db_dir, ".secret_key")
+    local_key_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".secret_key")
+    for kf in (persistent_key_file, local_key_file):
+        if os.path.exists(kf):
+            try:
+                with open(kf, "r", encoding="utf-8") as f:
+                    val = f.read().strip()
+                    if val:
+                        return val
+            except Exception:
+                pass
+    new_key = secrets.token_hex(32)
+    for kf in (persistent_key_file, local_key_file):
         try:
-            with open(key_file, "r", encoding="utf-8") as f:
-                val = f.read().strip()
-                if val:
-                    return val
+            with open(kf, "w", encoding="utf-8") as f:
+                f.write(new_key)
+            try:
+                os.chmod(kf, 0o600)
+            except Exception:
+                pass
+            break
         except Exception:
             pass
-    new_key = secrets.token_hex(32)
-    try:
-        with open(key_file, "w", encoding="utf-8") as f:
-            f.write(new_key)
-    except Exception:
-        pass
     return new_key
 
 app.secret_key = _load_secret_key()
@@ -173,6 +209,7 @@ app.secret_key = _load_secret_key()
 # Estado de busca e filas SSE isolados por usuário (multi-tenant)
 _user_search_states: Dict[int, Dict[str, Any]] = {}
 _user_event_queues: Dict[int, queue.Queue] = {}
+_user_sse_gen_id: Dict[int, int] = {}
 _state_lock = threading.Lock()
 
 
@@ -309,7 +346,7 @@ def run_scraper_thread(
         lead["is_new"] = is_new
         broadcast_event("lead_found", lead, user_id=user_id)
         if lead.get("clean_phone"):
-            broadcast_event("queue_updated", wa.get_queue_summary(), user_id=user_id)
+            broadcast_event("queue_updated", wa.get_queue_summary(user_id=user_id), user_id=user_id)
 
     user_obj = get_user_by_id(user_id)
     queue_prio = _plan_queue_priority(user_obj)
@@ -426,25 +463,31 @@ def health():
     return jsonify({"status": "ok"}), 200
 
 
+def _public_site_settings() -> Dict[str, str]:
+    cfg = dict(get_site_settings())
+    for k in ("meta_app_secret", "ai_api_key", "oci_backup_par_url"):
+        cfg.pop(k, None)
+    return cfg
+
+
 @app.route("/vendas")
 def landing_page():
-    site_cfg = get_site_settings()
-    return render_template("landing.html", site_cfg=site_cfg)
+    return render_template("landing.html", site_cfg=_public_site_settings())
 
 
 @app.route("/privacidade")
 def privacy_page():
-    return render_template("legal.html", doc="privacidade", title="Política de Privacidade", site_cfg=get_site_settings())
+    return render_template("legal.html", doc="privacidade", title="Política de Privacidade", site_cfg=_public_site_settings())
 
 
 @app.route("/termos")
 def terms_page():
-    return render_template("legal.html", doc="termos", title="Termos de Serviço", site_cfg=get_site_settings())
+    return render_template("legal.html", doc="termos", title="Termos de Serviço", site_cfg=_public_site_settings())
 
 
 @app.route("/exclusao-dados")
 def data_deletion_page():
-    return render_template("legal.html", doc="exclusao", title="Exclusão de Dados do Usuário", site_cfg=get_site_settings())
+    return render_template("legal.html", doc="exclusao", title="Exclusão de Dados do Usuário", site_cfg=_public_site_settings())
 
 
 @app.route("/app")
@@ -453,7 +496,7 @@ def app_dashboard():
     uid = current_user_id()
     user = get_user_by_id(uid)
     access_status = get_user_access_status(uid)
-    site_cfg = get_site_settings()
+    site_cfg = _public_site_settings()
     return render_template("index.html", current_user=user, access_status=access_status, checkout_url=site_cfg.get("checkout_url", ""), site_cfg=site_cfg)
 
 
@@ -464,17 +507,17 @@ def index():
         user = get_user_by_id(uid)
         if user and user.get("is_active"):
             access_status = get_user_access_status(uid)
-            site_cfg = get_site_settings()
+            site_cfg = _public_site_settings()
             return render_template("index.html", current_user=user, access_status=access_status, checkout_url=site_cfg.get("checkout_url", ""), site_cfg=site_cfg)
-    site_cfg = get_site_settings()
-    return render_template("landing.html", site_cfg=site_cfg)
+    return render_template("landing.html", site_cfg=_public_site_settings())
 
 
 def _mask_admin_site_settings(cfg: Dict[str, str]) -> Dict[str, str]:
     out = dict(cfg)
-    sec = out.get("meta_app_secret") or ""
-    out["has_meta_app_secret"] = bool(sec)
-    out["meta_app_secret"] = ("••••" + sec[-4:]) if len(sec) > 4 else ("••••" if sec else "")
+    for key in ("meta_app_secret", "ai_api_key", "oci_backup_par_url"):
+        sec = out.get(key) or ""
+        out[f"has_{key}"] = bool(sec)
+        out[key] = ("••••" + sec[-4:]) if len(sec) > 4 else ("••••" if sec else "")
     return out
 
 
@@ -512,6 +555,7 @@ def login_page():
     _clear_login_failures(ip)
     session["user_id"] = user["id"]
     session.permanent = True
+    track_event(user["id"], "login")
     if request.is_json:
         return jsonify({"success": True, "user": user})
     return redirect(url_for("index"))
@@ -550,6 +594,8 @@ def register_page():
         return render_template("auth.html", mode="register", error=err)
     session["user_id"] = uid
     session.permanent = True
+    track_event(uid, "signup", {"plan": "trial"})
+    track_event(uid, "onboarding_started")
     user = get_user_by_id(uid)
     if request.is_json:
         return jsonify({"success": True, "user": user})
@@ -726,13 +772,42 @@ def api_billing_webhook(gateway="kiwify"):
 
     plan = _detect_webhook_plan(request, payload)
     days = int(payload.get("days") or 30)
+    ext_id = str(
+        payload.get("order_id")
+        or payload.get("id")
+        or (payload.get("payment") or {}).get("id")
+        or payload.get("subscription_id")
+        or ""
+    ).strip()
+
+    raw_amount = (
+        payload.get("amount")
+        or payload.get("value")
+        or (payload.get("payment") or {}).get("value")
+        or (payload.get("Commissions") or {}).get("charge_amount")
+        or 0
+    )
+    try:
+        amount_brl = float(raw_amount)
+        if amount_brl > 1000 and gw == "kiwify":
+            amount_brl = round(amount_brl / 100.0, 2)
+    except Exception:
+        amount_brl = 0.0
+    if amount_brl <= 0:
+        amount_brl = 79.0 if plan == "pro" else (197.0 if plan == "enterprise" else 37.0)
 
     if not email:
-        log_billing_event(gw, event_name, "", "ignored", "Sem e-mail no payload")
+        log_billing_event(gw, event_name, "", "ignored", "Sem e-mail no payload", external_id=ext_id, plan=plan)
         return jsonify({"success": True, "ignored": True, "reason": "no_email"}), 200
+
+    if ext_id and is_billing_event_processed(f"{gw}:{ext_id}:{event_name}"):
+        return jsonify({"success": True, "idempotent_skip": True, "external_id": ext_id}), 200
+
+    idem_key = f"{gw}:{ext_id}:{event_name}" if ext_id else ""
 
     approved_events = ("paid", "approved", "order_approved", "subscription_renewed", "subscription_authorized", "payment_confirmed", "payment_received", "active")
     cancel_events = ("refunded", "chargedback", "chargeback", "canceled", "cancelled", "subscription_canceled", "subscription_late", "payment_overdue", "expired")
+    refused_events = ("refused", "declined", "payment_refused", "order_refused", "failed")
 
     user = find_user_by_email(email)
 
@@ -742,18 +817,27 @@ def api_billing_webhook(gateway="kiwify"):
             uid, err = create_user(name, email, temp_pass, role="user", plan=plan, days=days)
             if uid:
                 update_user(uid, {"must_set_password": 1, "verification_hint": hint})
-            log_billing_event(gw, event_name or "approved", email, "created", f"Novo assinante {plan} ({days}d)")
+                track_event(uid, "payment_approved", {"plan": plan, "amount_brl": amount_brl, "gateway": gw})
+            log_billing_event(gw, event_name or "approved", email, "created", f"Novo assinante {plan} ({days}d)", external_id=idem_key, plan=plan, amount_brl=amount_brl)
             return jsonify({"success": bool(uid), "action": "created_and_activated", "user_id": uid})
         updated = extend_user_subscription(user["id"], days=days, plan=plan)
-        log_billing_event(gw, event_name or "renewed", email, "renewed", f"Renovado +{days}d ({plan})")
+        track_event(user["id"], "payment_approved", {"plan": plan, "amount_brl": amount_brl, "gateway": gw})
+        log_billing_event(gw, event_name or "renewed", email, "renewed", f"Renovado +{days}d ({plan})", external_id=idem_key, plan=plan, amount_brl=amount_brl)
         return jsonify({"success": True, "action": "renewed", "user_id": user["id"], "expires_at": (updated or {}).get("plan_expires_at")})
+
+    if any(k in event_name for k in refused_events):
+        if user:
+            track_event(user["id"], "payment_refused", {"plan": plan, "gateway": gw})
+        log_billing_event(gw, event_name or "refused", email, "refused", "Pagamento recusado no gateway", external_id=idem_key, plan=plan, amount_brl=0.0)
+        return jsonify({"success": True, "action": "refused"}), 200
 
     if any(k in event_name for k in cancel_events):
         if user:
             update_user(user["id"], {"subscription_status": "expired"})
-            log_billing_event(gw, event_name or "canceled", email, "expired", "Acesso expirado pelo gateway")
+            track_event(user["id"], "subscription_canceled", {"plan": plan, "gateway": gw})
+            log_billing_event(gw, event_name or "canceled", email, "expired", "Acesso expirado pelo gateway", external_id=idem_key, plan=plan, amount_brl=0.0)
             return jsonify({"success": True, "action": "expired", "user_id": user["id"]})
-        log_billing_event(gw, event_name or "canceled", email, "ignored", "Usuário não encontrado")
+        log_billing_event(gw, event_name or "canceled", email, "ignored", "Usuário não encontrado", external_id=idem_key, plan=plan, amount_brl=0.0)
 
     return jsonify({"success": True, "ignored": True, "event": event_name}), 200
 
@@ -984,6 +1068,9 @@ def api_leads():
     website_type = request.args.get("website_type")
     crm_status = request.args.get("crm_status")
     opportunity = request.args.get("opportunity")
+    opportunity_level = request.args.get("opportunity_level")
+    followup_filter = request.args.get("followup_filter")
+    sort_by = request.args.get("sort_by")
     tag = request.args.get("tag")
     has_contact = request.args.get("has_contact")
     has_reply = request.args.get("has_reply")
@@ -998,6 +1085,9 @@ def api_leads():
         website_type=website_type,
         crm_status=crm_status,
         opportunity=opportunity,
+        opportunity_level=opportunity_level,
+        followup_filter=followup_filter,
+        sort_by=sort_by,
         tag=tag,
         has_contact=has_contact,
         has_reply=has_reply,
@@ -1032,8 +1122,12 @@ def api_update_lead(lead_id):
         data.setdefault("whatsapp_verified", -1)
         data.setdefault("whatsapp_status", "sem_whatsapp")
     ok = update_lead(lead_id, data, user_id=uid)
+    if ok and status and status != "novo":
+        update_user_onboarding(uid, {"step_crm": 1})
+        track_event(uid, "lead_sent_to_crm", {"lead_id": lead_id, "status": status})
+        add_lead_interaction(uid, lead_id, "status_change", f"Status movido para '{status}'")
     broadcast_event("lead_updated", {"id": lead_id, "crm_status": status}, user_id=uid)
-    broadcast_event("queue_updated", wa.get_queue_summary(), user_id=uid)
+    broadcast_event("queue_updated", wa.get_queue_summary(user_id=uid), user_id=uid)
     return jsonify({"success": ok, "contact_date": now})
 
 
@@ -1054,14 +1148,17 @@ def api_toggle_contact(lead_id):
         update_data["had_reply"] = 1
 
     ok = update_lead(lead_id, update_data, user_id=uid)
+    update_user_onboarding(uid, {"step_first_contact": 1, "step_crm": 1})
+    track_event(uid, "first_contact_started", {"lead_id": lead_id, "kind": data.get("kind", "pitch")})
 
     text = (data.get("text") or "").strip()
     phone = (data.get("phone") or "").strip()
     if text:
-        wa.log_message(lead_id, phone, "out", data.get("kind", "pitch"), text)
+        wa.log_message(lead_id, phone, "out", data.get("kind", "pitch"), text, user_id=uid)
+        add_lead_interaction(uid, lead_id, "whatsapp", f"Mensagem enviada ({data.get('kind', 'pitch')}): {text[:120]}")
 
     broadcast_event("lead_updated", {"id": lead_id, "crm_status": target_status, "contact_date": now}, user_id=uid)
-    broadcast_event("queue_updated", wa.get_queue_summary(), user_id=uid)
+    broadcast_event("queue_updated", wa.get_queue_summary(user_id=uid), user_id=uid)
     return jsonify({"success": ok, "contact_date": now, "crm_status": target_status})
 
 
@@ -1080,6 +1177,7 @@ def api_record_sale(lead_id):
     if data.get("product_interest"):
         update_data["product_interest"] = data["product_interest"]
     ok = update_lead(lead_id, update_data, user_id=uid)
+    add_lead_interaction(uid, lead_id, "sale", f"Venda registrada: R$ {val:.2f}")
     broadcast_event("lead_updated", {"id": lead_id, "crm_status": "fechado"}, user_id=uid)
     return jsonify({"success": ok})
 
@@ -1089,7 +1187,7 @@ def api_record_sale(lead_id):
 def api_delete_lead(lead_id):
     uid = current_user_id()
     ok = delete_lead(lead_id, user_id=uid)
-    broadcast_event("queue_updated", wa.get_queue_summary(), user_id=uid)
+    broadcast_event("queue_updated", wa.get_queue_summary(user_id=uid), user_id=uid)
     return jsonify({"success": ok, "access": get_user_access_status(uid)})
 
 
@@ -1103,7 +1201,7 @@ def api_leads_cleanup():
         return jsonify({"success": False, "error": "Modo de limpeza inválido."}), 400
     removed = cleanup_leads_by_criteria(uid, mode=mode)
     broadcast_event("lead_updated", {"cleanup": mode, "removed": removed}, user_id=uid)
-    broadcast_event("queue_updated", wa.get_queue_summary(), user_id=uid)
+    broadcast_event("queue_updated", wa.get_queue_summary(user_id=uid), user_id=uid)
     return jsonify({"success": True, "removed": removed, "access": get_user_access_status(uid)})
 
 
@@ -1126,7 +1224,7 @@ def api_batch_status():
             fields["had_reply"] = 1
         if update_lead(lid, fields, user_id=uid):
             updated += 1
-    broadcast_event("queue_updated", wa.get_queue_summary(), user_id=uid)
+    broadcast_event("queue_updated", wa.get_queue_summary(user_id=uid), user_id=uid)
     return jsonify({"success": True, "updated": updated})
 
 
@@ -1218,6 +1316,9 @@ def api_search_start():
 
     query = " ".join(parts) or (f"Varredura Completa em {street or neighborhood or city or 'Região'}")
 
+    update_user_onboarding(uid, {"step_first_search": 1})
+    track_event(uid, "first_search", {"query": query, "mode": mode, "place_type": place_type})
+
     t = threading.Thread(
         target=run_scraper_thread,
         args=(uid, query, niche, street, neighborhood, city, lat, lon, target_limit, visible_browser, mode, segments_to_run, auto_dispatch, place_type, zoom),
@@ -1268,21 +1369,35 @@ def api_search_stream():
     uid = current_user_id()
     q = get_user_event_queue(uid)
     st = get_user_search_state(uid)
+    with _state_lock:
+        my_gen = _user_sse_gen_id.get(uid, 0) + 1
+        _user_sse_gen_id[uid] = my_gen
 
     def event_stream():
         initial_msg = f"event: init\ndata: {json.dumps({'is_running': st['is_running']})}\n\n"
         yield initial_msg
+        idle_started = time.monotonic()
 
         while True:
+            # Se o mesmo usuário abriu uma nova conexão SSE (ex: F5), encerra a antiga imediatamente
+            if _user_sse_gen_id.get(uid) != my_gen:
+                break
             try:
-                msg = q.get(timeout=10.0)
+                msg = q.get(timeout=12.0)
+                idle_started = time.monotonic()
                 yield msg
             except queue.Empty:
+                if not st.get("is_running") and (time.monotonic() - idle_started) > 300:
+                    # Libera a thread após 5 min ocioso; EventSource do navegador reconecta se ativo
+                    break
                 yield ": keep-alive\n\n"
             except Exception:
                 break
 
-    return Response(event_stream(), mimetype="text/event-stream")
+    resp = Response(event_stream(), mimetype="text/event-stream")
+    resp.headers["Cache-Control"] = "no-cache"
+    resp.headers["X-Accel-Buffering"] = "no"
+    return resp
 
 
 @app.route("/api/export/csv")
@@ -1469,7 +1584,7 @@ def api_wa_official_send():
     body_params = data.get("body_params") or []
     force = bool(data.get("force"))
 
-    lead = next((l for l in get_leads(user_id=uid, limit=100000) if l["id"] == lead_id), None)
+    lead = get_lead_by_id(lead_id, user_id=uid)
     if not lead or not lead.get("clean_phone"):
         return jsonify({"success": False, "error": "Lead não encontrado ou sem telefone válido."}), 400
 
@@ -1604,9 +1719,13 @@ def api_chat_send():
     if not lead_id or not text:
         return jsonify({"success": False, "error": "Selecione um contato e digite a mensagem."}), 400
 
-    lead = next((l for l in get_leads(user_id=uid, limit=100000) if l["id"] == lead_id), None)
+    lead = get_lead_by_id(lead_id, user_id=uid)
     if not lead or not lead.get("clean_phone"):
         return jsonify({"success": False, "error": "Lead sem telefone válido."}), 400
+
+    update_user_onboarding(uid, {"step_first_contact": 1, "step_crm": 1})
+    track_event(uid, "first_contact_started", {"lead_id": lead_id, "channel": channel})
+    add_lead_interaction(uid, lead_id, "whatsapp", f"Mensagem enviada no Chat: {text[:120]}")
 
     cfg = get_wa_user_config(uid)
     now = time.strftime("%d/%m/%Y %H:%M")
@@ -1665,7 +1784,6 @@ def api_chat_send():
 
 
 # ==================== WHATSAPP (BAILEYS MULTI-SESSÃO) ====================
-campaign = wa.CampaignRunner(broadcast_event)
 
 
 @app.route("/api/wa/status")
@@ -1702,26 +1820,28 @@ def api_wa_connect():
 @login_required
 def api_wa_logout():
     uid = current_user_id()
-    campaign.stop()
+    wa.get_user_campaign(broadcast_event, user_id=uid).stop()
     return jsonify(wa.wa_request("POST", "/logout", {"session_id": str(uid)}, timeout=15))
 
 
 @app.route("/api/wa/config", methods=["GET", "POST"])
 @login_required
 def api_wa_config():
+    uid = current_user_id()
     if request.method == "POST":
-        return jsonify({"success": True, "config": wa.save_config(request.get_json(silent=True) or {})})
-    return jsonify(wa.get_config())
+        return jsonify({"success": True, "config": wa.save_config(request.get_json(silent=True) or {}, user_id=uid)})
+    return jsonify(wa.get_config(user_id=uid))
 
 
 @app.route("/api/wa/queue")
 @login_required
 def api_wa_queue():
-    cfg = wa.get_config()
-    queue_items = wa.get_queue(cfg, limit=200)
+    uid = current_user_id()
+    cfg = wa.get_config(user_id=uid)
+    queue_items = wa.get_queue(cfg, limit=200, user_id=uid)
     return jsonify({
         "count": len(queue_items),
-        "sent_today": wa.sent_today(),
+        "sent_today": wa.sent_today(user_id=uid),
         "daily_limit": cfg["daily_limit"],
         "preview": [{"id": l["id"], "name": l["name"], "phone": l["phone"], "category": l["category"]} for l in queue_items[:15]]
     })
@@ -1730,20 +1850,23 @@ def api_wa_queue():
 @app.route("/api/wa/campaign/start", methods=["POST"])
 @subscription_required
 def api_wa_campaign_start():
-    return jsonify(campaign.start())
+    uid = current_user_id()
+    return jsonify(wa.get_user_campaign(broadcast_event, user_id=uid).start())
 
 
 @app.route("/api/wa/campaign/stop", methods=["POST"])
 @login_required
 def api_wa_campaign_stop():
-    campaign.stop()
+    uid = current_user_id()
+    wa.get_user_campaign(broadcast_event, user_id=uid).stop()
     return jsonify({"success": True})
 
 
 @app.route("/api/wa/campaign/status")
 @login_required
 def api_wa_campaign_status():
-    return jsonify(campaign.state)
+    uid = current_user_id()
+    return jsonify(wa.get_user_campaign(broadcast_event, user_id=uid).state)
 
 
 @app.route("/api/wa/send-one", methods=["POST"])
@@ -1754,7 +1877,7 @@ def api_wa_send_one():
     lead_id = int(data.get("lead_id", 0))
     text = (data.get("text") or "").strip()
     force = bool(data.get("force"))
-    lead = next((l for l in get_leads(user_id=uid, limit=100000) if l["id"] == lead_id), None)
+    lead = get_lead_by_id(lead_id, user_id=uid)
     if not lead or not lead.get("clean_phone") or not text:
         return jsonify({"success": False, "error": "Lead sem telefone ou mensagem vazia."}), 400
 
@@ -1773,6 +1896,9 @@ def api_wa_send_one():
             "crm_status": "contatado" if lead["crm_status"] == "novo" else lead["crm_status"],
             "whatsapp_status": "enviado",
         }, user_id=uid)
+        update_user_onboarding(uid, {"step_first_contact": 1, "step_crm": 1})
+        track_event(uid, "first_contact_started", {"lead_id": lead_id, "channel": "baileys"})
+        add_lead_interaction(uid, lead_id, "whatsapp", f"Abordagem enviada: {text[:120]}")
         wa.log_message(lead_id, lead["clean_phone"], "out", "pitch", text, user_id=uid)
     return jsonify(res)
 
@@ -1870,6 +1996,17 @@ def api_leads_deduplicate():
 
 @app.route("/api/wa/incoming", methods=["POST"])
 def api_wa_incoming():
+    """Webhook interno do microserviço Baileys -> Flask (protegido por token interno ou rede privada)."""
+    expected_token = os.environ.get("WA_INTERNAL_TOKEN", "mapaleads_internal_wa_2026")
+    got_token = (request.headers.get("X-Internal-Token") or "").strip()
+    remote_ip = (request.remote_addr or "").strip()
+    has_ext_fwd = bool(request.headers.get("X-Forwarded-For"))
+
+    is_trusted_token = bool(got_token and secrets.compare_digest(got_token, expected_token))
+    is_trusted_local = (not has_ext_fwd) and (remote_ip in ("127.0.0.1", "::1") or remote_ip.startswith("172."))
+    if not (is_trusted_token or is_trusted_local):
+        return jsonify({"error": "Forbidden internal endpoint"}), 403
+
     data = request.get_json(silent=True) or {}
     uid = int(data.get("user_id") or 1)
     threading.Thread(
@@ -2029,24 +2166,237 @@ def api_admin_sales_academy_detail(course_id):
     return jsonify({"success": True, "id": course_id})
 
 
+# ==================== FASE 1 — BACKUP CONSISTENTE & MONITORAMENTO ====================
+
+@app.route("/api/admin/backups", methods=["GET", "POST"])
+@admin_required
+def api_admin_backups():
+    if request.method == "GET":
+        return jsonify({
+            "success": True,
+            "backups": backup_manager.list_available_backups(DB_PATH),
+        })
+    wa_dir = os.environ.get("WA_AUTH_ROOT") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "whatsapp_service", "auth_sessions")
+    par_url = get_site_settings().get("oci_backup_par_url", "")
+    res = backup_manager.run_full_backup(
+        db_path=DB_PATH,
+        wa_sessions_dir=wa_dir,
+        secret_key=app.secret_key,
+        oci_par_url=par_url,
+    )
+    return jsonify({
+        **res,
+        "backups": backup_manager.list_available_backups(DB_PATH),
+    }), (200 if res.get("success") else 500)
+
+
+@app.route("/api/admin/system-health")
+@admin_required
+def api_admin_system_health():
+    db_dir = os.path.dirname(os.path.abspath(DB_PATH)) or "."
+    disk_usage = shutil.disk_usage(db_dir)
+    wa_health = wa.wa_request("GET", "/health", timeout=2)
+    conn = get_connection()
+    try:
+        integrity = conn.execute("PRAGMA integrity_check").fetchone()[0]
+    except Exception as e:
+        integrity = f"error: {e}"
+    finally:
+        conn.close()
+
+    mem_info = {}
+    if os.path.exists("/proc/meminfo"):
+        try:
+            with open("/proc/meminfo", "r", encoding="utf-8") as f:
+                for line in f:
+                    if ":" in line:
+                        k, v = line.split(":", 1)
+                        if k in ("MemTotal", "MemAvailable", "SwapTotal", "SwapFree"):
+                            mem_info[k] = int(v.strip().split()[0]) // 1024
+        except Exception:
+            pass
+
+    return jsonify({
+        "success": True,
+        "sqlite_integrity": integrity,
+        "db_size_kb": round(os.path.getsize(DB_PATH) / 1024, 1) if os.path.exists(DB_PATH) else 0,
+        "disk_total_gb": round(disk_usage.total / (1024 ** 3), 2),
+        "disk_used_gb": round(disk_usage.used / (1024 ** 3), 2),
+        "disk_free_gb": round(disk_usage.free / (1024 ** 3), 2),
+        "memory_mb": mem_info,
+        "wa_service": wa_health,
+        "active_searches": _search_pool._active,
+        "max_concurrent_searches": _search_pool.max_slots,
+        "backups_count": len(backup_manager.list_available_backups(DB_PATH)),
+    })
+
+
+# ==================== FASE 3 (P0) — ONBOARDING, ADMIN SAAS, ANALYTICS & ATIVAÇÃO ====================
+
+@app.route("/api/onboarding", methods=["GET", "POST"])
+@login_required
+def api_onboarding():
+    uid = current_user_id()
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        state = update_user_onboarding(uid, data)
+        return jsonify({
+            "success": True,
+            "onboarding": state,
+            "activations": evaluate_user_activations(uid),
+        })
+    return jsonify({
+        "success": True,
+        "onboarding": get_user_onboarding(uid),
+        "activations": evaluate_user_activations(uid),
+    })
+
+
+@app.route("/api/analytics/event", methods=["POST"])
+@login_required
+def api_track_analytics_event():
+    uid = current_user_id()
+    data = request.get_json(silent=True) or {}
+    ev_name = (data.get("event_name") or "").strip()
+    meta = data.get("metadata") if isinstance(data.get("metadata"), dict) else {}
+    if ev_name == "lead_viewed":
+        update_user_onboarding(uid, {"step_view_lead": 1})
+    elif ev_name == "onboarding_welcome_done":
+        update_user_onboarding(uid, {"step_welcome": 1})
+    track_event(uid, ev_name, meta)
+    return jsonify({"success": True})
+
+
+@app.route("/api/admin/saas-overview")
+@admin_required
+def api_admin_saas_overview():
+    period = request.args.get("period", "30d")
+    plan_filter = request.args.get("plan", "all")
+    status_filter = request.args.get("status", "all")
+    search_q = request.args.get("search", "")
+    data = get_admin_saas_analytics(
+        period=period,
+        plan_filter=plan_filter,
+        status_filter=status_filter,
+        search_q=search_q,
+    )
+    return jsonify({"success": True, **data})
+
+
+@app.route("/api/admin/activation-rules", methods=["GET"])
+@admin_required
+def api_admin_activation_rules_list():
+    return jsonify({"success": True, "rules": get_activation_rules()})
+
+
+@app.route("/api/admin/activation-rules/<trigger_key>", methods=["PUT", "POST"])
+@admin_required
+def api_admin_activation_rule_save(trigger_key):
+    data = request.get_json(silent=True) or {}
+    ok = save_activation_rule(trigger_key, data)
+    return jsonify({"success": ok, "rules": get_activation_rules()})
+
+
+# ==================== FASE 4 (P1) — COPILOTO IA, FOLLOW-UPS CRM & RESULTADOS DO USUÁRIO ====================
+
+@app.route("/api/ai/quota")
+@login_required
+def api_ai_quota():
+    return jsonify(check_ai_quota(current_user_id()))
+
+
+@app.route("/api/ai/copilot", methods=["POST"])
+@login_required
+def api_ai_copilot():
+    uid = current_user_id()
+    quota = check_ai_quota(uid)
+    if not quota.get("allowed"):
+        return jsonify({
+            "success": False,
+            "quota_exceeded": True,
+            "error": f"Limite diário de {quota.get('daily_limit')} análises do Copiloto IA atingido no seu plano ({quota.get('plan', 'trial').upper()}). Faça upgrade para continuar ou tente novamente amanhã!"
+        }), 429
+
+    data = request.get_json(silent=True) or {}
+    lead_id = int(data.get("lead_id") or 0)
+    action = (data.get("action") or "analyze").strip().lower()
+    lead = get_lead_by_id(lead_id, user_id=uid)
+    if not lead:
+        return jsonify({"success": False, "error": "Empresa não encontrada na sua conta."}), 404
+
+    res = generate_ai_copilot_response(lead, action)
+    log_ai_usage(uid, lead_id, action, provider=res.get("provider", "verified_data_engine"))
+    track_event(uid, "ai_copilot_used", {"lead_id": lead_id, "action": action})
+    res["quota"] = check_ai_quota(uid)
+    return jsonify(res)
+
+
+@app.route("/api/leads/<int:lead_id>/interactions", methods=["GET", "POST"])
+@login_required
+def api_lead_interactions_route(lead_id):
+    uid = current_user_id()
+    lead = get_lead_by_id(lead_id, user_id=uid)
+    if not lead:
+        return jsonify({"success": False, "error": "Lead não encontrado."}), 404
+
+    if request.method == "POST":
+        data = request.get_json(silent=True) or {}
+        kind = (data.get("kind") or "note").strip()
+        summary = (data.get("summary") or "").strip()
+        if not summary:
+            return jsonify({"success": False, "error": "Informe a observação ou interação."}), 400
+        add_lead_interaction(uid, lead_id, kind, summary)
+        return jsonify({"success": True, "interactions": get_lead_interactions(uid, lead_id)})
+
+    return jsonify({"success": True, "interactions": get_lead_interactions(uid, lead_id)})
+
+
+@app.route("/api/leads/<int:lead_id>/followup", methods=["POST"])
+@login_required
+def api_lead_schedule_followup(lead_id):
+    uid = current_user_id()
+    lead = get_lead_by_id(lead_id, user_id=uid)
+    if not lead:
+        return jsonify({"success": False, "error": "Lead não encontrado."}), 404
+
+    data = request.get_json(silent=True) or {}
+    next_date = (data.get("next_followup_at") or "").strip()
+    note = (data.get("followup_note") or "").strip()
+    update_lead(lead_id, {"next_followup_at": next_date, "followup_note": note}, user_id=uid)
+    if next_date:
+        add_lead_interaction(uid, lead_id, "followup_scheduled", f"Follow-up agendado para {next_date}" + (f": {note}" if note else ""))
+        track_event(uid, "followup_scheduled", {"lead_id": lead_id, "date": next_date})
+    return jsonify({"success": True, "lead": get_lead_by_id(lead_id, user_id=uid)})
+
+
+@app.route("/api/crm/followups")
+@login_required
+def api_crm_followups():
+    uid = current_user_id()
+    return jsonify({"success": True, **get_followup_agenda(uid)})
+
+
+@app.route("/api/my-results")
+@login_required
+def api_my_results():
+    uid = current_user_id()
+    period = request.args.get("period", "30d")
+    return jsonify({"success": True, **get_user_results_dashboard(uid, period=period)})
+
+
 def _maintenance_loop():
-    """Limpeza automática de contas de teste abandonadas e backup diário do SQLite."""
+    """Limpeza automática de contas de teste abandonadas e backup consistente + verificado do SQLite e sessões WhatsApp."""
     while True:
         try:
             cleanup_expired_trials(grace_days=15)
-            db_dir = os.path.dirname(os.path.abspath(DB_PATH))
-            backup_dir = os.path.join(db_dir, "backups")
-            os.makedirs(backup_dir, exist_ok=True)
-            backup_file = os.path.join(backup_dir, f"mapaleads_{time.strftime('%Y%m%d')}.db")
-            if os.path.exists(DB_PATH) and not os.path.exists(backup_file):
-                shutil.copy2(DB_PATH, backup_file)
-                # Mantém apenas os últimos 5 backups diários
-                files = sorted([f for f in os.listdir(backup_dir) if f.endswith(".db")])
-                for old_f in files[:-5]:
-                    try:
-                        os.remove(os.path.join(backup_dir, old_f))
-                    except Exception:
-                        pass
+            wa_dir = os.environ.get("WA_AUTH_ROOT") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "whatsapp_service", "auth_sessions")
+            par_url = get_site_settings().get("oci_backup_par_url", "")
+            backup_manager.run_full_backup(
+                db_path=DB_PATH,
+                wa_sessions_dir=wa_dir,
+                secret_key=app.secret_key,
+                oci_par_url=par_url,
+            )
         except Exception:
             pass
         time.sleep(12 * 3600)

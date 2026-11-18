@@ -32,9 +32,12 @@ RUN cd whatsapp_service && npm install --omit=dev --no-audit --no-fund
 
 COPY . .
 
-RUN mkdir -p /data/wa_sessions
+RUN mkdir -p /data/wa_sessions /data/backups
 ENV DATABASE_PATH=/data/mapaleads.db
 
 EXPOSE 5055
 
-CMD ["sh", "-c", "mkdir -p /data/wa_sessions && node /app/whatsapp_service/index.js > /data/wa_service.log 2>&1 & exec gunicorn --worker-class gthread --workers 1 --threads 8 --timeout 120 --bind 0.0.0.0:${PORT:-5055} server:app"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+    CMD curl -fsS http://127.0.0.1:${PORT:-5055}/health || exit 1
+
+CMD ["sh", "-c", "mkdir -p /data/wa_sessions /data/backups && if [ -z \"$WA_SERVICE_URL\" ]; then (while true; do node /app/whatsapp_service/index.js >> /data/wa_service.log 2>&1; sleep 3; done) & fi && exec gunicorn --worker-class gthread --workers 1 --threads 32 --timeout 180 --bind 0.0.0.0:${PORT:-5055} server:app"]

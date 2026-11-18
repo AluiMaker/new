@@ -65,10 +65,25 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function loadAllData() {
-  await Promise.all([loadStats(), loadLeads(), loadTemplates(), loadSegments(), loadSearchHistory(), loadChatThreads(), loadAcademyLessons(), loadSalesAcademy()]);
+  await Promise.all([
+    loadStats(),
+    loadLeads(),
+    loadTemplates(),
+    loadSegments(),
+    loadSearchHistory(),
+    loadChatThreads(),
+    loadAcademyLessons(),
+    loadSalesAcademy(),
+    loadOnboardingAndActivations(),
+    loadMyResultsDashboard(),
+    loadCrmFollowupSummary(),
+  ]);
   if (window.CURRENT_USER && window.CURRENT_USER.role === 'admin') {
     loadAdminUsers();
+    loadAdminSaasOverview();
     loadAdminAcademyLessons();
+    loadAdminActivationRules();
+    loadAdminSystemHealthAndBackups();
   }
 }
 
@@ -593,6 +608,9 @@ function initCrmControls() {
   document.getElementById('crm-search-input')?.addEventListener('input', debounce(loadLeads, 280));
   document.getElementById('crm-filter-opportunity')?.addEventListener('change', loadLeads);
   document.getElementById('crm-filter-website')?.addEventListener('change', loadLeads);
+  document.getElementById('crm-filter-score')?.addEventListener('change', loadLeads);
+  document.getElementById('crm-sort-by')?.addEventListener('change', loadLeads);
+  document.getElementById('crm-filter-followup')?.addEventListener('change', loadLeads);
   document.getElementById('crm-filter-wa')?.addEventListener('change', () => {
     renderKanban();
     renderTable();
@@ -643,13 +661,45 @@ async function loadLeads() {
   const search = document.getElementById('crm-search-input')?.value || '';
   const opp = document.getElementById('crm-filter-opportunity')?.value || 'all';
   const wt = document.getElementById('crm-filter-website')?.value || 'all';
-  const qs = new URLSearchParams({ search, opportunity: opp, website_type: wt, limit: 1000 });
+  const scoreLvl = document.getElementById('crm-filter-score')?.value || 'all';
+  const sortBy = document.getElementById('crm-sort-by')?.value || 'recent';
+  const fuFilter = document.getElementById('crm-filter-followup')?.value || 'all';
+  const qs = new URLSearchParams({
+    search,
+    opportunity: opp,
+    website_type: wt,
+    opportunity_level: scoreLvl,
+    sort_by: sortBy,
+    followup_filter: fuFilter,
+    limit: 1000,
+  });
   try {
     const res = await apiFetch(`/api/leads?${qs.toString()}`);
     STATE.leads = await res.json();
     renderKanban();
     renderTable();
   } catch (e) {}
+}
+
+function renderLeadScoreBadge(l) {
+  const sc = Number(l.lead_score || 0);
+  if (!sc) return '';
+  const lvl = l.opportunity_level || (sc >= 70 ? 'alta' : (sc >= 45 ? 'media' : 'baixa'));
+  const bg = lvl === 'alta' ? '#dcfce7' : (lvl === 'media' ? '#fef3c7' : '#f1f5f9');
+  const col = lvl === 'alta' ? '#166534' : (lvl === 'media' ? '#92400e' : '#475569');
+  const icon = lvl === 'alta' ? '🔥' : (lvl === 'media' ? '⚡' : '•');
+  const tip = (l.score_reasons || []).map(r => `+${r.points}: ${r.label}`).join(' | ');
+  return `<span class="opp-badge" style="background:${bg};color:${col};font-weight:700;" title="${escapeHtml(tip)}">${icon} ${sc} pts</span>`;
+}
+
+function renderFollowupBadge(l) {
+  const nfu = (l.next_followup_at || '').trim();
+  if (!nfu) return '';
+  const today = new Date().toISOString().slice(0, 10);
+  const isDue = nfu.slice(0, 10) <= today;
+  const bg = isDue ? '#fee2e2' : '#e0f2fe';
+  const col = isDue ? '#991b1b' : '#075985';
+  return `<span class="opp-badge" style="background:${bg};color:${col};" title="${escapeHtml(l.followup_note || 'Follow-up agendado')}"><i class="fa-regular fa-clock"></i> ${escapeHtml(nfu.slice(0, 10))}</span>`;
 }
 
 function renderOpportunityBadges(opps = []) {
@@ -699,7 +749,7 @@ function renderKanban() {
           </button>
         </div>
         <div class="lead-card-sub">${escapeHtml(l.category || 'Negócio local')} · ${escapeHtml(l.neighborhood || l.city || '')}</div>
-        <div class="lead-card-badges">${renderPhoneStatusBadge(l)}${renderOpportunityBadges(l.opportunities)}</div>
+        <div class="lead-card-badges">${renderLeadScoreBadge(l)}${renderFollowupBadge(l)}${renderPhoneStatusBadge(l)}${renderOpportunityBadges(l.opportunities)}</div>
         <div class="lead-card-foot">
           <span><i class="fa-solid fa-star" style="color:#f59e0b"></i> ${l.rating || '-'} (${l.reviews_count || 0})</span>
           <span>${l.sale_value ? formatBRL(l.sale_value) : escapeHtml(l.phone || 'Sem tel.')}</span>
@@ -740,7 +790,7 @@ function renderTable() {
     <tr>
       <td><strong>${escapeHtml(l.name)}</strong><div class="text-muted" style="font-size:0.75rem">${escapeHtml(l.category || '')} · ${escapeHtml(l.neighborhood || l.city || '')}</div></td>
       <td>${escapeHtml(l.phone || '-')}<div>${renderPhoneStatusBadge(l)}</div></td>
-      <td><div style="display:flex;gap:4px;flex-wrap:wrap">${renderOpportunityBadges(l.opportunities)}</div></td>
+      <td><div style="display:flex;gap:4px;flex-wrap:wrap">${renderLeadScoreBadge(l)}${renderFollowupBadge(l)}${renderOpportunityBadges(l.opportunities)}</div></td>
       <td>${l.rating || '-'} ⭐ (${l.reviews_count || 0})</td>
       <td><span class="status-pill">${escapeHtml(statusLabels[l.crm_status] || l.crm_status)}</span></td>
       <td style="white-space:nowrap;">
@@ -991,6 +1041,47 @@ function openLeadDrawer(l) {
   document.getElementById('drawer-product-interest').value = l.product_interest || '';
   document.getElementById('drawer-sale-value').value = l.sale_value || '';
   document.getElementById('drawer-notes').value = l.notes || '';
+
+  // P1.1 — Lead Score & Justificativas
+  const scorePill = document.getElementById('drawer-lead-score-pill');
+  const nextActEl = document.getElementById('drawer-next-action-line');
+  const reasonsEl = document.getElementById('drawer-score-reasons');
+  if (scorePill) {
+    const sc = Number(l.lead_score || 0);
+    const lvl = l.opportunity_level || 'media';
+    scorePill.textContent = `${sc}/100 · ${l.opportunity_label || 'Oportunidade'}`;
+    scorePill.style.background = lvl === 'alta' ? '#dcfce7' : (lvl === 'media' ? '#fef3c7' : '#e2e8f0');
+    scorePill.style.color = lvl === 'alta' ? '#166534' : (lvl === 'media' ? '#92400e' : '#334155');
+  }
+  if (nextActEl) {
+    nextActEl.innerHTML = l.next_action
+      ? `<i class="fa-solid fa-wand-magic-sparkles"></i> Próxima Ação Recomendada: ${escapeHtml(l.next_action.label)}`
+      : '';
+  }
+  if (reasonsEl) {
+    const reasons = l.score_reasons || [];
+    reasonsEl.innerHTML = reasons.map(r => `
+      <div>• <strong>+${r.points} pts</strong> (${r.type === 'verified' ? 'Verificado' : 'Critério comercial'}): ${escapeHtml(r.label)}</div>
+    `).join('');
+  }
+
+  // P1.2 — Reset Copiloto IA Output
+  const aiWrap = document.getElementById('drawer-ai-output-wrap');
+  if (aiWrap) aiWrap.classList.add('hidden');
+
+  // P1.3 — Follow-up & Interações
+  const fuDate = document.getElementById('drawer-followup-date');
+  const fuNote = document.getElementById('drawer-followup-note');
+  if (fuDate) fuDate.value = (l.next_followup_at || '').slice(0, 10);
+  if (fuNote) fuNote.value = l.followup_note || '';
+  loadLeadInteractions(l.id);
+
+  // P0.3 & P0.1 — Track lead_viewed
+  apiFetch('/api/analytics/event', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event_name: 'lead_viewed', metadata: { lead_id: l.id } }),
+  }).then(() => loadOnboardingAndActivations()).catch(() => {});
 
   const sel = document.getElementById('drawer-template-select');
   sel.innerHTML = STATE.templates.map(t => `<option value="${escapeHtml(t.id)}">${escapeHtml(t.title)}</option>`).join('');
@@ -1657,6 +1748,7 @@ function initAdminControls() {
         meta_app_id: document.getElementById('site-meta-app-id')?.value || '',
         meta_embedded_config_id: document.getElementById('site-meta-config-id')?.value || '',
         meta_app_secret: document.getElementById('site-meta-app-secret')?.value || '',
+        oci_backup_par_url: document.getElementById('site-oci-par-url')?.value || '',
       })
     });
     const d = await res.json();
@@ -1746,9 +1838,11 @@ async function loadAdminUsers() {
         const mai = document.getElementById('site-meta-app-id');
         const mci = document.getElementById('site-meta-config-id');
         const mas = document.getElementById('site-meta-app-secret');
+        const opu = document.getElementById('site-oci-par-url');
         if (mai) mai.value = sd.settings.meta_app_id || '';
         if (mci) mci.value = sd.settings.meta_embedded_config_id || '';
         if (mas) mas.value = sd.settings.meta_app_secret || '';
+        if (opu) opu.value = sd.settings.oci_backup_par_url || '';
       }
     } catch (e) {}
 
@@ -2264,4 +2358,478 @@ async function toggleSalesCourseDone() {
 function debounce(fn, ms) {
   let t;
   return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
+// ==================== P0.1 & P0.4 — ONBOARDING INTELIGENTE & ATIVAÇÃO ====================
+let _onboardingState = null;
+
+const ONBOARDING_STEPS_CONFIG = [
+  { key: 'step_welcome', title: '1. Conhecer a Plataforma', desc: 'Entenda a jornada: Buscar → Analisar → Abordar → Fechar', actionLabel: 'Concluir Boas-vindas', actionFn: 'completeWelcomeOnboardingStep()' },
+  { key: 'step_first_search', title: '2. Fazer 1ª Busca no Google', desc: 'Extraia empresas reais com telefone na sua cidade ou rua', actionLabel: 'Ir para Busca', actionFn: "switchTab('tab-search')" },
+  { key: 'step_view_lead', title: '3. Analisar Empresa & Score', desc: 'Abra a ficha de um lead para ver o Lead Score e o Copiloto IA', actionLabel: 'Abrir Leads / CRM', actionFn: "switchTab('tab-crm')" },
+  { key: 'step_crm', title: '4. Organizar no Funil CRM', desc: 'Mova uma oportunidade no Kanban ou agende um Follow-up', actionLabel: 'Abrir CRM Kanban', actionFn: "switchTab('tab-crm')" },
+  { key: 'step_first_contact', title: '5. Iniciar 1º Contato', desc: 'Envie um Quebra-Gelo pelo WhatsApp Web, QR ou API Oficial', actionLabel: 'Enviar 1ª Mensagem', actionFn: 'openFirstLeadForContact()' },
+];
+
+async function loadOnboardingAndActivations() {
+  try {
+    const res = await apiFetch('/api/onboarding');
+    if (!res.ok) return;
+    const d = await res.json();
+    if (d.onboarding) {
+      _onboardingState = d.onboarding;
+      renderOnboardingChecklist(d.onboarding);
+    }
+    renderActivationSmartBanner(d.activations || []);
+  } catch (e) {}
+}
+
+function renderOnboardingChecklist(ob) {
+  const card = document.getElementById('onboarding-checklist-card');
+  if (!card) return;
+  if (ob.dismissed) {
+    card.classList.add('hidden');
+    return;
+  }
+  card.classList.remove('hidden');
+
+  const pill = document.getElementById('onboarding-progress-pill');
+  const bar = document.getElementById('onboarding-progress-bar');
+  if (pill) pill.textContent = `${ob.steps_completed || 0}/${ob.total_steps || 5} concluídos (${ob.percent || 0}%)`;
+  if (bar) bar.style.width = `${ob.percent || 0}%`;
+
+  const grid = document.getElementById('onboarding-steps-grid');
+  if (!grid) return;
+  grid.innerHTML = ONBOARDING_STEPS_CONFIG.map(s => {
+    const done = Boolean(ob[s.key]);
+    return `
+      <div style="padding:11px 13px; border-radius:12px; border:1px solid ${done ? '#10b981' : 'var(--border)'}; background:${done ? 'rgba(16,185,129,0.08)' : 'var(--card-bg, #fff)'}; display:flex; flex-direction:column; justify-content:space-between; gap:8px;">
+        <div>
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px; margin-bottom:4px;">
+            <strong style="font-size:0.83rem;">${escapeHtml(s.title)}</strong>
+            ${done ? '<span class="status-pill" style="background:#d1fae5;color:#065f46;font-size:0.7rem;"><i class="fa-solid fa-check"></i> Feito</span>' : '<span class="status-pill" style="font-size:0.7rem;">Pendente</span>'}
+          </div>
+          <p class="text-muted" style="font-size:0.76rem; margin:0; line-height:1.35;">${escapeHtml(s.desc)}</p>
+        </div>
+        <button type="button" class="btn ${done ? 'btn-outline' : 'btn-primary'} btn-xs" onclick="${s.actionFn}">
+          ${done ? 'Revisar' : escapeHtml(s.actionLabel)}
+        </button>
+      </div>
+    `;
+  }).join('');
+}
+
+function renderActivationSmartBanner(list) {
+  const banner = document.getElementById('activation-smart-banner');
+  if (!banner) return;
+  if (!list || !list.length) {
+    banner.classList.add('hidden');
+    return;
+  }
+  const first = list[0];
+  banner.classList.remove('hidden');
+  banner.innerHTML = `
+    <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:220px;">
+      <i class="fa-solid fa-lightbulb text-amber" style="font-size:1.15rem;"></i>
+      <div style="font-size:0.84rem;">
+        <strong>${escapeHtml(first.title)}:</strong> ${escapeHtml(first.message)}
+      </div>
+    </div>
+    <button type="button" class="btn btn-outline btn-xs" onclick="document.getElementById('activation-smart-banner').classList.add('hidden')">Entendi</button>
+  `;
+}
+
+async function completeWelcomeOnboardingStep() {
+  const res = await apiFetch('/api/onboarding', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ step_welcome: 1 }),
+  });
+  const d = await res.json();
+  if (d.onboarding) {
+    _onboardingState = d.onboarding;
+    renderOnboardingChecklist(d.onboarding);
+    toast('Passo 1 concluído! Agora vamos para sua primeira busca no Google Maps.', 'success');
+    switchTab('tab-search');
+  }
+}
+
+function openFirstLeadForContact() {
+  if (STATE.leads && STATE.leads.length) {
+    openLeadDrawer(STATE.leads[0]);
+  } else {
+    switchTab('tab-search');
+    toast('Faça uma busca primeiro para selecionar uma empresa.', 'info');
+  }
+}
+
+function continueOnboardingNextStep() {
+  const ob = _onboardingState || {};
+  if (!ob.step_welcome) return completeWelcomeOnboardingStep();
+  if (!ob.step_first_search) { switchTab('tab-search'); document.getElementById('search-location-input')?.focus(); return; }
+  if (!ob.step_view_lead) return openFirstLeadForContact();
+  if (!ob.step_crm) { switchTab('tab-crm'); return; }
+  return openFirstLeadForContact();
+}
+
+async function restartOnboardingTutorial() {
+  const res = await apiFetch('/api/onboarding', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reset: true, dismissed: 0 }),
+  });
+  const d = await res.json();
+  if (d.onboarding) {
+    _onboardingState = d.onboarding;
+    renderOnboardingChecklist(d.onboarding);
+    toast('Tutorial reiniciado!', 'info');
+  }
+}
+
+async function dismissOnboardingChecklist() {
+  await apiFetch('/api/onboarding', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dismissed: 1 }),
+  });
+  document.getElementById('onboarding-checklist-card')?.classList.add('hidden');
+}
+
+async function reopenOnboardingChecklist() {
+  const res = await apiFetch('/api/onboarding', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ dismissed: 0 }),
+  });
+  const d = await res.json();
+  if (d.onboarding) {
+    _onboardingState = d.onboarding;
+    renderOnboardingChecklist(d.onboarding);
+    document.getElementById('onboarding-checklist-card')?.scrollIntoView({ behavior: 'smooth' });
+  }
+}
+
+// ==================== P1.4 — DASHBOARD DE RESULTADOS DO ASSINANTE ====================
+async function loadMyResultsDashboard() {
+  const period = document.getElementById('my-results-period')?.value || '30d';
+  try {
+    const res = await apiFetch(`/api/my-results?period=${encodeURIComponent(period)}`);
+    if (!res.ok) return;
+    const d = await res.json();
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setEl('res-leads-found', d.leads_found ?? 0);
+    setEl('res-leads-saved', d.leads_saved ?? 0);
+    setEl('res-in-crm', d.companies_in_crm ?? 0);
+    setEl('res-contacts-made', d.contacts_made ?? 0);
+    setEl('res-in-progress', d.opportunities_in_progress ?? 0);
+    setEl('res-closed-sales', d.closed_sales ?? 0);
+    setEl('res-conv-rate', `${d.conversion_rate_pct ?? 0}%`);
+    setEl('res-closed-rev', formatBRL(d.closed_revenue_brl || 0));
+
+    const bar = document.getElementById('my-results-timeline-bar');
+    if (bar) {
+      const tl = d.timeline || [];
+      bar.innerHTML = `<strong>Resumo do período:</strong> ${d.searches_run || 0} busca(s) executadas · Taxa de resposta: <strong>${d.reply_rate_pct || 0}%</strong> · Taxa de fechamento sobre contatos: <strong>${d.conversion_rate_pct || 0}%</strong>`
+        + (tl.length ? ` · Dias ativos no período: <strong>${tl.length}</strong>` : '');
+    }
+  } catch (e) {}
+}
+
+// ==================== P1.3 — FOLLOW-UPS & INTERAÇÕES NO CRM ====================
+async function loadCrmFollowupSummary() {
+  try {
+    const res = await apiFetch('/api/crm/followups');
+    if (!res.ok) return;
+    const d = await res.json();
+    const dueEl = document.getElementById('fu-cnt-due');
+    const upEl = document.getElementById('fu-cnt-upcoming');
+    const sugEl = document.getElementById('fu-next-suggestion');
+    if (dueEl) dueEl.textContent = d.due_today_count ?? 0;
+    if (upEl) upEl.textContent = d.upcoming_count ?? 0;
+    if (sugEl) {
+      if (d.due_today_count > 0) {
+        sugEl.innerHTML = `<strong class="text-danger">Você tem ${d.due_today_count} follow-up(s) pendente(s) para hoje!</strong>`;
+      } else if (d.needs_attention_count > 0) {
+        sugEl.innerHTML = `<strong>${d.needs_attention_count} empresa(s) responderam ou estão em negociação aguardando retorno.</strong>`;
+      }
+    }
+  } catch (e) {}
+}
+
+function applyFollowupFilter(mode) {
+  const sel = document.getElementById('crm-filter-followup');
+  if (sel) {
+    sel.value = mode;
+    loadLeads();
+  }
+}
+
+async function saveDrawerFollowup() {
+  const l = STATE.selectedLead;
+  if (!l) return;
+  const next_followup_at = document.getElementById('drawer-followup-date')?.value || '';
+  const followup_note = document.getElementById('drawer-followup-note')?.value || '';
+  const res = await apiFetch(`/api/leads/${l.id}/followup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ next_followup_at, followup_note }),
+  });
+  const d = await res.json();
+  if (d.success) {
+    toast(next_followup_at ? `Follow-up agendado para ${next_followup_at}!` : 'Follow-up removido.', 'success');
+    loadLeads();
+    loadCrmFollowupSummary();
+    loadLeadInteractions(l.id);
+  }
+}
+
+async function loadLeadInteractions(leadId) {
+  const box = document.getElementById('drawer-interactions-list');
+  if (!box) return;
+  try {
+    const res = await apiFetch(`/api/leads/${leadId}/interactions`);
+    if (!res.ok) return;
+    const d = await res.json();
+    const items = d.interactions || [];
+    box.innerHTML = items.length ? items.map(it => `
+      <div class="conv-msg" style="padding:6px 10px; font-size:0.78rem;">
+        <div style="display:flex; justify-content:space-between; color:var(--text-muted); font-size:0.71rem;">
+          <strong>${escapeHtml(it.kind)}</strong>
+          <span>${escapeHtml((it.created_at || '').slice(0, 16).replace('T', ' '))}</span>
+        </div>
+        <div>${escapeHtml(it.summary)}</div>
+      </div>
+    `).join('') : '<div class="text-muted" style="font-size:0.78rem;">Nenhuma interação registrada ainda.</div>';
+  } catch (e) {}
+}
+
+async function addDrawerManualInteraction() {
+  const l = STATE.selectedLead;
+  const inp = document.getElementById('drawer-new-interaction');
+  if (!l || !inp || !inp.value.trim()) return;
+  const summary = inp.value.trim();
+  const res = await apiFetch(`/api/leads/${l.id}/interactions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind: 'nota_comercial', summary }),
+  });
+  const d = await res.json();
+  if (d.success) {
+    inp.value = '';
+    loadLeadInteractions(l.id);
+    toast('Interação registrada no histórico!', 'success');
+  }
+}
+
+// ==================== P1.2 — COPILOTO DE VENDAS COM IA ====================
+async function runLeadAiCopilot(action = 'analyze') {
+  const l = STATE.selectedLead;
+  if (!l) return;
+  const wrap = document.getElementById('drawer-ai-output-wrap');
+  const out = document.getElementById('drawer-ai-output');
+  const qLabel = document.getElementById('drawer-ai-quota-label');
+  if (wrap) wrap.classList.remove('hidden');
+  if (out) out.value = 'Analisando dados verificados da empresa...';
+  try {
+    const res = await apiFetch('/api/ai/copilot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lead_id: l.id, action }),
+    });
+    const d = await res.json();
+    if (!d.success) {
+      if (out) out.value = d.error || 'Erro ao executar Copiloto IA.';
+      if (d.quota_exceeded) openUpgradeModal(d.error);
+      return;
+    }
+    if (out) out.value = d.content || '';
+    if (qLabel && d.quota) {
+      qLabel.textContent = `Cota IA hoje: ${d.quota.used_today}/${d.quota.daily_limit}`;
+    }
+  } catch (e) {
+    if (out) out.value = 'Falha ao consultar o Copiloto IA.';
+  }
+}
+
+function useCopilotTextInWhatsApp() {
+  const out = document.getElementById('drawer-ai-output')?.value || '';
+  const msgBox = document.getElementById('drawer-message-text');
+  if (!out || !msgBox) return;
+  // Se houver texto entre aspas (sugestão de mensagem), extrai a 1ª mensagem sugerida; caso contrário copia tudo
+  const quoted = out.match(/"([^"]{20,})"/);
+  msgBox.value = quoted ? quoted[1] : out;
+  msgBox.focus();
+  toast('Texto carregado no campo de mensagem! Revise antes de enviar.', 'success');
+}
+
+function copyCopilotOutput() {
+  const out = document.getElementById('drawer-ai-output')?.value || '';
+  if (!out) return;
+  navigator.clipboard.writeText(out);
+  toast('Análise do Copiloto IA copiada!', 'success');
+}
+
+// ==================== P0.2, P0.3, P0.4 & FASE 1 — PAINEL ADMIN SAAS ====================
+async function loadAdminSaasOverview() {
+  const period = document.getElementById('adm-period-filter')?.value || '30d';
+  const plan = document.getElementById('adm-plan-filter')?.value || 'all';
+  try {
+    const res = await apiFetch(`/api/admin/saas-overview?period=${encodeURIComponent(period)}&plan=${encodeURIComponent(plan)}`);
+    if (!res.ok) return;
+    const d = await res.json();
+    if (!d.success) return;
+    const k = d.kpis || {};
+    const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+    setEl('adm-kpi-mrr', formatBRL(k.mrr_brl || 0));
+    setEl('adm-kpi-rev', formatBRL(k.accumulated_revenue_brl || 0));
+    setEl('adm-kpi-paid', k.paying_subscribers ?? 0);
+    setEl('adm-kpi-conv', `${k.conversion_trial_to_paid_pct ?? 0}% conv.`);
+    setEl('adm-kpi-trial', k.free_trial_users ?? 0);
+    setEl('adm-kpi-new', `${k.new_signups_period ?? 0} novos`);
+    setEl('adm-kpi-expired', k.overdue_expired_subscriptions ?? 0);
+    setEl('adm-kpi-canceled', k.canceled_subscriptions ?? 0);
+    setEl('adm-kpi-churn', `${k.churn_rate_pct ?? 0}%`);
+    setEl('adm-kpi-clients', k.total_users ?? 0);
+    setEl('adm-kpi-act-rate', `${k.activation_rate_pct ?? 0}%`);
+    setEl('adm-kpi-leads', k.leads_total ?? 0);
+    setEl('adm-kpi-searches', k.searches_total ?? 0);
+
+    const distBar = document.getElementById('adm-plan-dist-bar');
+    if (distBar && d.plan_distribution) {
+      const pd = d.plan_distribution;
+      distBar.innerHTML = `
+        <span><strong>Distribuição por Plano:</strong> Trial: <strong>${pd.trial || 0}</strong> · Starter: <strong>${pd.starter || 0}</strong> · PRO: <strong>${pd.pro || 0}</strong> · Enterprise: <strong>${pd.enterprise || 0}</strong></span>
+        <span>Usuários Ativos: <strong>${k.active_users || 0}</strong> · Inativos (7d+): <strong>${k.inactive_users_7d || 0}</strong> · Buscas no Período: <strong>${k.searches_period || 0}</strong></span>
+      `;
+    }
+
+    const funnelGrid = document.getElementById('adm-analytics-funnel-grid');
+    if (funnelGrid) {
+      const eb = d.event_breakdown || {};
+      const funnelKeys = [
+        ['signup', 'Cadastros'],
+        ['login', 'Logins'],
+        ['onboarding_started', 'Onboarding Iniciado'],
+        ['first_search', '1ª Busca Executada'],
+        ['lead_viewed', 'Ficha Visualizada'],
+        ['lead_sent_to_crm', 'Enviado ao CRM'],
+        ['first_contact_started', '1º Contato Iniciado'],
+        ['ai_copilot_used', 'Uso Copiloto IA'],
+        ['payment_approved', 'Pagamento Aprovado'],
+      ];
+      funnelGrid.innerHTML = funnelKeys.map(([key, label]) => {
+        const info = eb[key] || { events: 0, users: 0 };
+        return `
+          <div style="padding:10px 12px; border:1px solid var(--border); border-radius:10px;">
+            <span class="text-muted" style="font-size:0.74rem; display:block;">${escapeHtml(label)}</span>
+            <strong style="font-size:1.05rem;">${info.events}</strong>
+            <small class="text-muted" style="font-size:0.72rem; display:block;">${info.users} usuário(s)</small>
+          </div>
+        `;
+      }).join('');
+    }
+  } catch (e) {}
+}
+
+async function loadAdminActivationRules() {
+  const tb = document.getElementById('admin-activation-rules-tbody');
+  if (!tb) return;
+  try {
+    const res = await apiFetch('/api/admin/activation-rules');
+    if (!res.ok) return;
+    const d = await res.json();
+    const rules = d.rules || [];
+    tb.innerHTML = rules.map(r => `
+      <tr>
+        <td>
+          <strong>${escapeHtml(r.name)}</strong>
+          <div class="text-muted" style="font-size:0.73rem;"><code>${escapeHtml(r.trigger_key)}</code> · ${escapeHtml(r.description || '')}</div>
+        </td>
+        <td>
+          <input type="text" id="act-tpl-${escapeHtml(r.trigger_key)}" value="${escapeHtml(r.message_template)}" style="width:100%; min-width:260px; font-size:0.8rem;">
+        </td>
+        <td><strong>${r.triggered_count || 0}</strong></td>
+        <td>
+          <label class="checkbox-inline">
+            <input type="checkbox" id="act-en-${escapeHtml(r.trigger_key)}" ${r.enabled ? 'checked' : ''}>
+            <span>Ativa</span>
+          </label>
+        </td>
+        <td>
+          <button type="button" class="btn btn-outline btn-xs" onclick="saveAdminActivationRule('${escapeHtml(r.trigger_key)}')">Salvar</button>
+        </td>
+      </tr>
+    `).join('');
+  } catch (e) {}
+}
+
+async function saveAdminActivationRule(triggerKey) {
+  const tpl = document.getElementById(`act-tpl-${triggerKey}`)?.value || '';
+  const en = Boolean(document.getElementById(`act-en-${triggerKey}`)?.checked);
+  const res = await apiFetch(`/api/admin/activation-rules/${encodeURIComponent(triggerKey)}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message_template: tpl, enabled: en }),
+  });
+  const d = await res.json();
+  if (d.success) toast('Regra de ativação atualizada!', 'success');
+}
+
+async function loadAdminSystemHealthAndBackups() {
+  const strip = document.getElementById('adm-system-health-strip');
+  const tb = document.getElementById('admin-backups-tbody');
+  if (!strip && !tb) return;
+  try {
+    const [hRes, bRes] = await Promise.all([
+      apiFetch('/api/admin/system-health'),
+      apiFetch('/api/admin/backups'),
+    ]);
+    if (hRes.ok && strip) {
+      const h = await hRes.json();
+      const mem = h.memory_mb || {};
+      const waOk = h.wa_service && h.wa_service.status === 'ok';
+      strip.innerHTML = `
+        <span class="status-pill" style="background:#d1fae5;color:#065f46">SQLite: ${escapeHtml(h.sqlite_integrity || 'ok')} (${h.db_size_kb || 0} KB)</span>
+        <span class="status-pill">Disco Livre: ${h.disk_free_gb || 0} GB / ${h.disk_total_gb || 0} GB</span>
+        ${mem.MemTotal ? `<span class="status-pill">RAM Disp.: ${mem.MemAvailable || 0} MB / ${mem.MemTotal || 0} MB</span>` : ''}
+        <span class="status-pill" style="background:${waOk ? '#d1fae5' : '#fef3c7'};color:${waOk ? '#065f46' : '#92400e'}">Microserviço WhatsApp: ${waOk ? 'Online (Container Isolado)' : 'Standby'}</span>
+      `;
+    }
+    if (bRes.ok && tb) {
+      const b = await bRes.json();
+      renderAdminBackupsTable(b.backups || []);
+    }
+  } catch (e) {}
+}
+
+function renderAdminBackupsTable(items) {
+  const tb = document.getElementById('admin-backups-tbody');
+  if (!tb) return;
+  tb.innerHTML = items.length ? items.map(b => `
+    <tr>
+      <td><code>${escapeHtml(b.filename)}</code></td>
+      <td>${b.kind === 'full_bundle' ? 'Pacote Completo (DB + Sessões WA)' : 'Snapshot SQLite Diário'}</td>
+      <td>${b.size_kb} KB</td>
+      <td>${b.encrypted ? '<span class="status-pill" style="background:#d1fae5;color:#065f46">Criptografado (AES/HMAC)</span>' : '<span class="status-pill">Snapshot Local</span>'}</td>
+      <td>${escapeHtml((b.modified_at || '').slice(0, 19).replace('T', ' '))}</td>
+    </tr>
+  `).join('') : '<tr><td colspan="5" class="text-muted">Nenhum backup encontrado.</td></tr>';
+}
+
+async function triggerAdminBackupNow() {
+  const btn = document.getElementById('btn-admin-run-backup');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Criando & Testando Restauração...'; }
+  try {
+    const res = await apiFetch('/api/admin/backups', { method: 'POST' });
+    const d = await res.json();
+    if (d.success) {
+      const rv = d.restore_verified || {};
+      toast(`Backup criado e restauração testada (${rv.users_count || 0} contas, ${rv.leads_count || 0} leads, integridade: ${rv.integrity})!`, 'success');
+      renderAdminBackupsTable(d.backups || []);
+    } else {
+      toast(d.error || 'Erro ao gerar backup.', 'error');
+    }
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Criar Backup + Testar Restauração Agora'; }
+  }
 }

@@ -1,14 +1,46 @@
 services:
+  mapaleads-wa:
+    build:
+      context: .
+      dockerfile: whatsapp_service/Dockerfile
+    container_name: mapaleads-wa
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - WA_PORT=5056
+      - WA_HOST=0.0.0.0
+      - WA_AUTH_ROOT=/data/wa_sessions
+      - FLASK_WEBHOOK=http://mapaleads:5055/api/wa/incoming
+    volumes:
+      - mapaleads_data:/data
+    expose:
+      - "5056"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
   mapaleads:
     build: .
     container_name: mapaleads-pro
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      - WA_SERVICE_URL=http://mapaleads-wa:5056
     volumes:
       - mapaleads_data:/data
     expose:
       - "5055"
+    depends_on:
+      - mapaleads-wa
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   caddy:
     image: caddy:2-alpine
@@ -21,13 +53,18 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./static:/srv/static:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:
       - mapaleads
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   mapaleads_data:
   caddy_data:
   caddy_config:
-

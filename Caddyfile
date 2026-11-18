@@ -1,7 +1,35 @@
+(common_app) {
+    encode zstd gzip
+
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    handle_path /static/* {
+        root * /srv/static
+        header Cache-Control "public, max-age=86400"
+        file_server
+    }
+
+    handle /api/search/stream {
+        reverse_proxy mapaleads:5055 {
+            flush_interval -1
+        }
+    }
+
+    handle {
+        reverse_proxy mapaleads:5055
+    }
+}
+
 mapaleadspro.online, www.mapaleadspro.online {
-    reverse_proxy mapaleads:5055
+    import common_app
 }
 
 204.216.136.105.sslip.io {
-    reverse_proxy mapaleads:5055
+    import common_app
 }

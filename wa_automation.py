@@ -1,8 +1,8 @@
 """
-Motor de Prospecção Automática via WhatsApp (Baileys).
+Motor de Prospecção Automática via WhatsApp (Baileys) — Multi-Tenant (Isolado por user_id).
 
 Fluxo:
- 1. Pega leads em 'novo' com telefone (filtros configuráveis).
+ 1. Pega leads em 'novo' com telefone (escopo exclusivo do user_id e filtros configuráveis).
  2. Envia a Copy 1 com variáveis preenchidas, com intervalo humano aleatório.
  3. Move o lead para 'contatado' e grava data do contato.
  4. Quando o lead responde (webhook /api/wa/incoming), marca 'respondeu'
@@ -19,9 +19,9 @@ import urllib.request
 from datetime import datetime
 from typing import Any, Callable, Dict, List, Optional
 
-from database import get_connection, update_lead, get_pitch_templates
+from database import get_connection, update_lead, get_pitch_templates, is_phone_already_contacted
 
-WA_BASE = "http://127.0.0.1:5056"
+WA_BASE = os.environ.get("WA_SERVICE_URL", "http://127.0.0.1:5056").rstrip("/")
 SERVICE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "whatsapp_service")
 
 _node_proc: Optional[subprocess.Popen] = None
@@ -47,11 +47,14 @@ def wa_request(method: str, path: str, payload: Optional[dict] = None, timeout: 
 
 
 def ensure_service_running() -> bool:
-    """Sobe o microserviço Node automaticamente se não estiver no ar."""
+    """Verifica se o microserviço Node está ativo (ou sobe localmente quando rodando em localhost)."""
     global _node_proc
     st = wa_request("GET", "/status", timeout=2)
     if not st.get("offline"):
         return True
+    # Se estiver apontando para container dedicado (ex: http://mapaleads-wa:5056), não tenta spawn local
+    if "127.0.0.1" not in WA_BASE and "localhost" not in WA_BASE:
+        return False
     if not os.path.isdir(os.path.join(SERVICE_DIR, "node_modules")):
         return False
     flags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
@@ -77,9 +80,9 @@ def stop_service():
         _node_proc = None
 
 
-# ==================== CONFIGURAÇÃO PERSISTIDA ====================
+# ==================== CONFIGURAÇÃO PERSISTIDA POR USUÁRIO ====================
 DEFAULT_CONFIG = {
-    "template_id": "autoridade_perda",
+    "template_id": "quebra_gelo_antibloqueio",
     "delay_min": 45,
     "delay_max": 90,
     "daily_limit": 40,
@@ -91,10 +94,14 @@ DEFAULT_CONFIG = {
 }
 
 
-def get_config() -> Dict[str, Any]:
+def _config_key(user_id: int = 1) -> str:
+    return "automation" if int(user_id or 1) == 1 else f"automation_user_{int(user_id)}"
+
+
+def get_config(user_id: int = 1) -> Dict[str, Any]:
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT value FROM whatsapp_config WHERE key = 'automation'")
+    cur.execute("SELECT value FROM whatsapp_config WHERE key = ?", (_config_key(user_id),))
     row = cur.fetchone()
     conn.close()
     cfg = dict(DEFAULT_CONFIG)
@@ -106,8 +113,8 @@ def get_config() -> Dict[str, Any]:
     return cfg
 
 
-def save_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
-    merged = get_config()
+def save_config(cfg: Dict[str, Any], user_id: int = 1) -> Dict[str, Any]:
+    merged = get_config(user_id=user_id)
     for k in DEFAULT_CONFIG:
         if k in cfg:
             merged[k] = cfg[k]
@@ -116,8 +123,8 @@ def save_config(cfg: Dict[str, Any]) -> Dict[str, Any]:
     merged["daily_limit"] = max(1, min(200, int(merged["daily_limit"])))
     conn = get_connection()
     conn.execute(
-        "INSERT OR REPLACE INTO whatsapp_config (key, value) VALUES ('automation', ?)",
-        (json.dumps(merged),)
+        "INSERT OR REPLACE INTO whatsapp_config (key, value) VALUES (?, ?)",
+        (_config_key(user_id), json.dumps(merged))
     )
     conn.commit()
     conn.close()
@@ -136,34 +143,34 @@ def fill_variables(text: str, lead: Dict[str, Any]) -> str:
         .replace("{avaliacoes}", str(lead.get("reviews_count") or "várias"))
 
 
-def sent_today() -> int:
+def sent_today(user_id: int = 1) -> int:
     today = datetime.now().strftime("%Y-%m-%d")
     conn = get_connection()
     cur = conn.cursor()
     cur.execute(
-        "SELECT COUNT(*) FROM wa_messages WHERE direction = 'out' AND kind = 'pitch' AND created_at LIKE ?",
-        (f"{today}%",)
+        "SELECT COUNT(*) FROM wa_messages WHERE user_id = ? AND direction = 'out' AND kind = 'pitch' AND created_at LIKE ?",
+        (int(user_id or 1), f"{today}%",)
     )
     n = cur.fetchone()[0]
     conn.close()
-    return n
+    return int(n or 0)
 
 
 def log_message(lead_id: Optional[int], phone: str, direction: str, kind: str, text: str, status: str = "ok", user_id: int = 1):
     conn = get_connection()
     conn.execute(
         "INSERT INTO wa_messages (user_id, lead_id, phone, direction, kind, text, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-        (user_id, lead_id, phone, direction, kind, text, status, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+        (int(user_id or 1), lead_id, phone, direction, kind, text, status, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     )
     conn.commit()
     conn.close()
 
 
-from database import get_connection, update_lead, get_pitch_templates, is_phone_already_contacted
-
-def get_queue(cfg: Dict[str, Any], limit: int = 500) -> List[Dict[str, Any]]:
+def get_queue(cfg: Dict[str, Any], limit: int = 500, user_id: int = 1) -> List[Dict[str, Any]]:
+    uid = int(user_id or 1)
     sql = """SELECT * FROM leads
-             WHERE crm_status = 'novo' AND had_contact = 0
+             WHERE user_id = ?
+               AND crm_status = 'novo' AND had_contact = 0
                AND clean_phone IS NOT NULL AND clean_phone != ''
                AND COALESCE(whatsapp_status, 'pendente') IN ('pendente', '')"""
     if cfg.get("only_no_website"):
@@ -173,7 +180,7 @@ def get_queue(cfg: Dict[str, Any], limit: int = 500) -> List[Dict[str, Any]]:
     sql += " ORDER BY reviews_count DESC, id ASC LIMIT ?"
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute(sql, (limit * 3,))  # Busca margem para dedup
+    cur.execute(sql, (uid, limit * 3))
     raw_rows = [dict(r) for r in cur.fetchall()]
     conn.close()
 
@@ -190,9 +197,8 @@ def get_queue(cfg: Dict[str, Any], limit: int = 500) -> List[Dict[str, Any]]:
         if tail in seen_tails:
             continue
         seen_tails.add(tail)
-        if is_phone_already_contacted(phone):
-            # Corrige no banco para sair da fila permanentemente
-            update_lead(r["id"], {"had_contact": 1, "whatsapp_status": "ja_contatado"})
+        if is_phone_already_contacted(phone, user_id=uid):
+            update_lead(r["id"], {"had_contact": 1, "whatsapp_status": "ja_contatado"}, user_id=uid)
             continue
         valid_queue.append(r)
         if len(valid_queue) >= limit:
@@ -201,26 +207,28 @@ def get_queue(cfg: Dict[str, Any], limit: int = 500) -> List[Dict[str, Any]]:
     return valid_queue
 
 
-def get_queue_summary(cfg: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-    c = cfg or get_config()
-    queue = get_queue(c, limit=200)
+def get_queue_summary(cfg: Optional[Dict[str, Any]] = None, user_id: int = 1) -> Dict[str, Any]:
+    uid = int(user_id or 1)
+    c = cfg or get_config(user_id=uid)
+    queue = get_queue(c, limit=200, user_id=uid)
     return {
         "count": len(queue),
-        "sent_today": sent_today(),
+        "sent_today": sent_today(user_id=uid),
         "daily_limit": c["daily_limit"],
         "preview": [{"id": l["id"], "name": l["name"], "phone": l["phone"], "category": l["category"]} for l in queue[:15]]
     }
 
 
-def get_template(template_id: str) -> Optional[Dict[str, Any]]:
-    tpls = get_pitch_templates()
+def get_template(template_id: str, user_id: int = 1) -> Optional[Dict[str, Any]]:
+    tpls = get_pitch_templates(user_id=int(user_id or 1))
     return next((t for t in tpls if t["id"] == template_id), tpls[0] if tpls else None)
 
 
-# ==================== CAMPANHA ====================
+# ==================== CAMPANHA MULTI-TENANT ====================
 class CampaignRunner:
-    def __init__(self, broadcast: Callable[[str, Any], None]):
+    def __init__(self, broadcast: Callable[..., None], user_id: int = 1):
         self.broadcast = broadcast
+        self.user_id = int(user_id or 1)
         self.thread: Optional[threading.Thread] = None
         self.stop_event = threading.Event()
         self.state = {
@@ -230,12 +238,15 @@ class CampaignRunner:
 
     def _emit(self, msg: str):
         self.state["message"] = msg
-        self.broadcast("wa_campaign", dict(self.state))
+        try:
+            self.broadcast("wa_campaign", dict(self.state), user_id=self.user_id)
+        except TypeError:
+            self.broadcast("wa_campaign", dict(self.state))
 
     def start(self) -> Dict[str, Any]:
         if self.state["running"]:
             return {"success": False, "error": "Campanha já está em execução."}
-        st = wa_request("GET", "/status", timeout=3)
+        st = wa_request("GET", f"/status?session_id={self.user_id}", timeout=3)
         if st.get("state") != "connected":
             return {"success": False, "error": "Conecte o WhatsApp pelo QR Code antes de iniciar."}
         self.stop_event.clear()
@@ -255,8 +266,9 @@ class CampaignRunner:
         return not self.stop_event.wait(seconds)
 
     def _run(self):
-        cfg = get_config()
-        tpl = get_template(cfg["template_id"])
+        uid = self.user_id
+        cfg = get_config(user_id=uid)
+        tpl = get_template(cfg["template_id"], user_id=uid)
         if not tpl:
             self.state["running"] = False
             self._emit("Nenhum modelo de copy encontrado.")
@@ -273,11 +285,11 @@ class CampaignRunner:
                         break
                     continue
 
-                if sent_today() >= cfg["daily_limit"]:
+                if sent_today(user_id=uid) >= cfg["daily_limit"]:
                     self._emit(f"Limite diário de {cfg['daily_limit']} envios atingido. Retoma amanhã.")
                     break
 
-                queue = get_queue(cfg, limit=1)
+                queue = get_queue(cfg, limit=1, user_id=uid)
                 if not queue:
                     self._emit("Fila vazia: todos os leads elegíveis já foram contatados.")
                     break
@@ -287,15 +299,14 @@ class CampaignRunner:
                 digits = "".join(c for c in lead_phone if c.isdigit())
                 tail = digits[-8:] if len(digits) >= 8 else digits
 
-                # Dupla validação antes do disparo: NUNCA reenviar se já foi contatado ou enviado na campanha
-                if (tail and tail in seen_in_campaign) or is_phone_already_contacted(lead_phone):
+                if (tail and tail in seen_in_campaign) or is_phone_already_contacted(lead_phone, user_id=uid):
                     update_lead(lead["id"], {
                         "had_contact": 1,
                         "whatsapp_status": "ja_contatado",
                         "crm_status": "contatado" if lead.get("crm_status") == "novo" else lead.get("crm_status")
-                    })
+                    }, user_id=uid)
                     self.state["skipped"] += 1
-                    self.broadcast("queue_updated", get_queue_summary(cfg))
+                    self.broadcast("queue_updated", get_queue_summary(cfg, user_id=uid), user_id=uid)
                     continue
 
                 if tail:
@@ -305,7 +316,7 @@ class CampaignRunner:
                 text = fill_variables(tpl["content"], lead)
                 self._emit(f"Enviando para {lead['name']} ({lead['phone']})...")
 
-                res = wa_request("POST", "/send", {"phone": lead["clean_phone"], "text": text}, timeout=60)
+                res = wa_request("POST", "/send", {"session_id": str(uid), "phone": lead["clean_phone"], "text": text}, timeout=60)
 
                 if res.get("success"):
                     self.state["sent"] += 1
@@ -314,21 +325,21 @@ class CampaignRunner:
                         "contact_date": datetime.now().strftime("%d/%m/%Y %H:%M"),
                         "crm_status": "contatado",
                         "whatsapp_status": "enviado",
-                    })
-                    log_message(lead["id"], lead["clean_phone"], "out", "pitch", text)
-                    self.broadcast("lead_updated", {"id": lead["id"], "crm_status": "contatado"})
-                    self.broadcast("queue_updated", get_queue_summary(cfg))
+                    }, user_id=uid)
+                    log_message(lead["id"], lead["clean_phone"], "out", "pitch", text, user_id=uid)
+                    self.broadcast("lead_updated", {"id": lead["id"], "crm_status": "contatado"}, user_id=uid)
+                    self.broadcast("queue_updated", get_queue_summary(cfg, user_id=uid), user_id=uid)
                 elif res.get("not_on_whatsapp"):
                     self.state["skipped"] += 1
-                    update_lead(lead["id"], {"whatsapp_status": "sem_whatsapp"})
-                    self.broadcast("queue_updated", get_queue_summary(cfg))
+                    update_lead(lead["id"], {"whatsapp_status": "sem_whatsapp"}, user_id=uid)
+                    self.broadcast("queue_updated", get_queue_summary(cfg, user_id=uid), user_id=uid)
                     self._emit(f"{lead['name']} não possui WhatsApp. Pulando.")
-                    continue  # não precisa esperar intervalo
+                    continue
                 else:
                     self.state["failed"] += 1
-                    update_lead(lead["id"], {"whatsapp_status": "falha"})
-                    log_message(lead["id"], lead["clean_phone"], "out", "pitch", text, status="erro")
-                    self.broadcast("queue_updated", get_queue_summary(cfg))
+                    update_lead(lead["id"], {"whatsapp_status": "falha"}, user_id=uid)
+                    log_message(lead["id"], lead["clean_phone"], "out", "pitch", text, status="erro", user_id=uid)
+                    self.broadcast("queue_updated", get_queue_summary(cfg, user_id=uid), user_id=uid)
                     self._emit(f"Falha ao enviar para {lead['name']}: {res.get('error')}")
                     if res.get("offline") or "não conectado" in str(res.get("error", "")):
                         break
@@ -345,6 +356,18 @@ class CampaignRunner:
                        else "Campanha finalizada.")
 
 
+_campaigns_by_user: Dict[int, CampaignRunner] = {}
+_campaigns_lock = threading.Lock()
+
+
+def get_user_campaign(broadcast: Callable[..., None], user_id: int = 1) -> CampaignRunner:
+    uid = int(user_id or 1)
+    with _campaigns_lock:
+        if uid not in _campaigns_by_user:
+            _campaigns_by_user[uid] = CampaignRunner(broadcast, user_id=uid)
+        return _campaigns_by_user[uid]
+
+
 # ==================== RESPOSTAS RECEBIDAS ====================
 def find_lead_by_phone(phone: str, user_id: int = 1) -> Optional[Dict[str, Any]]:
     digits = re.sub(r"\D", "", phone or "")
@@ -353,44 +376,45 @@ def find_lead_by_phone(phone: str, user_id: int = 1) -> Optional[Dict[str, Any]]
     tail = digits[-8:]
     conn = get_connection()
     cur = conn.cursor()
-    cur.execute("SELECT * FROM leads WHERE user_id = ? AND clean_phone LIKE ? ORDER BY had_contact DESC LIMIT 1", (user_id, f"%{tail}"))
+    cur.execute("SELECT * FROM leads WHERE user_id = ? AND clean_phone LIKE ? ORDER BY had_contact DESC LIMIT 1", (int(user_id or 1), f"%{tail}"))
     row = cur.fetchone()
     conn.close()
     return dict(row) if row else None
 
 
 def handle_incoming(phone: str, text: str, broadcast: Callable[[str, Any, int], None], user_id: int = 1) -> Dict[str, Any]:
-    lead = find_lead_by_phone(phone, user_id=user_id)
+    uid = int(user_id or 1)
+    lead = find_lead_by_phone(phone, user_id=uid)
     if not lead:
         return {"matched": False}
 
-    log_message(lead["id"], phone, "in", "reply", text, user_id=user_id)
+    log_message(lead["id"], phone, "in", "reply", text, user_id=uid)
     result = {"matched": True, "lead_id": lead["id"], "followup_sent": False}
 
     first_reply = not lead.get("had_reply")
     fields = {"had_reply": 1}
     if lead.get("crm_status") in ("novo", "contatado"):
         fields["crm_status"] = "respondeu"
-    update_lead(lead["id"], fields, user_id=user_id)
+    update_lead(lead["id"], fields, user_id=uid)
 
-    cfg = get_config()
+    cfg = get_config(user_id=uid)
     if first_reply and cfg.get("auto_followup") and lead.get("whatsapp_status") == "enviado":
-        tpl = get_template(cfg["template_id"])
+        tpl = get_template(cfg["template_id"], user_id=uid)
         follow = fill_variables((tpl or {}).get("follow_up") or "", lead)
         if follow.strip():
             time.sleep(random.uniform(8, 20))
-            res = wa_request("POST", "/send", {"session_id": str(user_id), "phone": lead["clean_phone"], "text": follow}, timeout=60)
+            res = wa_request("POST", "/send", {"session_id": str(uid), "phone": lead["clean_phone"], "text": follow}, timeout=60)
             if res.get("success"):
-                update_lead(lead["id"], {"whatsapp_status": "followup_enviado"}, user_id=user_id)
-                log_message(lead["id"], lead["clean_phone"], "out", "followup", follow, user_id=user_id)
+                update_lead(lead["id"], {"whatsapp_status": "followup_enviado"}, user_id=uid)
+                log_message(lead["id"], lead["clean_phone"], "out", "followup", follow, user_id=uid)
                 result["followup_sent"] = True
 
     try:
         broadcast("lead_reply", {
             "id": lead["id"], "name": lead["name"], "text": text[:200],
             "followup_sent": result["followup_sent"]
-        }, user_id)
-        broadcast("chat_message", {"lead_id": lead["id"], "direction": "in", "text": text}, user_id)
+        }, uid)
+        broadcast("chat_message", {"lead_id": lead["id"], "direction": "in", "text": text}, uid)
     except TypeError:
         broadcast("lead_reply", {
             "id": lead["id"], "name": lead["name"], "text": text[:200],
@@ -403,7 +427,7 @@ def get_conversation(lead_id: int, user_id: Optional[int] = None) -> List[Dict[s
     conn = get_connection()
     cur = conn.cursor()
     if user_id is not None:
-        cur.execute("SELECT * FROM wa_messages WHERE lead_id = ? AND user_id = ? ORDER BY id ASC", (lead_id, user_id))
+        cur.execute("SELECT * FROM wa_messages WHERE lead_id = ? AND user_id = ? ORDER BY id ASC", (lead_id, int(user_id)))
     else:
         cur.execute("SELECT * FROM wa_messages WHERE lead_id = ? ORDER BY id ASC", (lead_id,))
     rows = [dict(r) for r in cur.fetchall()]
@@ -411,12 +435,13 @@ def get_conversation(lead_id: int, user_id: Optional[int] = None) -> List[Dict[s
     return rows
 
 
-def get_recent_activity(limit: int = 30) -> List[Dict[str, Any]]:
+def get_recent_activity(limit: int = 30, user_id: int = 1) -> List[Dict[str, Any]]:
     conn = get_connection()
     cur = conn.cursor()
     cur.execute("""SELECT m.*, l.name AS lead_name FROM wa_messages m
                    LEFT JOIN leads l ON l.id = m.lead_id
-                   ORDER BY m.id DESC LIMIT ?""", (limit,))
+                   WHERE m.user_id = ?
+                   ORDER BY m.id DESC LIMIT ?""", (int(user_id or 1), limit))
     rows = [dict(r) for r in cur.fetchall()]
     conn.close()
     return rows

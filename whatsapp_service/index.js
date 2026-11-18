@@ -17,7 +17,9 @@ const {
 } = require('@whiskeysockets/baileys');
 
 const PORT = process.env.WA_PORT || 5056;
+const HOST = process.env.WA_HOST || '127.0.0.1';
 const FLASK_WEBHOOK = process.env.FLASK_WEBHOOK || 'http://127.0.0.1:5055/api/wa/incoming';
+const INTERNAL_TOKEN = process.env.WA_INTERNAL_TOKEN || 'mapaleads_internal_wa_2026';
 const AUTH_ROOT = process.env.WA_AUTH_ROOT || path.join(__dirname, 'auth_sessions');
 const logger = pino({ level: 'silent' });
 
@@ -64,7 +66,10 @@ async function forwardIncoming(payload) {
   try {
     await fetch(FLASK_WEBHOOK, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Internal-Token': INTERNAL_TOKEN,
+      },
       body: JSON.stringify(payload)
     });
   } catch (e) {
@@ -266,8 +271,12 @@ app.post('/send', async (req, res) => {
   }
 });
 
-app.listen(PORT, '127.0.0.1', () => {
-  console.log(`[WA] Microserviço WhatsApp Multi-Sessão em http://127.0.0.1:${PORT}`);
+app.get('/health', (_req, res) => {
+  res.json({ status: 'ok', active_sessions: sessions.size });
+});
+
+app.listen(PORT, HOST, () => {
+  console.log(`[WA] Microserviço WhatsApp Multi-Sessão em http://${HOST}:${PORT}`);
   fs.mkdirSync(AUTH_ROOT, { recursive: true });
   try {
     for (const entry of fs.readdirSync(AUTH_ROOT)) {
