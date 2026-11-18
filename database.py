@@ -1975,32 +1975,52 @@ def delete_lead(lead_id: int, user_id: Optional[int] = None) -> bool:
         conn.close()
 
 
-def cleanup_leads_by_criteria(user_id: int, mode: str = "sem_whatsapp") -> int:
-    """Remove leads sem WhatsApp confirmado ou marcados como perdidos, liberando cota da conta."""
+def cleanup_leads_by_criteria(user_id: int, mode: str = "sem_whatsapp", lead_ids: Optional[List[int]] = None) -> int:
+    """Remove leads de uma coluna do Kanban ou critério de limpeza, liberando cota da conta."""
     conn = get_connection()
     cur = conn.cursor()
     try:
-        if mode == "perdido":
-            where = "user_id = ? AND crm_status = 'perdido'"
+        if lead_ids and isinstance(lead_ids, list):
+            clean_ids = [int(x) for x in lead_ids if str(x).isdigit()]
+            if not clean_ids:
+                return 0
+            placeholders = ",".join("?" * len(clean_ids))
+            cur.execute(f"SELECT id FROM leads WHERE user_id = ? AND id IN ({placeholders})", [user_id] + clean_ids)
+            ids = [r[0] for r in cur.fetchall()]
+        elif mode == "perdido":
+            cur.execute("SELECT id FROM leads WHERE user_id = ? AND crm_status = 'perdido'", (user_id,))
+            ids = [r[0] for r in cur.fetchall()]
         elif mode == "all_dead":
-            where = (
-                "user_id = ? AND (crm_status IN ('sem_whatsapp', 'perdido') "
-                "OR whatsapp_status = 'sem_whatsapp' OR whatsapp_verified = -1 "
-                "OR clean_phone IS NULL OR TRIM(clean_phone) = '')"
+            cur.execute(
+                """
+                SELECT id FROM leads
+                WHERE user_id = ? AND (crm_status IN ('sem_whatsapp', 'perdido')
+                   OR whatsapp_status = 'sem_whatsapp' OR whatsapp_verified = -1
+                   OR clean_phone IS NULL OR TRIM(clean_phone) = '')
+                """,
+                (user_id,)
             )
+            ids = [r[0] for r in cur.fetchall()]
+        elif mode in ("novo", "contatado", "respondeu", "negociacao", "fechado"):
+            cur.execute("SELECT id FROM leads WHERE user_id = ? AND crm_status = ?", (user_id, mode))
+            ids = [r[0] for r in cur.fetchall()]
         else:
-            where = (
-                "user_id = ? AND (crm_status = 'sem_whatsapp' "
-                "OR whatsapp_status = 'sem_whatsapp' OR whatsapp_verified = -1 "
-                "OR clean_phone IS NULL OR TRIM(clean_phone) = '')"
+            cur.execute(
+                """
+                SELECT id FROM leads
+                WHERE user_id = ? AND (crm_status = 'sem_whatsapp'
+                   OR whatsapp_status = 'sem_whatsapp' OR whatsapp_verified = -1
+                   OR clean_phone IS NULL OR TRIM(clean_phone) = '')
+                """,
+                (user_id,)
             )
+            ids = [r[0] for r in cur.fetchall()]
 
-        cur.execute(f"SELECT id FROM leads WHERE {where}", (user_id,))
-        ids = [r[0] for r in cur.fetchall()]
         if not ids:
             return 0
         placeholders = ",".join("?" * len(ids))
         cur.execute(f"DELETE FROM wa_messages WHERE user_id = ? AND lead_id IN ({placeholders})", [user_id] + ids)
+        cur.execute(f"DELETE FROM lead_interactions WHERE user_id = ? AND lead_id IN ({placeholders})", [user_id] + ids)
         cur.execute(f"DELETE FROM leads WHERE user_id = ? AND id IN ({placeholders})", [user_id] + ids)
         removed = cur.rowcount
         conn.commit()

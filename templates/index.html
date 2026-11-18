@@ -601,35 +601,60 @@
             <div class="kanban-col" data-status="novo">
               <div class="kanban-col-head">
                 <span><span class="dot dot-slate"></span> Novos Leads</span>
-                <span class="col-count" id="cnt-novo">0</span>
+                <div class="col-head-right">
+                  <button type="button" class="col-trash-btn" onclick="deleteKanbanColumnLeads('novo', 'Novos Leads')" title="Excluir todos os leads desta coluna">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                  <span class="col-count" id="cnt-novo">0</span>
+                </div>
               </div>
               <div class="kanban-list" id="col-novo"></div>
             </div>
             <div class="kanban-col" data-status="contatado">
               <div class="kanban-col-head">
                 <span><span class="dot dot-blue"></span> Contatado</span>
-                <span class="col-count" id="cnt-contatado">0</span>
+                <div class="col-head-right">
+                  <button type="button" class="col-trash-btn" onclick="deleteKanbanColumnLeads('contatado', 'Contatado')" title="Excluir todos os leads desta coluna">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                  <span class="col-count" id="cnt-contatado">0</span>
+                </div>
               </div>
               <div class="kanban-list" id="col-contatado"></div>
             </div>
             <div class="kanban-col" data-status="respondeu">
               <div class="kanban-col-head">
                 <span><span class="dot dot-amber"></span> Respondeu</span>
-                <span class="col-count" id="cnt-respondeu">0</span>
+                <div class="col-head-right">
+                  <button type="button" class="col-trash-btn" onclick="deleteKanbanColumnLeads('respondeu', 'Respondeu')" title="Excluir todos os leads desta coluna">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                  <span class="col-count" id="cnt-respondeu">0</span>
+                </div>
               </div>
               <div class="kanban-list" id="col-respondeu"></div>
             </div>
             <div class="kanban-col" data-status="negociacao">
               <div class="kanban-col-head">
                 <span><span class="dot dot-purple"></span> Proposta / Reunião</span>
-                <span class="col-count" id="cnt-negociacao">0</span>
+                <div class="col-head-right">
+                  <button type="button" class="col-trash-btn" onclick="deleteKanbanColumnLeads('negociacao', 'Proposta / Reunião')" title="Excluir todos os leads desta coluna">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                  <span class="col-count" id="cnt-negociacao">0</span>
+                </div>
               </div>
               <div class="kanban-list" id="col-negociacao"></div>
             </div>
             <div class="kanban-col" data-status="fechado">
               <div class="kanban-col-head">
                 <span><span class="dot dot-emerald"></span> Venda Fechada</span>
-                <span class="col-count" id="cnt-fechado">0</span>
+                <div class="col-head-right">
+                  <button type="button" class="col-trash-btn" onclick="deleteKanbanColumnLeads('fechado', 'Venda Fechada')" title="Excluir todos os leads desta coluna">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                  <span class="col-count" id="cnt-fechado">0</span>
+                </div>
               </div>
               <div class="kanban-list" id="col-fechado"></div>
             </div>
@@ -637,7 +662,7 @@
               <div class="kanban-col-head">
                 <span><span class="dot dot-orange"></span> Sem WhatsApp</span>
                 <div class="col-head-right">
-                  <button type="button" class="col-trash-btn" onclick="cleanupLeads('sem_whatsapp')" title="Excluir todos sem WhatsApp">
+                  <button type="button" class="col-trash-btn" onclick="deleteKanbanColumnLeads('sem_whatsapp', 'Sem WhatsApp')" title="Excluir todos os leads desta coluna">
                     <i class="fa-solid fa-trash-can"></i>
                   </button>
                   <span class="col-count" id="cnt-sem_whatsapp">0</span>
@@ -649,7 +674,7 @@
               <div class="kanban-col-head">
                 <span><span class="dot dot-red"></span> Lead Perdido</span>
                 <div class="col-head-right">
-                  <button type="button" class="col-trash-btn" onclick="cleanupLeads('perdido')" title="Excluir todos os leads perdidos">
+                  <button type="button" class="col-trash-btn" onclick="deleteKanbanColumnLeads('perdido', 'Lead Perdido')" title="Excluir todos os leads desta coluna">
                     <i class="fa-solid fa-trash-can"></i>
                   </button>
                   <span class="col-count" id="cnt-perdido">0</span>
@@ -1747,6 +1772,6 @@
     window.CURRENT_USER = {{ current_user | tojson if current_user else 'null' }};
     window.ACCESS_STATUS = {{ access_status | tojson if access_status else 'null' }};
   </script>
-  <script src="/static/js/app.js?v=5.1"></script>
+  <script src="/static/js/app.js?v=5.2"></script>
 </body>
 </html>

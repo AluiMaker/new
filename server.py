@@ -1197,9 +1197,11 @@ def api_leads_cleanup():
     uid = current_user_id()
     data = request.get_json(silent=True) or {}
     mode = (data.get("mode") or "sem_whatsapp").strip().lower()
-    if mode not in ("sem_whatsapp", "perdido", "all_dead"):
+    lead_ids = data.get("ids") if isinstance(data.get("ids"), list) else None
+    valid_modes = ("novo", "contatado", "respondeu", "negociacao", "fechado", "sem_whatsapp", "perdido", "all_dead", "ids")
+    if mode not in valid_modes:
         return jsonify({"success": False, "error": "Modo de limpeza inválido."}), 400
-    removed = cleanup_leads_by_criteria(uid, mode=mode)
+    removed = cleanup_leads_by_criteria(uid, mode=mode, lead_ids=lead_ids)
     broadcast_event("lead_updated", {"cleanup": mode, "removed": removed}, user_id=uid)
     broadcast_event("queue_updated", wa.get_queue_summary(user_id=uid), user_id=uid)
     return jsonify({"success": True, "removed": removed, "access": get_user_access_status(uid)})

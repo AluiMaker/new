@@ -823,6 +823,36 @@ async function quickMarkStatus(leadId, newStatus) {
   loadAllData();
 }
 
+async function deleteKanbanColumnLeads(status, colLabel) {
+  const colEl = document.getElementById(`col-${status}`);
+  const ids = colEl
+    ? Array.from(colEl.querySelectorAll('.lead-card')).map(c => Number(c.dataset.id)).filter(Boolean)
+    : [];
+  if (!ids.length && status !== 'sem_whatsapp') {
+    toast(`A coluna "${colLabel}" já está vazia.`, 'info');
+    return;
+  }
+  const msg = ids.length
+    ? `Excluir todos os ${ids.length} lead(s) visíveis na coluna "${colLabel}" e liberar espaço na sua conta?`
+    : `Excluir todos os leads da coluna "${colLabel}" e liberar espaço na sua conta?`;
+  if (!confirm(msg)) return;
+
+  const payload = ids.length ? { mode: status, ids } : { mode: status };
+  const res = await apiFetch('/api/leads/cleanup', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const d = await res.json();
+  if (d.success) {
+    toast(`${d.removed || 0} lead(s) excluídos da coluna "${colLabel}"!`, 'success');
+    if (d.access) updateTopbarQuotaDisplay(d.access);
+    loadAllData();
+  } else {
+    toast(d.error || 'Erro ao excluir leads da coluna.', 'error');
+  }
+}
+
 async function cleanupLeads(mode = 'sem_whatsapp') {
   const msg = mode === 'perdido'
     ? 'Excluir TODOS os leads marcados como "Lead Perdido" para limpar seu funil e liberar espaço?'
