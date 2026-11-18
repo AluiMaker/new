@@ -400,6 +400,9 @@ def build_maps_search_query(term: str, street: str, neighborhood: str, city: str
 class GoogleMapsScraper:
     def __init__(self, headless: bool = True, log_callback: Optional[Callable[[str], None]] = None):
         self.port = find_free_port()
+        # Em servidores Linux/Docker sem monitor gráfico (DISPLAY), sempre força modo headless
+        if os.name != "nt" and not os.environ.get("DISPLAY"):
+            headless = True
         self.headless = headless
         self.log_callback = log_callback or (lambda msg: None)
         self.process: Optional[subprocess.Popen] = None
@@ -439,29 +442,37 @@ class GoogleMapsScraper:
             initial_url
         ]
 
-        if self.headless:
-            if os.name != "nt":
+        if os.name != "nt":
+            args.extend([
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-gpu",
+                "--disable-software-rasterizer",
+                "--blink-settings=imagesEnabled=false",
+                "--js-flags=--max-old-space-size=256",
+            ])
+            if self.headless or not os.environ.get("DISPLAY"):
                 args.extend([
                     "--headless=new",
-                    "--no-sandbox",
-                    "--disable-dev-shm-usage",
-                    "--disable-gpu",
-                    "--disable-software-rasterizer",
-                    "--blink-settings=imagesEnabled=false",
-                    "--js-flags=--max-old-space-size=256",
                     "--window-size=1366,860"
                 ])
             else:
+                args.extend([
+                    "--window-size=1280,840",
+                    "--window-position=50,50"
+                ])
+        else:
+            if self.headless:
                 args.extend([
                     "--blink-settings=imagesEnabled=false",
                     "--window-position=-32000,-32000",
                     "--window-size=1366,860"
                 ])
-        else:
-            args.extend([
-                "--window-size=1280,840",
-                "--window-position=50,50"
-            ])
+            else:
+                args.extend([
+                    "--window-size=1280,840",
+                    "--window-position=50,50"
+                ])
 
         startupinfo = None
         creationflags = 0

@@ -362,10 +362,6 @@
                 <button class="btn btn-danger btn-lg hidden" id="btn-stop-search">
                   <i class="fa-solid fa-stop"></i> Parar Busca
                 </button>
-                <label class="checkbox-inline" title="Abre a janela do navegador durante a extração (apenas local)">
-                  <input type="checkbox" id="chk-visible-browser">
-                  <span>Mostrar navegador</span>
-                </label>
               </div>
             </div>
 
@@ -1489,6 +1485,6 @@
     window.CURRENT_USER = {{ current_user | tojson if current_user else 'null' }};
     window.ACCESS_STATUS = {{ access_status | tojson if access_status else 'null' }};
   </script>
-  <script src="/static/js/app.js?v=4.3"></script>
+  <script src="/static/js/app.js?v=4.5"></script>
 </body>
 </html>

@@ -386,7 +386,7 @@ async function startSearch() {
   const mode = document.getElementById('search-mode').value;
   const niche = document.getElementById('search-niche').value.trim();
   const limit = Number(document.getElementById('search-limit').value || 50);
-  const visible = document.getElementById('chk-visible-browser').checked;
+  const visible = Boolean(document.getElementById('chk-visible-browser')?.checked);
   const selLoc = STATE.selectedLocation;
 
   if (!locText && !niche) {
