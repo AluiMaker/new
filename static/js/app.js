@@ -1941,14 +1941,163 @@ function renderAdminUsersTable() {
       <td>${usedQuota}${limitStr}</td>
       <td><span class="status-pill ${isOk ? 'ok' : 'err'}">${u.is_active ? escapeHtml(subSt) : 'bloqueada'}</span></td>
       <td style="display:flex; gap:6px; flex-wrap:wrap;">
-        <button class="btn btn-emerald btn-xs" onclick="renewUser(${u.id}, 30, '${escapeHtml(targetPlan)}')">+30d (${escapeHtml(targetPlan)})</button>
-        <button class="btn btn-outline btn-xs" onclick="renewUser(${u.id}, 30, 'pro')">PRO</button>
+        <button class="btn btn-primary btn-xs" onclick="openAdminEditUserModal(${u.id})" title="Editar plano, vencimento, status, limite e dados da assinatura">
+          <i class="fa-solid fa-pen-to-square"></i> Editar
+        </button>
+        <button class="btn btn-emerald btn-xs" onclick="renewUser(${u.id}, 30, '${escapeHtml(targetPlan)}')" title="Adicionar +30 dias rapidamente">+30d</button>
         <button class="btn btn-outline btn-xs" onclick="toggleUserActive(${u.id}, ${u.is_active ? 0 : 1})">
           ${u.is_active ? 'Bloquear' : 'Liberar'}
         </button>
       </td>
     </tr>`;
   }).join('') : '<tr><td colspan="8" class="text-muted">Nenhuma conta encontrada nesse filtro.</td></tr>';
+}
+
+const ADMIN_PLAN_DEFAULT_LIMITS = {
+  trial: 25,
+  starter: 500,
+  pro: 2000,
+  enterprise: 0,
+};
+
+function openAdminEditUserModal(uid) {
+  const u = (_adminUsersCache || []).find(x => Number(x.id) === Number(uid));
+  if (!u) return;
+  const modal = document.getElementById('modal-admin-edit-user');
+  if (!modal) return;
+
+  const normPlan = u.plan === 'agency' ? 'enterprise' : (u.plan || 'trial');
+  document.getElementById('adm-edit-id').value = u.id;
+  document.getElementById('adm-edit-user-id-badge').textContent = `#${u.id}`;
+  document.getElementById('adm-edit-user-meta').textContent = `Cadastrado em ${(u.created_at || '').slice(0, 10) || '-'} · Último acesso: ${(u.last_login_at || 'nunca').slice(0, 16).replace('T', ' ')}`;
+  document.getElementById('adm-edit-plan').value = ['trial', 'starter', 'pro', 'enterprise'].includes(normPlan) ? normPlan : 'starter';
+  document.getElementById('adm-edit-sub-status').value = u.subscription_status || 'active';
+  document.getElementById('adm-edit-expires').value = u.plan_expires_at ? String(u.plan_expires_at).slice(0, 10) : '';
+  document.getElementById('adm-edit-max-leads').value = u.max_leads !== undefined && u.max_leads !== null ? u.max_leads : (ADMIN_PLAN_DEFAULT_LIMITS[normPlan] ?? 500);
+  document.getElementById('adm-edit-leads-usage').textContent = `Leads salvos hoje nesta conta: ${u.leads_count || 0}`;
+
+  document.getElementById('adm-edit-name').value = u.name || '';
+  document.getElementById('adm-edit-company').value = u.company_name || '';
+  document.getElementById('adm-edit-email').value = u.email || '';
+  document.getElementById('adm-edit-password').value = '';
+  document.getElementById('adm-edit-role').value = u.role || 'user';
+  document.getElementById('adm-edit-active').value = u.is_active ? '1' : '0';
+
+  const delBtn = document.getElementById('btn-adm-delete-user');
+  if (delBtn) {
+    const isSelf = window.CURRENT_USER && Number(window.CURRENT_USER.id) === Number(u.id);
+    delBtn.classList.toggle('hidden', isSelf);
+  }
+
+  modal.classList.remove('hidden');
+}
+
+function closeAdminEditUserModal() {
+  document.getElementById('modal-admin-edit-user')?.classList.add('hidden');
+}
+
+function onAdminEditPlanChange() {
+  const plan = document.getElementById('adm-edit-plan')?.value || 'starter';
+  const maxEl = document.getElementById('adm-edit-max-leads');
+  const statusEl = document.getElementById('adm-edit-sub-status');
+  if (maxEl && plan in ADMIN_PLAN_DEFAULT_LIMITS) {
+    maxEl.value = ADMIN_PLAN_DEFAULT_LIMITS[plan];
+  }
+  if (statusEl) {
+    statusEl.value = plan === 'trial' ? 'trial' : 'active';
+  }
+}
+
+function adminEditShiftExpiry(days) {
+  const expEl = document.getElementById('adm-edit-expires');
+  if (!expEl) return;
+  const now = new Date();
+  let base = now;
+  if (expEl.value) {
+    const parsed = new Date(`${expEl.value}T12:00:00`);
+    if (!Number.isNaN(parsed.getTime()) && parsed > now) {
+      base = parsed;
+    }
+  }
+  base.setDate(base.getDate() + Number(days || 30));
+  const yyyy = base.getFullYear();
+  const mm = String(base.getMonth() + 1).padStart(2, '0');
+  const dd = String(base.getDate()).padStart(2, '0');
+  expEl.value = `${yyyy}-${mm}-${dd}`;
+  const statusEl = document.getElementById('adm-edit-sub-status');
+  if (statusEl && (statusEl.value === 'expired' || statusEl.value === 'suspended' || statusEl.value === 'canceled')) {
+    statusEl.value = 'active';
+  }
+}
+
+function adminEditClearExpiry() {
+  const expEl = document.getElementById('adm-edit-expires');
+  if (expEl) expEl.value = '';
+  const statusEl = document.getElementById('adm-edit-sub-status');
+  if (statusEl) statusEl.value = 'active';
+}
+
+async function submitAdminEditUser(e) {
+  e.preventDefault();
+  const uid = document.getElementById('adm-edit-id')?.value;
+  if (!uid) return;
+  const btn = document.getElementById('btn-adm-save-user');
+  if (btn) btn.disabled = true;
+  try {
+    const payload = {
+      name: document.getElementById('adm-edit-name').value.trim(),
+      company_name: document.getElementById('adm-edit-company').value.trim(),
+      email: document.getElementById('adm-edit-email').value.trim(),
+      role: document.getElementById('adm-edit-role').value,
+      is_active: parseInt(document.getElementById('adm-edit-active').value, 10),
+      plan: document.getElementById('adm-edit-plan').value,
+      subscription_status: document.getElementById('adm-edit-sub-status').value,
+      plan_expires_at: document.getElementById('adm-edit-expires').value.trim(),
+      max_leads: parseInt(document.getElementById('adm-edit-max-leads').value || '0', 10),
+    };
+    const pwd = document.getElementById('adm-edit-password').value;
+    if (pwd) payload.password = pwd;
+
+    const res = await apiFetch(`/api/admin/users/${uid}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    const d = await res.json();
+    if (!res.ok || !d.success) {
+      toast(d.error || 'Erro ao salvar assinatura.', 'error');
+      return;
+    }
+    toast('Assinatura e dados da conta atualizados com sucesso!', 'success');
+    closeAdminEditUserModal();
+    loadAdminUsers();
+    if (typeof loadAdminSaasOverview === 'function') loadAdminSaasOverview();
+  } catch (err) {
+    toast('Falha ao atualizar assinatura.', 'error');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function deleteAdminUserFromModal() {
+  const uid = document.getElementById('adm-edit-id')?.value;
+  const email = document.getElementById('adm-edit-email')?.value || '';
+  if (!uid) return;
+  if (!confirm(`Tem certeza que deseja EXCLUIR DEFINITIVAMENTE a conta #${uid} (${email}) e todos os leads dela?\n\nEsta ação não pode ser desfeita.`)) return;
+  try {
+    const res = await apiFetch(`/api/admin/users/${uid}`, { method: 'DELETE' });
+    const d = await res.json();
+    if (!res.ok || !d.success) {
+      toast(d.error || 'Não foi possível excluir a conta.', 'error');
+      return;
+    }
+    toast('Conta de assinante excluída com sucesso.', 'info');
+    closeAdminEditUserModal();
+    loadAdminUsers();
+    if (typeof loadAdminSaasOverview === 'function') loadAdminSaasOverview();
+  } catch (err) {
+    toast('Erro ao excluir conta.', 'error');
+  }
 }
 
 async function renewUser(uid, days = 30, plan = 'starter') {
@@ -1961,6 +2110,7 @@ async function renewUser(uid, days = 30, plan = 'starter') {
   if (d.success) {
     toast(`Assinatura renovada por +${days} dias (Plano ${String(plan).toUpperCase()})!`, 'success');
     loadAdminUsers();
+    if (typeof loadAdminSaasOverview === 'function') loadAdminSaasOverview();
   }
 }
 
@@ -1972,6 +2122,7 @@ async function toggleUserActive(uid, active) {
   });
   toast('Status do usuário atualizado.', 'success');
   loadAdminUsers();
+  if (typeof loadAdminSaasOverview === 'function') loadAdminSaasOverview();
 }
 
 // ==================== ACADEMIA / VIDEOAULAS ====================

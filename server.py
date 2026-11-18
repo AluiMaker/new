@@ -19,7 +19,7 @@ from database import (
     get_pitch_templates, save_pitch_template, delete_pitch_template, reset_user_templates,
     init_db, deduplicate_database, batch_verify_whatsapp, is_phone_already_contacted,
     get_connection, create_user, authenticate_user, get_user_by_id, find_user_by_email,
-    list_users, update_user, get_wa_user_config, save_wa_user_config,
+    list_users, update_user, delete_user_admin, get_plan_defaults, get_wa_user_config, save_wa_user_config,
     get_user_access_status, extend_user_subscription, count_recent_signups_by_ip,
     cleanup_expired_trials, log_billing_event, is_billing_event_processed,
     complete_first_access, get_admin_dashboard_stats,
@@ -649,11 +649,84 @@ def api_admin_users():
     return jsonify({"success": True, "user": get_user_by_id(uid)})
 
 
-@app.route("/api/admin/users/<int:target_id>", methods=["PUT"])
+@app.route("/api/admin/users/<int:target_id>", methods=["PUT", "DELETE"])
 @admin_required
 def api_admin_update_user(target_id):
+    target_user = get_user_by_id(target_id)
+    if not target_user:
+        return jsonify({"success": False, "error": "Usuário não encontrado."}), 404
+
+    if request.method == "DELETE":
+        if target_id == current_user_id():
+            return jsonify({"success": False, "error": "Você não pode excluir sua própria conta de administrador."}), 400
+        ok = delete_user_admin(target_id)
+        return jsonify({"success": ok})
+
     data = request.get_json(silent=True) or {}
-    ok = update_user(target_id, data)
+    payload: Dict[str, Any] = {}
+
+    if "name" in data:
+        nm = str(data.get("name") or "").strip()
+        if not nm:
+            return jsonify({"success": False, "error": "Informe o nome do assinante."}), 400
+        payload["name"] = nm
+
+    if "company_name" in data:
+        payload["company_name"] = str(data.get("company_name") or "").strip()
+
+    if "email" in data:
+        new_email = str(data.get("email") or "").strip().lower()
+        if not new_email or "@" not in new_email:
+            return jsonify({"success": False, "error": "E-mail inválido."}), 400
+        existing = find_user_by_email(new_email)
+        if existing and int(existing["id"]) != int(target_id):
+            return jsonify({"success": False, "error": "Já existe outra conta cadastrada com este e-mail."}), 400
+        payload["email"] = new_email
+
+    if "role" in data:
+        new_role = str(data.get("role") or "user").strip().lower()
+        if new_role not in ("user", "admin"):
+            new_role = "user"
+        if target_id == current_user_id() and new_role != "admin":
+            return jsonify({"success": False, "error": "Você não pode remover seu próprio perfil de administrador."}), 400
+        payload["role"] = new_role
+
+    if "is_active" in data:
+        new_active = 1 if int(data.get("is_active") or 0) else 0
+        if target_id == current_user_id() and new_active == 0:
+            return jsonify({"success": False, "error": "Você não pode bloquear sua própria conta."}), 400
+        payload["is_active"] = new_active
+
+    if "plan" in data:
+        new_plan = normalize_plan_name(str(data.get("plan") or "trial"))
+        payload["plan"] = new_plan
+        if data.get("sync_plan_limits"):
+            payload["max_leads"] = get_plan_defaults(new_plan)["max_leads"]
+
+    if "subscription_status" in data:
+        sub_st = str(data.get("subscription_status") or "active").strip().lower()
+        if sub_st in ("active", "trial", "expired", "suspended", "canceled"):
+            payload["subscription_status"] = sub_st
+
+    if "plan_expires_at" in data:
+        payload["plan_expires_at"] = str(data.get("plan_expires_at") or "").strip()
+
+    if "max_leads" in data and data.get("max_leads") is not None and str(data.get("max_leads")).strip() != "":
+        try:
+            payload["max_leads"] = max(0, int(data.get("max_leads")))
+        except (ValueError, TypeError):
+            return jsonify({"success": False, "error": "Limite de leads inválido."}), 400
+
+    if data.get("password"):
+        pwd = str(data.get("password"))
+        if len(pwd) < 6:
+            return jsonify({"success": False, "error": "A nova senha precisa ter pelo menos 6 caracteres."}), 400
+        payload["password"] = pwd
+
+    if not payload:
+        return jsonify({"success": False, "error": "Nenhum campo para atualizar."}), 400
+
+    ok = update_user(target_id, payload)
     return jsonify({"success": ok, "user": get_user_by_id(target_id)})
 
 

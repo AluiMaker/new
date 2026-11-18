@@ -1785,6 +1785,115 @@
     </div>
   </div>
 
+  {% if current_user and current_user.role == 'admin' %}
+  <!-- ==================== MODAL EDITAR ASSINATURA & CONTA (ADMIN) ==================== -->
+  <div id="modal-admin-edit-user" class="hidden" onclick="if (event.target === this) closeAdminEditUserModal()" style="position:fixed; inset:0; background:rgba(15,23,42,0.72); backdrop-filter:blur(4px); z-index:1010; display:flex; align-items:center; justify-content:center; padding:18px; overflow-y:auto;">
+    <div class="card" style="max-width:640px; width:100%; padding:24px; position:relative;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:16px; border-bottom:1px solid var(--border); padding-bottom:12px;">
+        <div>
+          <h3 style="margin:0 0 3px;"><i class="fa-solid fa-user-pen text-blue"></i> Editar Assinatura &amp; Conta <span id="adm-edit-user-id-badge" class="status-pill" style="margin-left:6px;">#0</span></h3>
+          <p class="text-muted" id="adm-edit-user-meta" style="margin:0; font-size:0.8rem;">Altere plano, vencimento, status, limite de leads ou dados cadastrais.</p>
+        </div>
+        <button type="button" class="icon-btn" onclick="closeAdminEditUserModal()" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <form id="form-admin-edit-user" onsubmit="submitAdminEditUser(event)">
+        <input type="hidden" id="adm-edit-id">
+
+        <div style="font-size:0.78rem; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; color:var(--primary); margin-bottom:8px;">
+          <i class="fa-solid fa-crown"></i> Configuração da Assinatura
+        </div>
+        <div class="form-grid" style="margin-bottom:14px;">
+          <div class="field">
+            <label>Plano da Assinatura</label>
+            <select id="adm-edit-plan" onchange="onAdminEditPlanChange()">
+              <option value="trial">Trial (Teste · padrão 25 leads)</option>
+              <option value="starter">Starter (padrão 500 leads)</option>
+              <option value="pro">PRO (padrão 2.000 leads + Academia Vendas)</option>
+              <option value="enterprise">Enterprise (Ilimitado · 0)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Status da Assinatura</label>
+            <select id="adm-edit-sub-status">
+              <option value="active">Ativa (active)</option>
+              <option value="trial">Teste Grátis (trial)</option>
+              <option value="expired">Vencida (expired)</option>
+              <option value="suspended">Suspensa (suspended)</option>
+              <option value="canceled">Cancelada (canceled)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Data de Vencimento <small class="text-muted">(vazio = Vitalício)</small></label>
+            <input type="date" id="adm-edit-expires">
+            <div style="display:flex; gap:5px; flex-wrap:wrap; margin-top:6px;">
+              <button type="button" class="btn btn-outline btn-xs" onclick="adminEditShiftExpiry(7)">+7d</button>
+              <button type="button" class="btn btn-outline btn-xs" onclick="adminEditShiftExpiry(15)">+15d</button>
+              <button type="button" class="btn btn-outline btn-xs" onclick="adminEditShiftExpiry(30)">+30d</button>
+              <button type="button" class="btn btn-outline btn-xs" onclick="adminEditShiftExpiry(90)">+90d</button>
+              <button type="button" class="btn btn-outline btn-xs" onclick="adminEditShiftExpiry(365)">+1 ano</button>
+              <button type="button" class="btn btn-outline btn-xs" onclick="adminEditClearExpiry()">∞ Vitalício</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>Limite de Leads Salvos <small class="text-muted">(0 = Ilimitado)</small></label>
+            <input type="number" id="adm-edit-max-leads" min="0" step="1">
+            <small class="text-muted" id="adm-edit-leads-usage" style="display:block; margin-top:5px;">Leads salvos hoje: 0</small>
+          </div>
+        </div>
+
+        <div style="font-size:0.78rem; font-weight:800; text-transform:uppercase; letter-spacing:0.04em; color:var(--text-muted); margin:14px 0 8px; padding-top:12px; border-top:1px dashed var(--border);">
+          <i class="fa-solid fa-id-card"></i> Dados da Conta &amp; Acesso
+        </div>
+        <div class="form-grid" style="margin-bottom:18px;">
+          <div class="field">
+            <label>Nome Completo</label>
+            <input type="text" id="adm-edit-name" required>
+          </div>
+          <div class="field">
+            <label>Empresa</label>
+            <input type="text" id="adm-edit-company">
+          </div>
+          <div class="field">
+            <label>E-mail de Acesso</label>
+            <input type="email" id="adm-edit-email" required>
+          </div>
+          <div class="field">
+            <label>Nova Senha <small class="text-muted">(opcional, mín. 6 dígitos)</small></label>
+            <input type="password" id="adm-edit-password" placeholder="Deixe vazio para manter a atual" minlength="6">
+          </div>
+          <div class="field">
+            <label>Perfil de Acesso</label>
+            <select id="adm-edit-role">
+              <option value="user">Cliente (user)</option>
+              <option value="admin">Administrador (admin)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Acesso ao Login</label>
+            <select id="adm-edit-active">
+              <option value="1">Liberado (Conta Ativa)</option>
+              <option value="0">Bloqueado (Impede Login)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; border-top:1px solid var(--border); padding-top:14px;">
+          <button type="button" class="btn btn-outline btn-sm text-danger" id="btn-adm-delete-user" onclick="deleteAdminUserFromModal()">
+            <i class="fa-solid fa-trash-can"></i> Excluir Conta
+          </button>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="btn btn-outline btn-sm" onclick="closeAdminEditUserModal()">Cancelar</button>
+            <button type="submit" class="btn btn-primary btn-sm" id="btn-adm-save-user">
+              <i class="fa-solid fa-floppy-disk"></i> Salvar Assinatura
+            </button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+  {% endif %}
+
   <!-- ==================== SLIDE-OVER LEAD DRAWER ==================== -->
   <div class="drawer-backdrop hidden" id="drawer-backdrop" onclick="closeLeadDrawer()"></div>
   <aside class="lead-drawer hidden" id="lead-drawer">
@@ -1948,6 +2057,6 @@
     window.CURRENT_USER = {{ current_user | tojson if current_user else 'null' }};
     window.ACCESS_STATUS = {{ access_status | tojson if access_status else 'null' }};
   </script>
-  <script src="/static/js/app.js?v=5.4"></script>
+  <script src="/static/js/app.js?v=5.5"></script>
 </body>
 </html>

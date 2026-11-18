@@ -1217,11 +1217,25 @@ def list_users() -> List[Dict[str, Any]]:
 
 
 def update_user(user_id: int, fields: Dict[str, Any]) -> bool:
-    allowed = {"name", "company_name", "role", "plan", "is_active", "subscription_status", "plan_expires_at", "max_leads", "billing_customer_id", "must_set_password", "verification_hint"}
+    allowed = {"name", "email", "company_name", "role", "plan", "is_active", "subscription_status", "plan_expires_at", "max_leads", "billing_customer_id", "must_set_password", "verification_hint"}
     updates = []
     params = []
     for k, v in fields.items():
         if k in allowed:
+            if k == "email":
+                clean_email = str(v or "").strip().lower()
+                if not clean_email or "@" not in clean_email:
+                    continue
+                v = clean_email
+            elif k == "plan":
+                v = normalize_plan_name(str(v or "trial"))
+            elif k == "plan_expires_at":
+                raw_exp = str(v or "").strip()
+                if len(raw_exp) == 10 and raw_exp[4] == "-" and raw_exp[7] == "-":
+                    raw_exp = f"{raw_exp}T23:59:59"
+                v = raw_exp
+            elif k in ("max_leads", "is_active", "must_set_password"):
+                v = int(v)
             updates.append(f"{k} = ?")
             params.append(v)
     if fields.get("password") and len(str(fields["password"])) >= 6:
@@ -1236,6 +1250,32 @@ def update_user(user_id: int, fields: Dict[str, Any]) -> bool:
         cur.execute(f"UPDATE users SET {', '.join(updates)} WHERE id = ?", params)
         conn.commit()
         return cur.rowcount > 0
+    finally:
+        conn.close()
+
+
+def delete_user_admin(user_id: int) -> bool:
+    """Remove definitivamente uma conta de assinante e seus dados associados."""
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        for tbl in (
+            "leads", "search_history", "pitch_templates", "wa_messages",
+            "wa_user_configs", "academy_progress", "sales_academy_progress",
+            "user_onboarding", "lead_interactions", "activation_logs",
+            "analytics_events", "ai_usage_logs"
+        ):
+            try:
+                cur.execute(f"DELETE FROM {tbl} WHERE user_id = ?", (user_id,))
+            except sqlite3.OperationalError:
+                pass
+        cur.execute("DELETE FROM users WHERE id = ?", (user_id,))
+        deleted = cur.rowcount > 0
+        conn.commit()
+        if deleted:
+            wa_root = os.environ.get("WA_AUTH_ROOT") or os.path.join(os.path.dirname(os.path.abspath(__file__)), "whatsapp_service", "auth_sessions")
+            shutil.rmtree(os.path.join(wa_root, f"user_{user_id}"), ignore_errors=True)
+        return deleted
     finally:
         conn.close()
 
