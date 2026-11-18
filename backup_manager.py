@@ -19,6 +19,7 @@ import shutil
 import sqlite3
 import tarfile
 import tempfile
+import threading
 import subprocess
 import urllib.request
 from datetime import datetime
@@ -26,6 +27,7 @@ from typing import Dict, Any, List, Optional
 
 
 MAGIC_HEADER = b"MLPBK01\n"
+_backup_lock = threading.Lock()
 
 
 def _derive_key_and_hmac(secret: str, salt: bytes) -> tuple[bytes, bytes]:
@@ -227,88 +229,91 @@ def run_full_backup(
     5. Faz upload para OCI Object Storage (se configurado)
     6. Aplica política de retenção mantendo os últimos `keep_count` backups verificados
     """
-    db_dir = os.path.dirname(os.path.abspath(db_path))
-    backup_dir = os.path.join(db_dir, "backups")
-    os.makedirs(backup_dir, exist_ok=True)
+    with _backup_lock:
+        db_dir = os.path.dirname(os.path.abspath(db_path))
+        backup_dir = os.path.join(db_dir, "backups")
+        os.makedirs(backup_dir, exist_ok=True)
 
-    ts = time.strftime("%Y%m%d_%H%M%S")
-    day_tag = time.strftime("%Y%m%d")
-    tmp_work = tempfile.mkdtemp(prefix="mapaleads_bk_build_")
+        ts = f"{time.strftime('%Y%m%d_%H%M%S')}_{os.getpid()}"
+        day_tag = time.strftime("%Y%m%d")
+        tmp_work = tempfile.mkdtemp(prefix="mapaleads_bk_build_")
 
-    try:
-        snap_db = os.path.join(tmp_work, "mapaleads.db")
-        snap_info = create_consistent_sqlite_snapshot(db_path, snap_db)
+        try:
+            snap_db = os.path.join(tmp_work, "mapaleads.db")
+            snap_info = create_consistent_sqlite_snapshot(db_path, snap_db)
 
-        # Também mantém uma cópia diária .db consistente para compatibilidade rápida
-        daily_db_copy = os.path.join(backup_dir, f"mapaleads_{day_tag}.db")
-        shutil.copy2(snap_db, daily_db_copy)
+            # Também mantém uma cópia diária .db consistente para compatibilidade rápida (escrita atômica)
+            daily_db_copy = os.path.join(backup_dir, f"mapaleads_{day_tag}.db")
+            daily_tmp = os.path.join(backup_dir, f".mapaleads_{day_tag}.db.tmp_{os.getpid()}")
+            shutil.copy2(snap_db, daily_tmp)
+            os.replace(daily_tmp, daily_db_copy)
 
-        tar_path = os.path.join(tmp_work, f"mapaleads_full_{ts}.tar.gz")
-        with tarfile.open(tar_path, "w:gz") as tar:
-            tar.add(snap_db, arcname="mapaleads.db")
-            if wa_sessions_dir and os.path.isdir(wa_sessions_dir):
-                tar.add(wa_sessions_dir, arcname="wa_sessions")
+            tar_path = os.path.join(tmp_work, f"mapaleads_full_{ts}.tar.gz")
+            with tarfile.open(tar_path, "w:gz") as tar:
+                tar.add(snap_db, arcname="mapaleads.db")
+                if wa_sessions_dir and os.path.isdir(wa_sessions_dir):
+                    tar.add(wa_sessions_dir, arcname="wa_sessions")
 
-        use_secret = (secret_key or os.environ.get("BACKUP_ENCRYPTION_KEY") or os.environ.get("SECRET_KEY") or "").strip()
-        if use_secret:
-            final_name = f"mapaleads_full_{ts}.tar.gz.enc"
-            final_path = os.path.join(backup_dir, final_name)
-            encrypt_file(tar_path, final_path, use_secret)
-            encrypted = True
-        else:
-            final_name = f"mapaleads_full_{ts}.tar.gz"
-            final_path = os.path.join(backup_dir, final_name)
-            shutil.copy2(tar_path, final_path)
-            encrypted = False
+            use_secret = (secret_key or os.environ.get("BACKUP_ENCRYPTION_KEY") or os.environ.get("SECRET_KEY") or "").strip()
+            if use_secret:
+                final_name = f"mapaleads_full_{ts}.tar.gz.enc"
+                final_path = os.path.join(backup_dir, final_name)
+                encrypt_file(tar_path, final_path, use_secret)
+                encrypted = True
+            else:
+                final_name = f"mapaleads_full_{ts}.tar.gz"
+                final_path = os.path.join(backup_dir, final_name)
+                shutil.copy2(tar_path, final_path)
+                encrypted = False
 
-        # Teste obrigatório de restauração antes de considerar o backup válido
-        restore_res = verify_backup_restore(final_path, secret=use_secret if encrypted else None)
-        if not restore_res.get("success"):
-            raise RuntimeError(f"Teste de restauração falhou: {restore_res.get('error')}")
+            # Teste obrigatório de restauração antes de considerar o backup válido
+            restore_res = verify_backup_restore(final_path, secret=use_secret if encrypted else None)
+            if not restore_res.get("success"):
+                raise RuntimeError(f"Teste de restauração falhou: {restore_res.get('error')}")
 
-        # Upload externo opcional (OCI Object Storage PAR URL)
-        use_par = (oci_par_url or os.environ.get("OCI_BACKUP_PAR_URL") or "").strip()
-        oci_res = upload_to_oci_par(final_path, use_par) if use_par else {"uploaded": False, "reason": "not_configured"}
+            # Upload externo opcional (OCI Object Storage PAR URL)
+            use_par = (oci_par_url or os.environ.get("OCI_BACKUP_PAR_URL") or "").strip()
+            oci_res = upload_to_oci_par(final_path, use_par) if use_par else {"uploaded": False, "reason": "not_configured"}
 
-        # Retenção segura dos pacotes completos (só gira após o novo estar 100% testado)
-        full_files = sorted([
-            f for f in os.listdir(backup_dir)
-            if f.startswith("mapaleads_full_") and (f.endswith(".tar.gz") or f.endswith(".tar.gz.enc"))
-        ])
-        if len(full_files) > keep_count:
-            for old_f in full_files[:-keep_count]:
-                try:
-                    os.remove(os.path.join(backup_dir, old_f))
-                except Exception:
-                    pass
+            # Retenção segura dos pacotes completos (só gira após o novo estar 100% testado)
+            full_files = sorted([
+                f for f in os.listdir(backup_dir)
+                if f.startswith("mapaleads_full_") and (f.endswith(".tar.gz") or f.endswith(".tar.gz.enc"))
+            ])
+            if len(full_files) > keep_count:
+                for old_f in full_files[:-keep_count]:
+                    try:
+                        os.remove(os.path.join(backup_dir, old_f))
+                    except Exception:
+                        pass
 
-        # Retenção das cópias diárias .db (últimos 7 dias)
-        db_files = sorted([
-            f for f in os.listdir(backup_dir)
-            if f.startswith("mapaleads_") and f.endswith(".db")
-        ])
-        if len(db_files) > 7:
-            for old_db in db_files[:-7]:
-                try:
-                    os.remove(os.path.join(backup_dir, old_db))
-                except Exception:
-                    pass
+            # Retenção das cópias diárias .db (últimos 7 dias)
+            db_files = sorted([
+                f for f in os.listdir(backup_dir)
+                if f.startswith("mapaleads_") and f.endswith(".db")
+            ])
+            if len(db_files) > 7:
+                for old_db in db_files[:-7]:
+                    try:
+                        os.remove(os.path.join(backup_dir, old_db))
+                    except Exception:
+                        pass
 
-        return {
-            "success": True,
-            "filename": final_name,
-            "path": final_path,
-            "size_bytes": os.path.getsize(final_path),
-            "encrypted": encrypted,
-            "snapshot": snap_info,
-            "restore_verified": restore_res,
-            "offsite_oci": oci_res,
-            "created_at": datetime.now().isoformat(),
-        }
-    except Exception as e:
-        return {"success": False, "error": str(e), "created_at": datetime.now().isoformat()}
-    finally:
-        shutil.rmtree(tmp_work, ignore_errors=True)
+            return {
+                "success": True,
+                "filename": final_name,
+                "path": final_path,
+                "size_bytes": os.path.getsize(final_path),
+                "encrypted": encrypted,
+                "snapshot": snap_info,
+                "restore_verified": restore_res,
+                "offsite_oci": oci_res,
+                "created_at": datetime.now().isoformat(),
+            }
+        except Exception as e:
+            return {"success": False, "error": str(e), "created_at": datetime.now().isoformat()}
+        finally:
+            shutil.rmtree(tmp_work, ignore_errors=True)
 
 
 def list_available_backups(db_path: str) -> List[Dict[str, Any]]:
@@ -333,3 +338,4 @@ def list_available_backups(db_path: str) -> List[Dict[str, Any]]:
             "modified_at": datetime.fromtimestamp(st.st_mtime).isoformat(),
         })
     return items
+

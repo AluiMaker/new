@@ -2386,6 +2386,7 @@ def api_my_results():
 
 def _maintenance_loop():
     """Limpeza automática de contas de teste abandonadas e backup consistente + verificado do SQLite e sessões WhatsApp."""
+    time.sleep(20)
     while True:
         try:
             cleanup_expired_trials(grace_days=15)
