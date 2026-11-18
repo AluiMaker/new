@@ -21,7 +21,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 
-  <link rel="stylesheet" href="/static/css/style.css?v=4.3">
+  <link rel="stylesheet" href="/static/css/style.css?v=5.1">
 </head>
 <body>
   <script>
@@ -163,39 +163,39 @@
       </header>
 
       <main class="content-area">
-        <!-- P0.4 — Notificação Inteligente de Ativação -->
-        <div id="activation-smart-banner" class="card hidden" style="margin-bottom:14px; padding:12px 18px; border-left:4px solid #2563eb; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;"></div>
-
-        <!-- P0.1 — Onboarding Inteligente (Checklist de Primeiros Passos) -->
-        <div id="onboarding-checklist-card" class="card hidden" style="margin-bottom:18px; border:1px solid rgba(37,99,235,0.28); background:linear-gradient(135deg, rgba(37,99,235,0.06), rgba(16,185,129,0.04));">
-          <div class="card-header" style="flex-wrap:wrap; gap:10px; margin-bottom:12px;">
-            <div>
-              <h3 style="display:flex; align-items:center; gap:8px;">
-                <i class="fa-solid fa-rocket text-blue"></i> Bem-vindo ao MapaLeads PRO — Guia de Primeiros Passos
-                <span class="pill-counter" id="onboarding-progress-pill">0/5 concluídos</span>
-              </h3>
-              <p class="card-sub">Siga os 5 passos abaixo para encontrar empresas reais, analisar oportunidades com IA e iniciar suas primeiras conversas comerciais</p>
-            </div>
-            <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              <button type="button" class="btn btn-primary btn-xs" id="btn-onboarding-continue" onclick="continueOnboardingNextStep()">
-                <i class="fa-solid fa-play"></i> Continuar de onde parei
-              </button>
-              <button type="button" class="btn btn-outline btn-xs" onclick="restartOnboardingTutorial()">
-                <i class="fa-solid fa-rotate-left"></i> Refazer Tutorial
-              </button>
-              <button type="button" class="btn btn-outline btn-xs" onclick="dismissOnboardingChecklist()">
-                <i class="fa-solid fa-eye-slash"></i> Ocultar
-              </button>
-            </div>
-          </div>
-          <div class="progress-track" style="margin-bottom:14px; height:8px;">
-            <div class="progress-fill" id="onboarding-progress-bar" style="width: 0%;"></div>
-          </div>
-          <div id="onboarding-steps-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(195px, 1fr)); gap:10px;"></div>
-        </div>
-
         <!-- ==================== 1. DASHBOARD ==================== -->
         <section class="tab-view active" id="tab-dashboard">
+          <!-- P0.4 — Notificação Inteligente de Ativação (Somente na Visão Geral) -->
+          <div id="activation-smart-banner" class="card hidden" style="margin-bottom:14px; padding:12px 18px; border-left:4px solid #2563eb; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;"></div>
+
+          <!-- P0.1 — Onboarding Inteligente (Somente na Visão Geral) -->
+          <div id="onboarding-checklist-card" class="card hidden" style="margin-bottom:18px; border:1px solid rgba(37,99,235,0.28); background:linear-gradient(135deg, rgba(37,99,235,0.06), rgba(16,185,129,0.04));">
+            <div class="card-header" style="flex-wrap:wrap; gap:10px; margin-bottom:12px;">
+              <div>
+                <h3 style="display:flex; align-items:center; gap:8px;">
+                  <i class="fa-solid fa-rocket text-blue"></i> Bem-vindo ao MapaLeads PRO — Guia de Primeiros Passos
+                  <span class="pill-counter" id="onboarding-progress-pill">0/5 concluídos</span>
+                </h3>
+                <p class="card-sub">Siga os 5 passos abaixo para encontrar empresas reais, analisar oportunidades com IA e iniciar suas primeiras conversas comerciais</p>
+              </div>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button type="button" class="btn btn-primary btn-xs" id="btn-onboarding-continue" onclick="continueOnboardingNextStep()">
+                  <i class="fa-solid fa-play"></i> Continuar de onde parei
+                </button>
+                <button type="button" class="btn btn-outline btn-xs" onclick="restartOnboardingTutorial()">
+                  <i class="fa-solid fa-rotate-left"></i> Refazer Tutorial
+                </button>
+                <button type="button" class="btn btn-outline btn-xs" onclick="dismissOnboardingChecklist()">
+                  <i class="fa-solid fa-eye-slash"></i> Ocultar
+                </button>
+              </div>
+            </div>
+            <div class="progress-track" style="margin-bottom:14px; height:8px;">
+              <div class="progress-fill" id="onboarding-progress-bar" style="width: 0%;"></div>
+            </div>
+            <div id="onboarding-steps-grid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(195px, 1fr)); gap:10px;"></div>
+          </div>
+
           <div class="kpi-grid">
             <div class="kpi-card">
               <div class="kpi-icon bg-blue"><i class="fa-solid fa-building"></i></div>
@@ -521,85 +521,78 @@
 
         <!-- ==================== 4. CRM & PIPELINE ==================== -->
         <section class="tab-view" id="tab-crm">
-          <!-- P1.3 — Painel de Follow-ups e Próximas Ações -->
-          <div class="card" id="crm-followup-strip" style="margin-bottom:14px; padding:12px 16px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap;">
-            <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
-              <strong style="font-size:0.88rem;"><i class="fa-solid fa-bell text-amber"></i> Radar de Follow-up &amp; Acompanhamento:</strong>
-              <button type="button" class="btn btn-outline btn-xs" onclick="applyFollowupFilter('due')">
-                ⏰ Pendentes Hoje / Atrasados: <strong id="fu-cnt-due" style="margin-left:4px;">0</strong>
-              </button>
-              <button type="button" class="btn btn-outline btn-xs" onclick="applyFollowupFilter('scheduled')">
-                📅 Agendados: <strong id="fu-cnt-upcoming" style="margin-left:4px;">0</strong>
-              </button>
-              <button type="button" class="btn btn-outline btn-xs" onclick="applyFollowupFilter('all')">
-                Limpar Filtro Follow-up
-              </button>
-            </div>
-            <span id="fu-next-suggestion" class="text-muted" style="font-size:0.8rem;">Clique em qualquer empresa para agendar retorno ou usar o Copiloto IA.</span>
-          </div>
-
           <div class="crm-toolbar card">
-            <div class="crm-filters">
-              <div class="input-icon-wrap compact">
-                <i class="fa-solid fa-magnifying-glass"></i>
-                <input type="text" id="crm-search-input" placeholder="Buscar empresa, categoria, bairro...">
+            <div class="crm-toolbar-top">
+              <div class="crm-search-box">
+                <div class="input-icon-wrap compact">
+                  <i class="fa-solid fa-magnifying-glass"></i>
+                  <input type="text" id="crm-search-input" placeholder="Buscar empresa, categoria, bairro ou rua...">
+                </div>
+                <button type="button" class="btn btn-outline btn-sm hidden" id="btn-fu-due-pill" onclick="applyFollowupFilter('due')" title="Filtrar leads com follow-up pendente hoje">
+                  <i class="fa-solid fa-bell text-amber"></i> Follow-ups Hoje: <strong id="fu-cnt-due">0</strong>
+                </button>
+                <span class="hidden" id="fu-cnt-upcoming">0</span>
               </div>
-              <select id="crm-filter-score" title="Filtrar por Potencial Comercial (Lead Score)">
-                <option value="all">Todos os Potenciais (Score)</option>
-                <option value="alta">🔥 Alta Oportunidade (70+ pts)</option>
-                <option value="media">⚡ Média Oportunidade (45–69 pts)</option>
-                <option value="baixa">Baixa Oportunidade (&lt;45 pts)</option>
-              </select>
-              <select id="crm-sort-by" title="Ordenar empresas">
-                <option value="recent">Ordenar: Mais Recentes</option>
-                <option value="lead_score">🔥 Maior Lead Score</option>
-                <option value="reviews">⭐ Mais Avaliações</option>
-                <option value="followup">⏰ Próximo Follow-up</option>
-              </select>
-              <select id="crm-filter-followup" title="Filtrar por Follow-up">
-                <option value="all">Todos os Follow-ups</option>
-                <option value="due">⏰ Follow-up Hoje / Atrasado</option>
-                <option value="scheduled">📅 Com Follow-up Agendado</option>
-              </select>
-              <select id="crm-filter-opportunity">
-                <option value="all">Todas as Oportunidades</option>
-                <option value="gmn">Google Meu Negócio (Otimização &amp; Ranking)</option>
-                <option value="nfc_google">Plaquinha NFC + QR (Poucas Avaliações)</option>
+
+              <div class="crm-view-switch">
+                <button class="btn btn-outline btn-sm" id="btn-verify-wa-crm" title="Testar em lote no WhatsApp QR conectado e separar quem não tem WhatsApp">
+                  <i class="fa-brands fa-whatsapp text-emerald"></i> Verificar WhatsApp
+                </button>
+                <button class="btn btn-outline btn-sm text-danger" id="btn-purge-no-wa" title="Excluir todos os leads sem WhatsApp e liberar espaço na conta">
+                  <i class="fa-solid fa-trash-can"></i> Excluir Sem WhatsApp (<span id="cnt-purge-nowa">0</span>)
+                </button>
+                <button class="btn btn-outline btn-sm" id="btn-dedup-leads" title="Remover leads duplicados">
+                  <i class="fa-solid fa-wand-magic-sparkles"></i> Limpar Duplicados
+                </button>
+                <div class="segmented">
+                  <button class="seg-btn active" id="btn-view-kanban" onclick="setCrmView('kanban')">
+                    <i class="fa-solid fa-table-columns"></i> Kanban
+                  </button>
+                  <button class="seg-btn" id="btn-view-table" onclick="setCrmView('table')">
+                    <i class="fa-solid fa-list"></i> Lista
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="crm-filters-grid">
+              <select id="crm-filter-opportunity" title="Filtrar por Serviço / Oferta">
+                <option value="all">Oferta: Todas</option>
+                <option value="gmn">Google Meu Negócio</option>
+                <option value="nfc_google">Plaquinha NFC + QR</option>
                 <option value="whatsapp_biz">WhatsApp Business</option>
-                <option value="cardapio_digital">Cardápio Digital (Gastronomia)</option>
-                <option value="biossite">Biossite / Landing Page (Sem Site)</option>
+                <option value="cardapio_digital">Cardápio Digital</option>
+                <option value="biossite">Biossite / Landing Page</option>
               </select>
-              <select id="crm-filter-website">
-                <option value="all">Todos os Sites</option>
+              <select id="crm-filter-website" title="Filtrar por Presença de Site">
+                <option value="all">Site: Todos</option>
                 <option value="no_website">Apenas Sem Site</option>
-                <option value="social_or_none">Sem Site ou Só Rede Social</option>
+                <option value="social_or_none">Sem Site ou Rede Social</option>
                 <option value="official">Com Site Oficial</option>
               </select>
-              <select id="crm-filter-wa">
-                <option value="all">Todos os Telefones</option>
+              <select id="crm-filter-wa" title="Filtrar por Tipo de Telefone">
+                <option value="all">Telefone: Todos</option>
                 <option value="mobile">Somente Celular / WhatsApp</option>
                 <option value="sem_whatsapp">Sem WhatsApp Confirmado</option>
                 <option value="fixed">Apenas Fixo</option>
               </select>
-            </div>
-            <div class="crm-view-switch" style="flex-wrap:wrap;">
-              <button class="btn btn-outline btn-sm" id="btn-verify-wa-crm" title="Testar em lote no WhatsApp QR conectado e separar quem não tem WhatsApp">
-                <i class="fa-brands fa-whatsapp text-emerald"></i> Verificar WhatsApp
-              </button>
-              <button class="btn btn-outline btn-sm text-danger" id="btn-purge-no-wa" title="Excluir todos os leads sem WhatsApp e liberar espaço na conta">
-                <i class="fa-solid fa-trash-can"></i> Excluir Sem WhatsApp (<span id="cnt-purge-nowa">0</span>)
-              </button>
-              <button class="btn btn-outline btn-sm" id="btn-dedup-leads" title="Remover leads duplicados">
-                <i class="fa-solid fa-wand-magic-sparkles"></i> Limpar Duplicados
-              </button>
-              <div class="segmented">
-                <button class="seg-btn active" id="btn-view-kanban" onclick="setCrmView('kanban')">
-                  <i class="fa-solid fa-table-columns"></i> Kanban
-                </button>
-                <button class="seg-btn" id="btn-view-table" onclick="setCrmView('table')">
-                  <i class="fa-solid fa-list"></i> Lista
-                </button>
-              </div>
+              <select id="crm-filter-score" title="Filtrar por Potencial Comercial (Lead Score)">
+                <option value="all">Potencial: Todos</option>
+                <option value="alta">Alta Oportunidade (70+ pts)</option>
+                <option value="media">Média Oportunidade (45–69)</option>
+                <option value="baixa">Baixa Oportunidade (&lt;45)</option>
+              </select>
+              <select id="crm-filter-followup" title="Filtrar por Agendamento de Follow-up">
+                <option value="all">Follow-up: Todos</option>
+                <option value="due">Pendentes Hoje / Atrasados</option>
+                <option value="scheduled">Com Follow-up Agendado</option>
+              </select>
+              <select id="crm-sort-by" title="Ordenação dos Leads">
+                <option value="recent">Ordenar: Mais Recentes</option>
+                <option value="lead_score">Ordenar: Maior Score</option>
+                <option value="reviews">Ordenar: Mais Avaliações</option>
+                <option value="followup">Ordenar: Próximo Follow-up</option>
+              </select>
             </div>
           </div>
 
@@ -1754,6 +1747,6 @@
     window.CURRENT_USER = {{ current_user | tojson if current_user else 'null' }};
     window.ACCESS_STATUS = {{ access_status | tojson if access_status else 'null' }};
   </script>
-  <script src="/static/js/app.js?v=5.0"></script>
+  <script src="/static/js/app.js?v=5.1"></script>
 </body>
 </html>

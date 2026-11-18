@@ -702,8 +702,8 @@ function renderFollowupBadge(l) {
   return `<span class="opp-badge" style="background:${bg};color:${col};" title="${escapeHtml(l.followup_note || 'Follow-up agendado')}"><i class="fa-regular fa-clock"></i> ${escapeHtml(nfu.slice(0, 10))}</span>`;
 }
 
-function renderOpportunityBadges(opps = []) {
-  return (opps || []).slice(0, 3).map(k => {
+function renderOpportunityBadges(opps = [], maxCount = 2) {
+  return (opps || []).slice(0, maxCount).map(k => {
     const info = OPP_LABELS[k];
     if (!info) return '';
     return `<span class="opp-badge ${info.cls}"><i class="fa-solid ${info.icon}"></i> ${info.label}</span>`;
@@ -749,9 +749,9 @@ function renderKanban() {
           </button>
         </div>
         <div class="lead-card-sub">${escapeHtml(l.category || 'Negócio local')} · ${escapeHtml(l.neighborhood || l.city || '')}</div>
-        <div class="lead-card-badges">${renderLeadScoreBadge(l)}${renderFollowupBadge(l)}${renderPhoneStatusBadge(l)}${renderOpportunityBadges(l.opportunities)}</div>
+        <div class="lead-card-badges">${renderPhoneStatusBadge(l)}${renderFollowupBadge(l)}${renderOpportunityBadges(l.opportunities, 2)}</div>
         <div class="lead-card-foot">
-          <span><i class="fa-solid fa-star" style="color:#f59e0b"></i> ${l.rating || '-'} (${l.reviews_count || 0})</span>
+          <span><i class="fa-solid fa-star" style="color:#f59e0b"></i> ${l.rating || '-'} (${l.reviews_count || 0})${l.lead_score ? ` · <strong style="color:${l.opportunity_level === 'alta' ? '#059669' : 'inherit'}">${l.lead_score}pts</strong>` : ''}</span>
           <span>${l.sale_value ? formatBRL(l.sale_value) : escapeHtml(l.phone || 'Sem tel.')}</span>
         </div>
       </div>
@@ -2496,6 +2496,7 @@ async function dismissOnboardingChecklist() {
 }
 
 async function reopenOnboardingChecklist() {
+  switchTab('tab-dashboard');
   const res = await apiFetch('/api/onboarding', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -2542,17 +2543,10 @@ async function loadCrmFollowupSummary() {
     if (!res.ok) return;
     const d = await res.json();
     const dueEl = document.getElementById('fu-cnt-due');
-    const upEl = document.getElementById('fu-cnt-upcoming');
-    const sugEl = document.getElementById('fu-next-suggestion');
-    if (dueEl) dueEl.textContent = d.due_today_count ?? 0;
-    if (upEl) upEl.textContent = d.upcoming_count ?? 0;
-    if (sugEl) {
-      if (d.due_today_count > 0) {
-        sugEl.innerHTML = `<strong class="text-danger">Você tem ${d.due_today_count} follow-up(s) pendente(s) para hoje!</strong>`;
-      } else if (d.needs_attention_count > 0) {
-        sugEl.innerHTML = `<strong>${d.needs_attention_count} empresa(s) responderam ou estão em negociação aguardando retorno.</strong>`;
-      }
-    }
+    const duePill = document.getElementById('btn-fu-due-pill');
+    const dueCnt = Number(d.due_today_count ?? 0);
+    if (dueEl) dueEl.textContent = dueCnt;
+    if (duePill) duePill.classList.toggle('hidden', dueCnt <= 0);
   } catch (e) {}
 }
 
