@@ -4,4 +4,6 @@ curl_cffi==0.16.3
 beautifulsoup4==4.15.0
 websocket-client==1.9.2
 gunicorn==23.0.0
+fpdf2==2.8.2
+Pillow>=10.0.0
 

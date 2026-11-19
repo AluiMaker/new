@@ -43,6 +43,7 @@ from exporter import export_to_csv_bytes, export_to_json_bytes
 import wa_automation as wa
 import wa_official
 import backup_manager
+import proposal_pdf_builder
 
 app = Flask(__name__, static_folder="static", template_folder="templates")
 app.config["TEMPLATES_AUTO_RELOAD"] = True
@@ -775,17 +776,10 @@ _PROPOSAL_OFFERS = {
 }
 
 
-@app.route("/leads/<int:lead_id>/proposal")
-@login_required
-def render_lead_proposal_pdf(lead_id):
-    uid = current_user_id()
-    lead = get_lead_by_id(lead_id, user_id=uid)
-    if not lead:
-        return "Lead não encontrado ou sem permissão.", 404
+def _build_lead_proposal_context(uid: int, lead: Dict[str, Any], args: Any) -> Dict[str, Any]:
     user = get_user_by_id(uid) or {}
 
-    # Detecta melhor oferta padrão se não foi informada na URL
-    raw_offer = (request.args.get("offer") or "").strip().lower()
+    raw_offer = (args.get("offer") or "").strip().lower()
     if raw_offer not in _PROPOSAL_OFFERS:
         cat_l = (lead.get("category") or "").lower()
         if any(k in cat_l for k in ("pizza", "hamburg", "restaurante", "lanchonete", "açaí", "acai", "sushi", "padaria", "doceria")):
@@ -798,18 +792,17 @@ def render_lead_proposal_pdf(lead_id):
             raw_offer = "gmn"
 
     offer = _PROPOSAL_OFFERS[raw_offer]
-    setup_price_display = (request.args.get("setup") or "").strip() or offer["default_setup"]
-    monthly_price_display = (request.args.get("mrr") if "mrr" in request.args else offer["default_mrr"]).strip()
-    payment_terms = (request.args.get("terms") or "").strip() or "50% na aprovação via Pix + 50% na entrega concluída (ou parcelado no cartão)"
-    custom_notes = (request.args.get("notes") or "").strip()
+    setup_price_display = (args.get("setup") or "").strip() or offer["default_setup"]
+    monthly_price_display = (args.get("mrr") if "mrr" in args else offer["default_mrr"]).strip()
+    payment_terms = (args.get("terms") or "").strip() or "50% na aprovação via Pix + 50% na entrega concluída (ou parcelado no cartão)"
+    custom_notes = (args.get("notes") or "").strip()
     try:
-        validity_days = max(1, min(30, int(request.args.get("validity") or 7)))
+        validity_days = max(1, min(30, int(args.get("validity") or 7)))
     except ValueError:
         validity_days = 7
 
     score = compute_lead_score(lead)
 
-    # Gera pontos reais de auditoria com base nos dados do Google Maps do lead
     audit_points = []
     rating = float(lead.get("rating") or 0)
     reviews = int(lead.get("reviews_count") or 0)
@@ -820,26 +813,26 @@ def render_lead_proposal_pdf(lead_id):
         audit_points.append({
             "ok": False,
             "title": "Volume Baixo de Avaliações",
-            "detail": f"A ficha possui apenas {reviews} avaliações. Concorrentes no Top 3 local costumam superar 80–150 reviews ativos.",
+            "detail": f"A ficha possui apenas {reviews} avaliações. Concorrentes no Top 3 local costumam superar 80 a 150 reviews ativos.",
         })
     else:
         audit_points.append({
             "ok": True,
             "title": "Boa Base de Avaliações",
-            "detail": f"A empresa já conta com {reviews} avaliações — excelente ativo para alavancar com respostas otimizadas em SEO Local.",
+            "detail": f"A empresa já conta com {reviews} avaliações - excelente ativo para alavancar com respostas em SEO Local.",
         })
 
     if rating and rating < 4.6:
         audit_points.append({
             "ok": False,
-            "title": f"Nota Média Abaixo do Ideal ({rating:.1f}⭐)",
+            "title": f"Nota Média Abaixo do Ideal ({rating:.1f}/5.0)",
             "detail": "Empresas abaixo de 4.6 estrelas perdem cliques diretos para concorrentes melhores avaliados na mesma busca.",
         })
     elif rating >= 4.6:
         audit_points.append({
             "ok": True,
-            "title": f"Excelente Reputação ({rating:.1f}⭐)",
-            "detail": "Sua nota já transmite confiança; o foco agora é aumentar o volume de visualizações e converter cliques em WhatsApp.",
+            "title": f"Excelente Reputação ({rating:.1f}/5.0)",
+            "detail": "Sua nota já transmite confiança; o foco agora é ampliar visualizações e converter cliques em contatos no WhatsApp.",
         })
 
     if not website or wtype == "none":
@@ -858,7 +851,7 @@ def render_lead_proposal_pdf(lead_id):
         audit_points.append({
             "ok": True,
             "title": "Site Detectado",
-            "detail": "Site ativo localizado — recomendado reforçar consistência NAP e botões rápidos de WhatsApp.",
+            "detail": "Site ativo localizado - recomendado reforçar consistência NAP e botões rápidos de WhatsApp.",
         })
 
     audit_points.append({
@@ -888,7 +881,8 @@ def render_lead_proposal_pdf(lead_id):
     now = datetime.now()
     issue_date = now.strftime("%d/%m/%Y")
     valid_until = (now + timedelta(days=validity_days)).strftime("%d/%m/%Y")
-    proposal_code = f"{now.strftime('%y%m')}-{lead_id}"
+    lead_id_val = lead.get("id") or 0
+    proposal_code = f"{now.strftime('%y%m')}-{lead_id_val}"
 
     approve_wa_link = ""
     if brand_phone_digits:
@@ -903,30 +897,127 @@ def render_lead_proposal_pdf(lead_id):
         send_msg = f"Olá, pessoal da {lead['name']}! Acabei de preparar o Diagnóstico & Proposta Comercial personalizada ({offer['title']}) em PDF para vocês. Estou enviando o arquivo logo abaixo para avaliarem!"
         lead_wa_link = f"https://wa.me/{lead_digits}?text={quote(send_msg)}"
 
+    return {
+        "raw_offer": raw_offer,
+        "lead": lead,
+        "brand": brand,
+        "score": score,
+        "offer": offer,
+        "audit_points": audit_points[:4],
+        "setup_price_display": setup_price_display,
+        "monthly_price_display": monthly_price_display,
+        "payment_terms": payment_terms,
+        "custom_notes": custom_notes,
+        "issue_date": issue_date,
+        "valid_until": valid_until,
+        "validity_days": validity_days,
+        "proposal_code": proposal_code,
+        "approve_wa_link": approve_wa_link,
+        "lead_wa_link": lead_wa_link,
+    }
+
+
+def _safe_pdf_filename(name: str) -> str:
+    import unicodedata, re as _re
+    clean = "".join(ch for ch in unicodedata.normalize("NFKD", str(name or "Cliente")) if not unicodedata.combining(ch))
+    clean = _re.sub(r"[^A-Za-z0-9]+", "_", clean).strip("_")[:48] or "Cliente"
+    return f"Proposta_{clean}.pdf"
+
+
+@app.route("/leads/<int:lead_id>/proposal.pdf")
+@login_required
+def download_lead_proposal_pdf(lead_id):
+    uid = current_user_id()
+    lead = get_lead_by_id(lead_id, user_id=uid)
+    if not lead:
+        return "Lead não encontrado ou sem permissão.", 404
+
+    ctx = _build_lead_proposal_context(uid, lead, request.args)
+    pdf_bytes = proposal_pdf_builder.build_proposal_pdf_bytes(
+        lead=ctx["lead"],
+        brand=ctx["brand"],
+        score=ctx["score"],
+        offer=ctx["offer"],
+        audit_points=ctx["audit_points"],
+        setup_price_display=ctx["setup_price_display"],
+        monthly_price_display=ctx["monthly_price_display"],
+        payment_terms=ctx["payment_terms"],
+        custom_notes=ctx["custom_notes"],
+        issue_date=ctx["issue_date"],
+        valid_until=ctx["valid_until"],
+        validity_days=ctx["validity_days"],
+        proposal_code=ctx["proposal_code"],
+        approve_wa_link=ctx["approve_wa_link"],
+    )
     try:
-        add_lead_interaction(uid, lead_id, "proposta", f"Proposta PDF gerada ({offer['title']} · {setup_price_display})")
-        track_event(uid, "proposal_generated", {"lead_id": lead_id, "offer": raw_offer})
+        add_lead_interaction(uid, lead_id, "proposta", f"Proposta PDF baixada ({ctx['offer']['title']} · {ctx['setup_price_display']})")
+        track_event(uid, "proposal_generated", {"lead_id": lead_id, "offer": ctx["raw_offer"], "format": "pdf"})
     except Exception:
         pass
 
-    return render_template(
-        "proposal_pdf.html",
-        lead=lead,
-        brand=brand,
-        score=score,
-        offer=offer,
-        audit_points=audit_points[:4],
-        setup_price_display=setup_price_display,
-        monthly_price_display=monthly_price_display,
-        payment_terms=payment_terms,
-        custom_notes=custom_notes,
-        issue_date=issue_date,
-        valid_until=valid_until,
-        validity_days=validity_days,
-        proposal_code=proposal_code,
-        approve_wa_link=approve_wa_link,
-        lead_wa_link=lead_wa_link,
+    inline = request.args.get("inline") == "1"
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=not inline,
+        download_name=_safe_pdf_filename(lead.get("name", "Cliente")),
     )
+
+
+@app.route("/api/me/proposal-preview.pdf")
+@login_required
+def download_sample_brand_proposal_pdf():
+    """Gera um PDF modelo real com a logo, cor e dados salvos do assinante para validação imediata."""
+    uid = current_user_id()
+    sample_lead = {
+        "id": 999,
+        "name": "Clínica & Estética Modelo (Exemplo)",
+        "category": "Clínica de Estética e Saúde",
+        "address": "Av. Central, 450 - Centro",
+        "city": "Sua Cidade - BR",
+        "phone": "(11) 99999-0000",
+        "clean_phone": "5511999990000",
+        "rating": 4.4,
+        "reviews_count": 19,
+        "website": "",
+        "website_type": "none",
+    }
+    ctx = _build_lead_proposal_context(uid, sample_lead, {"offer": request.args.get("offer") or "combo"})
+    pdf_bytes = proposal_pdf_builder.build_proposal_pdf_bytes(
+        lead=ctx["lead"],
+        brand=ctx["brand"],
+        score=ctx["score"],
+        offer=ctx["offer"],
+        audit_points=ctx["audit_points"],
+        setup_price_display=ctx["setup_price_display"],
+        monthly_price_display=ctx["monthly_price_display"],
+        payment_terms=ctx["payment_terms"],
+        custom_notes="Documento modelo gerado para pré-visualizar sua logo e identidade White-Label.",
+        issue_date=ctx["issue_date"],
+        valid_until=ctx["valid_until"],
+        validity_days=ctx["validity_days"],
+        proposal_code=ctx["proposal_code"],
+        approve_wa_link=ctx["approve_wa_link"],
+    )
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name="Proposta_Modelo_Minha_Marca.pdf",
+    )
+
+
+@app.route("/leads/<int:lead_id>/proposal")
+@login_required
+def render_lead_proposal_pdf(lead_id):
+    uid = current_user_id()
+    lead = get_lead_by_id(lead_id, user_id=uid)
+    if not lead:
+        return "Lead não encontrado ou sem permissão.", 404
+    ctx = _build_lead_proposal_context(uid, lead, request.args)
+    qs_str = request.query_string.decode("utf-8", errors="ignore")
+    pdf_download_url = f"/leads/{lead_id}/proposal.pdf" + (f"?{qs_str}" if qs_str else "")
+    return render_template("proposal_pdf.html", pdf_download_url=pdf_download_url, **ctx)
 
 
 @app.route("/api/admin/users", methods=["GET", "POST"])

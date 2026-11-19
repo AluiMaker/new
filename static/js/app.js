@@ -1431,16 +1431,20 @@ async function loadTemplates() {
 // ==================== SETTINGS & OFFICIAL WHATSAPP ====================
 function setSettingsSubtab(name) {
   document.querySelectorAll('.settings-tabs .seg-btn').forEach((b, idx) => {
-    const map = ['official', 'baileys', 'account'];
+    const map = ['official', 'baileys', 'brand', 'account'];
     b.classList.toggle('active', map[idx] === name);
   });
-  document.getElementById('pane-official').classList.toggle('hidden', name !== 'official');
-  document.getElementById('pane-baileys').classList.toggle('hidden', name !== 'baileys');
-  document.getElementById('pane-account').classList.toggle('hidden', name !== 'account');
+  document.getElementById('pane-official')?.classList.toggle('hidden', name !== 'official');
+  document.getElementById('pane-baileys')?.classList.toggle('hidden', name !== 'baileys');
+  document.getElementById('pane-brand')?.classList.toggle('hidden', name !== 'brand');
+  document.getElementById('pane-account')?.classList.toggle('hidden', name !== 'account');
   if (name === 'baileys') {
     startBaileysPolling();
   } else {
     stopBaileysPolling();
+  }
+  if (name === 'brand') {
+    updateBrandLivePreview();
   }
 }
 
@@ -1572,7 +1576,7 @@ function handleAccountLogoFile(input) {
   reader.onload = () => {
     const img = new Image();
     img.onload = () => {
-      const maxDim = 260;
+      const maxDim = 280;
       let w = img.width;
       let h = img.height;
       if (w > maxDim || h > maxDim) {
@@ -1585,12 +1589,11 @@ function handleAccountLogoFile(input) {
       canvas.height = h;
       const ctx = canvas.getContext('2d');
       ctx.drawImage(img, 0, 0, w, h);
-      const dataUrl = canvas.toDataURL('image/png', 0.9);
+      const dataUrl = canvas.toDataURL('image/png', 0.92);
       const urlInput = document.getElementById('acc-brand-logo-url');
       if (urlInput) urlInput.value = dataUrl;
-      const prev = document.getElementById('acc-brand-logo-preview');
-      if (prev) prev.innerHTML = `<img src="${dataUrl}" alt="Logo" style="max-width:100%; max-height:100%; object-fit:contain;">`;
-      toast('Logo carregada! Clique em "Salvar Dados da Conta & Marca White-Label".', 'info');
+      updateBrandLivePreview();
+      toast('Logo carregada! Clique em "Salvar Minha Marca & Logo".', 'info');
     };
     img.src = reader.result;
   };
@@ -1600,8 +1603,74 @@ function handleAccountLogoFile(input) {
 function clearAccountBrandLogo() {
   const urlInput = document.getElementById('acc-brand-logo-url');
   if (urlInput) urlInput.value = '';
+  updateBrandLivePreview();
+}
+
+function selectBrandColorPreset(hex) {
+  const col = document.getElementById('acc-brand-color');
+  if (col) col.value = hex;
+  updateBrandLivePreview();
+}
+
+function updateBrandLivePreview() {
+  const color = document.getElementById('acc-brand-color')?.value || '#2563eb';
+  const company = document.getElementById('brand-company-input')?.value?.trim() || document.getElementById('acc-company')?.value?.trim() || 'Sua Agência Digital';
+  const tagline = document.getElementById('acc-brand-tagline')?.value?.trim() || 'Consultoria de Posicionamento Local & Vendas Digitais';
+  const logoUrl = document.getElementById('acc-brand-logo-url')?.value?.trim() || '';
+
+  const banner = document.getElementById('brand-pdf-live-banner');
+  if (banner) banner.style.background = `linear-gradient(135deg, #0f172a 0%, ${color} 100%)`;
+  const cEl = document.getElementById('brand-preview-company');
+  if (cEl) cEl.textContent = company;
+  const tEl = document.getElementById('brand-preview-tagline');
+  if (tEl) tEl.textContent = tagline;
   const prev = document.getElementById('acc-brand-logo-preview');
-  if (prev) prev.innerHTML = '<i class="fa-regular fa-image text-muted"></i>';
+  if (prev) {
+    prev.innerHTML = logoUrl
+      ? `<img src="${escapeHtml(logoUrl)}" alt="Logo" style="max-width:100%; max-height:100%; object-fit:contain;">`
+      : '<i class="fa-regular fa-image" style="color:#64748b; font-size:1.4rem;"></i>';
+  }
+}
+
+async function saveBrandProfileData() {
+  const company = document.getElementById('brand-company-input')?.value ?? document.getElementById('acc-company')?.value ?? '';
+  const name = document.getElementById('brand-consultant-input')?.value ?? document.getElementById('acc-name')?.value ?? '';
+  const res = await apiFetch('/api/me', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name,
+      company_name: company,
+      brand_phone: document.getElementById('acc-brand-phone')?.value || '',
+      brand_color: document.getElementById('acc-brand-color')?.value || '#2563eb',
+      brand_tagline: document.getElementById('acc-brand-tagline')?.value || '',
+      brand_logo_url: document.getElementById('acc-brand-logo-url')?.value || '',
+    })
+  });
+  const d = await res.json();
+  if (d.success && d.user) {
+    window.CURRENT_USER = d.user;
+    if (document.getElementById('acc-name')) document.getElementById('acc-name').value = d.user.name || '';
+    if (document.getElementById('acc-company')) document.getElementById('acc-company').value = d.user.company_name || '';
+    if (document.getElementById('sidebar-user-name')) document.getElementById('sidebar-user-name').textContent = d.user.name || '';
+    updateBrandLivePreview();
+    return true;
+  }
+  toast(d.error || 'Erro ao salvar identidade da marca.', 'error');
+  return false;
+}
+
+async function submitBrandSettings(e) {
+  e.preventDefault();
+  const ok = await saveBrandProfileData();
+  if (ok) toast('Sua marca e logo foram salvas! Agora todas as propostas PDF saem com sua identidade.', 'success');
+}
+
+async function downloadSampleBrandPdf() {
+  const ok = await saveBrandProfileData();
+  if (!ok) return;
+  toast('Gerando PDF modelo com a sua logo...', 'info');
+  window.location.href = '/api/me/proposal-preview.pdf';
 }
 
 async function loadOfficialConfig() {
@@ -3515,8 +3584,11 @@ const PROPOSAL_OFFER_DEFAULTS = {
 };
 
 function openLeadProposalModal() {
-  const lead = STATE.activeDrawerLead;
-  if (!lead) return;
+  const lead = STATE.selectedLead;
+  if (!lead) {
+    toast('Abra a ficha de um lead primeiro para gerar a proposta em PDF.', 'info');
+    return;
+  }
   const modal = document.getElementById('modal-proposal-builder');
   if (!modal) return;
   const lbl = document.getElementById('prop-modal-lead-label');
@@ -3550,24 +3622,44 @@ function onProposalOfferChange() {
   if (mrrEl) mrrEl.value = def.mrr;
 }
 
-function launchLeadProposalPdf(e) {
-  e.preventDefault();
-  const lead = STATE.activeDrawerLead;
-  if (!lead) return;
-  const qs = new URLSearchParams({
+function _buildProposalQueryParams() {
+  return new URLSearchParams({
     offer: document.getElementById('prop-offer-select')?.value || 'gmn',
     setup: document.getElementById('prop-setup-price')?.value || '',
     mrr: document.getElementById('prop-mrr-price')?.value || '',
     validity: document.getElementById('prop-validity-days')?.value || '7',
     terms: document.getElementById('prop-terms')?.value || '',
     notes: document.getElementById('prop-notes')?.value || '',
-  });
-  window.open(`/leads/${lead.id}/proposal?${qs.toString()}`, '_blank', 'noopener');
+  }).toString();
+}
+
+function launchLeadProposalPdf(e) {
+  e.preventDefault();
+  const lead = STATE.selectedLead;
+  if (!lead) {
+    toast('Nenhum lead selecionado.', 'error');
+    return;
+  }
+  const qs = _buildProposalQueryParams();
+  // Download direto do arquivo binário .PDF real gerado no servidor!
+  const dlLink = document.createElement('a');
+  dlLink.href = `/leads/${lead.id}/proposal.pdf?${qs}`;
+  dlLink.setAttribute('download', '');
+  document.body.appendChild(dlLink);
+  dlLink.click();
+  dlLink.remove();
   closeLeadProposalModal();
-  toast('Proposta PDF White-Label aberta em nova aba! Clique em "Baixar / Salvar em PDF".', 'success');
+  toast('Proposta Comercial (.PDF) baixada com sucesso!', 'success');
   setTimeout(() => {
     if (typeof loadLeadInteractions === 'function') loadLeadInteractions(lead.id);
   }, 900);
+}
+
+function previewLeadProposalHtml() {
+  const lead = STATE.selectedLead;
+  if (!lead) return;
+  const qs = _buildProposalQueryParams();
+  window.open(`/leads/${lead.id}/proposal?${qs}`, '_blank', 'noopener');
 }
 
 // ==================== ADMIN: GESTOR DOS CURSOS DA ACADEMIA DE VENDAS PRO ====================

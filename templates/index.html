@@ -1194,6 +1194,9 @@
             <button class="seg-btn" onclick="setSettingsSubtab('baileys')">
               <i class="fa-solid fa-qrcode"></i> WhatsApp QR (Local)
             </button>
+            <button class="seg-btn" onclick="setSettingsSubtab('brand')">
+              <i class="fa-solid fa-palette text-blue"></i> Minha Marca &amp; Logo (PDF)
+            </button>
             <button class="seg-btn" onclick="setSettingsSubtab('account')">
               <i class="fa-solid fa-user-gear"></i> Minha Conta
             </button>
@@ -1342,22 +1345,111 @@
             </div>
           </div>
 
+          <!-- Minha Marca & Logo (Propostas PDF White-Label) -->
+          <div class="card settings-pane hidden" id="pane-brand">
+            <div class="card-header" style="flex-wrap:wrap; gap:10px;">
+              <div>
+                <h3><i class="fa-solid fa-palette text-blue"></i> Minha Marca &amp; Logo nas Propostas PDF (White-Label)</h3>
+                <p class="card-sub">Configure a identidade visual da sua agência ou consultoria. Todas as Propostas Comerciais em PDF geradas para seus leads sairão 100% com a sua logo e cores (sem menção ao MapaLeads).</p>
+              </div>
+              <a href="/api/me/proposal-preview.pdf" target="_blank" class="btn btn-emerald btn-sm" id="btn-download-sample-pdf">
+                <i class="fa-solid fa-file-pdf"></i> Baixar PDF Modelo (Testar Logo)
+              </a>
+            </div>
+
+            <!-- Prévia ao vivo do cabeçalho do PDF -->
+            <div id="brand-pdf-live-banner" style="border-radius:12px; padding:18px 22px; margin-bottom:18px; color:#fff; display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; background:linear-gradient(135deg, #0f172a 0%, {{ (current_user.brand_color if current_user and current_user.brand_color else '#2563eb') }} 100%);">
+              <div style="display:flex; align-items:center; gap:14px;">
+                <div id="acc-brand-logo-preview" style="width:62px; height:62px; border-radius:12px; background:#ffffff; display:grid; place-items:center; overflow:hidden; flex-shrink:0; padding:4px; box-shadow:0 4px 12px rgba(0,0,0,0.2);">
+                  {% if current_user and current_user.brand_logo_url %}
+                  <img src="{{ current_user.brand_logo_url }}" alt="Logo" style="max-width:100%; max-height:100%; object-fit:contain;">
+                  {% else %}
+                  <i class="fa-regular fa-image" style="color:#64748b; font-size:1.4rem;"></i>
+                  {% endif %}
+                </div>
+                <div>
+                  <div style="font-size:0.7rem; text-transform:uppercase; letter-spacing:0.06em; opacity:0.8; font-weight:700;">Prévia do Cabeçalho do PDF</div>
+                  <strong id="brand-preview-company" style="font-size:1.15rem; display:block;">{{ (current_user.company_name if current_user and current_user.company_name else (current_user.name if current_user else 'Sua Agência Digital')) }}</strong>
+                  <span id="brand-preview-tagline" style="font-size:0.82rem; opacity:0.9;">{{ (current_user.brand_tagline if current_user and current_user.brand_tagline else 'Consultoria de Posicionamento Local & Vendas Digitais') }}</span>
+                </div>
+              </div>
+              <div style="text-align:right; font-size:0.78rem; opacity:0.9;">
+                <div style="background:rgba(255,255,255,0.18); padding:3px 10px; border-radius:999px; font-weight:700; display:inline-block; margin-bottom:4px;">PROPOSTA #EXEMPLO</div>
+                <div>100% White-Label</div>
+              </div>
+            </div>
+
+            <form id="form-my-brand" class="form-grid" onsubmit="submitBrandSettings(event)">
+              <div class="field col-span-2">
+                <label>Logotipo da Sua Empresa / Agência (PNG, JPG ou WEBP)</label>
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                  <label class="btn btn-primary btn-sm" style="cursor:pointer; margin:0;">
+                    <i class="fa-solid fa-cloud-arrow-up"></i> Escolher Logo do Computador / Celular
+                    <input type="file" id="acc-brand-logo-file" accept="image/png,image/jpeg,image/webp" style="display:none;" onchange="handleAccountLogoFile(this)">
+                  </label>
+                  <button type="button" class="btn btn-outline btn-sm text-danger" onclick="clearAccountBrandLogo()">
+                    <i class="fa-solid fa-trash"></i> Remover Logo
+                  </button>
+                  <input type="text" id="acc-brand-logo-url" value="{{ current_user.brand_logo_url if current_user else '' }}" placeholder="Ou cole uma URL direta da sua logo (https://...)" style="flex:1; min-width:220px;" oninput="updateBrandLivePreview()">
+                </div>
+              </div>
+
+              <div class="field">
+                <label>Nome da Sua Agência / Empresa (Cabeçalho do PDF)</label>
+                <input type="text" id="brand-company-input" value="{{ current_user.company_name if current_user else '' }}" placeholder="Ex: Atlas Digital · Marketing Local" oninput="updateBrandLivePreview()">
+              </div>
+
+              <div class="field">
+                <label>Seu Nome (Assinatura no Rodapé do PDF)</label>
+                <input type="text" id="brand-consultant-input" value="{{ current_user.name if current_user else '' }}" placeholder="Ex: João Silva">
+              </div>
+
+              <div class="field">
+                <label>Subtítulo / Slogan da Consultoria</label>
+                <input type="text" id="acc-brand-tagline" value="{{ current_user.brand_tagline if current_user else '' }}" placeholder="Ex: Especialistas em Google Maps &amp; Vendas Locais" oninput="updateBrandLivePreview()">
+              </div>
+
+              <div class="field">
+                <label>WhatsApp Comercial (Botão de Aprovação no PDF)</label>
+                <input type="text" id="acc-brand-phone" value="{{ current_user.brand_phone if current_user else '' }}" placeholder="Ex: (11) 99999-8888">
+              </div>
+
+              <div class="field col-span-2">
+                <label>Cor Primária da Sua Marca no PDF</label>
+                <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                  <input type="color" id="acc-brand-color" value="{{ (current_user.brand_color if current_user and current_user.brand_color else '#2563eb') }}" style="width:54px; height:38px; padding:2px; cursor:pointer;" oninput="updateBrandLivePreview()">
+                  <button type="button" class="btn btn-outline btn-xs" onclick="selectBrandColorPreset('#2563eb')" style="border-color:#2563eb; color:#2563eb;">Azul Royal</button>
+                  <button type="button" class="btn btn-outline btn-xs" onclick="selectBrandColorPreset('#059669')" style="border-color:#059669; color:#059669;">Verde Esmeralda</button>
+                  <button type="button" class="btn btn-outline btn-xs" onclick="selectBrandColorPreset('#7c3aed')" style="border-color:#7c3aed; color:#7c3aed;">Roxo Agência</button>
+                  <button type="button" class="btn btn-outline btn-xs" onclick="selectBrandColorPreset('#dc2626')" style="border-color:#dc2626; color:#dc2626;">Vermelho Forte</button>
+                  <button type="button" class="btn btn-outline btn-xs" onclick="selectBrandColorPreset('#d97706')" style="border-color:#d97706; color:#d97706;">Dourado Premium</button>
+                  <button type="button" class="btn btn-outline btn-xs" onclick="selectBrandColorPreset('#0f172a')" style="border-color:#0f172a; color:#0f172a;">Preto Executivo</button>
+                </div>
+              </div>
+
+              <div class="field col-span-2" style="display:flex; gap:10px; flex-wrap:wrap; padding-top:8px; border-top:1px solid var(--border);">
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Salvar Minha Marca &amp; Logo</button>
+                <button type="button" class="btn btn-outline" onclick="downloadSampleBrandPdf()"><i class="fa-solid fa-download"></i> Salvar &amp; Baixar PDF Modelo</button>
+              </div>
+            </form>
+          </div>
+
           <!-- Minha Conta -->
           <div class="card settings-pane hidden" id="pane-account">
             <div class="card-header">
               <div>
-                <h3>Dados da Sua Conta &amp; Marca White-Label (Propostas PDF)</h3>
-                <p class="card-sub">Atualize seus dados de acesso e personalize a logo, cor e WhatsApp que aparecem nas suas Propostas Comerciais em PDF</p>
+                <h3>Dados da Sua Conta</h3>
+                <p class="card-sub">Atualize seu nome, empresa ou senha de acesso</p>
               </div>
             </div>
             <form id="form-my-account" class="form-grid">
               <div class="field">
-                <label>Seu Nome (Assinatura na Proposta)</label>
+                <label>Seu Nome</label>
                 <input type="text" id="acc-name" value="{{ current_user.name if current_user else '' }}">
               </div>
               <div class="field">
-                <label>Empresa / Agência (Cabeçalho White-Label)</label>
-                <input type="text" id="acc-company" value="{{ current_user.company_name if current_user else '' }}" placeholder="Ex: Silva Digital · Posicionamento Local">
+                <label>Empresa / Agência</label>
+                <input type="text" id="acc-company" value="{{ current_user.company_name if current_user else '' }}">
               </div>
               <div class="field">
                 <label>E-mail</label>
@@ -1367,47 +1459,8 @@
                 <label>Nova Senha (deixe em branco para manter)</label>
                 <input type="password" id="acc-password" placeholder="Mínimo 6 caracteres">
               </div>
-
-              <div class="field col-span-2" style="padding-top:12px; margin-top:4px; border-top:1px dashed var(--border);">
-                <strong style="font-size:0.88rem;"><i class="fa-solid fa-file-pdf text-blue"></i> Identidade White-Label para Diagnósticos &amp; Propostas PDF</strong>
-                <div class="text-muted" style="font-size:0.78rem; margin-top:2px;">Suas propostas saem 100% com a sua marca (sem menção ao MapaLeads) e com botão direto para o cliente aprovar no seu WhatsApp.</div>
-              </div>
-              <div class="field">
-                <label>WhatsApp Comercial para Aprovação (com DDD)</label>
-                <input type="text" id="acc-brand-phone" value="{{ current_user.brand_phone if current_user else '' }}" placeholder="Ex: (11) 99999-8888">
-              </div>
-              <div class="field">
-                <label>Cor Primária da Sua Marca</label>
-                <div style="display:flex; gap:8px; align-items:center;">
-                  <input type="color" id="acc-brand-color" value="{{ (current_user.brand_color if current_user and current_user.brand_color else '#2563eb') }}" style="width:52px; height:38px; padding:2px; cursor:pointer;">
-                  <input type="text" id="acc-brand-tagline" value="{{ current_user.brand_tagline if current_user else '' }}" placeholder="Subtítulo: Ex: Especialistas em Google Maps &amp; Vendas Locais" style="flex:1;">
-                </div>
-              </div>
               <div class="field col-span-2">
-                <label>Logotipo da Sua Agência / Consultoria (Upload PNG/JPG ou URL)</label>
-                <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-                  <div id="acc-brand-logo-preview" style="width:56px; height:56px; border-radius:12px; border:1px solid var(--border); background:#f8fafc; display:grid; place-items:center; overflow:hidden; flex-shrink:0;">
-                    {% if current_user and current_user.brand_logo_url %}
-                    <img src="{{ current_user.brand_logo_url }}" alt="Logo" style="max-width:100%; max-height:100%; object-fit:contain;">
-                    {% else %}
-                    <i class="fa-regular fa-image text-muted"></i>
-                    {% endif %}
-                  </div>
-                  <div style="flex:1; min-width:220px; display:flex; flex-direction:column; gap:6px;">
-                    <input type="text" id="acc-brand-logo-url" value="{{ current_user.brand_logo_url if current_user else '' }}" placeholder="Cole a URL da logo ou selecione uma imagem do computador ao lado">
-                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
-                      <label class="btn btn-outline btn-xs" style="cursor:pointer; margin:0;">
-                        <i class="fa-solid fa-upload"></i> Enviar Logo (PNG/JPG)
-                        <input type="file" id="acc-brand-logo-file" accept="image/png,image/jpeg,image/webp" style="display:none;" onchange="handleAccountLogoFile(this)">
-                      </label>
-                      <button type="button" class="btn btn-outline btn-xs text-danger" onclick="clearAccountBrandLogo()">Remover Logo</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="field col-span-2">
-                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Salvar Dados da Conta &amp; Marca White-Label</button>
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Salvar Alterações</button>
               </div>
             </form>
           </div>
@@ -2280,12 +2333,12 @@
           <input type="text" id="prop-notes" placeholder="Ex: Bônus especial para fechamento até sexta-feira.">
         </div>
         <div class="field col-span-2" style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding-top:10px; border-top:1px solid var(--border);">
-          <button type="button" class="btn btn-outline btn-xs" onclick="closeLeadProposalModal(); closeLeadDrawer(); switchTab('tab-settings'); setSettingsSubtab('account');">
-            <i class="fa-solid fa-palette"></i> Configurar Minha Logo/Marca
+          <button type="button" class="btn btn-outline btn-xs" onclick="closeLeadProposalModal(); closeLeadDrawer(); switchTab('tab-settings'); setSettingsSubtab('brand');">
+            <i class="fa-solid fa-palette"></i> Configurar Minha Logo
           </button>
-          <div style="display:flex; gap:8px;">
-            <button type="button" class="btn btn-outline btn-sm" onclick="closeLeadProposalModal()">Cancelar</button>
-            <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-file-arrow-down"></i> Abrir &amp; Baixar PDF</button>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <button type="button" class="btn btn-outline btn-sm" onclick="previewLeadProposalHtml()"><i class="fa-regular fa-eye"></i> Prévia</button>
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-file-pdf"></i> Baixar Proposta (.PDF)</button>
           </div>
         </div>
       </form>
@@ -2299,6 +2352,6 @@
     window.CURRENT_USER = {{ current_user | tojson if current_user else 'null' }};
     window.ACCESS_STATUS = {{ access_status | tojson if access_status else 'null' }};
   </script>
-  <script src="/static/js/app.js?v=5.7"></script>
+  <script src="/static/js/app.js?v=5.8"></script>
 </body>
 </html>
