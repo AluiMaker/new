@@ -21,7 +21,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 
-  <link rel="stylesheet" href="/static/css/style.css?v=5.4">
+  <link rel="stylesheet" href="/static/css/style.css?v=5.5">
 </head>
 <body>
   <script>
@@ -928,7 +928,7 @@
                 <div class="sa-hero-kpis">
                   <span class="sa-kpi-chip"><i class="fa-solid fa-graduation-cap"></i> 6 Cursos Completos</span>
                   <span class="sa-kpi-chip"><i class="fa-solid fa-book-open"></i> 30 Aulas Práticas</span>
-                  <span class="sa-kpi-chip"><i class="fa-solid fa-clapperboard"></i> 6 VSLs White-Label (.MP4)</span>
+                  <span class="sa-kpi-chip"><i class="fa-solid fa-clapperboard"></i> 12 VSLs White-Label (16:9 + Stories 9:16)</span>
                   <span class="sa-kpi-chip"><i class="fa-solid fa-screwdriver-wrench"></i> Manuais de Entrega &amp; Fornecedores</span>
                   <span class="sa-kpi-chip"><i class="fa-solid fa-file-signature"></i> 24 Scripts &amp; Propostas Prontas</span>
                 </div>
@@ -976,7 +976,10 @@
                   <i class="fa-regular fa-circle-check"></i> Marcar Curso Concluído
                 </button>
                 <a href="#" class="btn btn-emerald btn-sm hidden" id="btn-sa-download-vsl" download>
-                  <i class="fa-solid fa-download"></i> Baixar VSL (.MP4)
+                  <i class="fa-solid fa-download"></i> VSL 16:9
+                </a>
+                <a href="#" class="btn btn-primary btn-sm hidden" id="btn-sa-download-vsl-stories" download style="background:linear-gradient(135deg,#7c3aed,#db2777); border:none;">
+                  <i class="fa-solid fa-mobile-screen-button"></i> Stories 9:16
                 </a>
                 <button type="button" class="btn btn-outline btn-sm" id="btn-sa-find-leads">
                   <i class="fa-solid fa-crosshairs"></i> Ver Leads no CRM
@@ -1141,13 +1144,24 @@
             <div class="sa-mode-pane hidden" id="sa-pane-vsl">
               <div class="sa-vsl-layout">
                 <div class="sa-vsl-player-col">
+                  <div class="sa-vsl-format-bar">
+                    <button type="button" class="sa-vsl-fmt-btn active" data-vsl-fmt="landscape" onclick="setSalesVslFormat('landscape')">
+                      <i class="fa-solid fa-desktop"></i> Horizontal 16:9 (WhatsApp / Feed)
+                    </button>
+                    <button type="button" class="sa-vsl-fmt-btn" data-vsl-fmt="stories" onclick="setSalesVslFormat('stories')">
+                      <i class="fa-solid fa-mobile-screen-button"></i> Vertical Stories 9:16 (Stories / Reels / Status)
+                    </button>
+                  </div>
                   <div class="academy-video-stage" id="sa-vsl-stage"></div>
                   <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:14px;">
-                    <a href="#" class="btn btn-emerald" id="btn-sa-download-vsl-pane" download style="flex:1; justify-content:center; font-weight:700;">
-                      <i class="fa-solid fa-download"></i> Baixar Vídeo VSL White-Label (.MP4)
+                    <a href="#" class="btn btn-emerald" id="btn-sa-download-vsl-pane" download style="flex:1; min-width:210px; justify-content:center; font-weight:700;">
+                      <i class="fa-solid fa-download"></i> Baixar Horizontal 16:9 (.MP4)
+                    </a>
+                    <a href="#" class="btn btn-primary" id="btn-sa-download-vsl-stories-pane" download style="flex:1; min-width:210px; justify-content:center; font-weight:700; background:linear-gradient(135deg,#7c3aed,#db2777); border:none;">
+                      <i class="fa-solid fa-mobile-screen-button"></i> Baixar Stories / Reels 9:16 (.MP4)
                     </a>
                     <button type="button" class="btn btn-outline" onclick="setSalesAcademyMode('scripts')">
-                      <i class="fa-regular fa-copy"></i> Ver Script para Enviar Junto com a VSL
+                      <i class="fa-regular fa-copy"></i> Ver Script
                     </button>
                   </div>
                 </div>
@@ -2352,6 +2366,6 @@
     window.CURRENT_USER = {{ current_user | tojson if current_user else 'null' }};
     window.ACCESS_STATUS = {{ access_status | tojson if access_status else 'null' }};
   </script>
-  <script src="/static/js/app.js?v=5.8"></script>
+  <script src="/static/js/app.js?v=5.9"></script>
 </body>
 </html>

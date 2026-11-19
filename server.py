@@ -2624,12 +2624,17 @@ def api_sales_academy_download(slug):
     course = get_sales_academy_course_by_slug(slug)
     if not course or not course.get("vsl_video_url"):
         return jsonify({"success": False, "error": "VSL não encontrada."}), 404
+    fmt = (request.args.get("format") or "landscape").strip().lower()
     vurl = course["vsl_video_url"]
+    dl_name = f"{slug}-vsl.mp4"
+    if fmt in ("stories", "vertical", "reels", "9x16") and vurl.endswith(".mp4"):
+        vurl = vurl[:-4] + "-stories.mp4"
+        dl_name = f"{slug}-vsl-stories-9x16.mp4"
     if vurl.startswith("/static/"):
         rel_path = vurl.lstrip("/").replace("/", os.sep)
         abs_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), rel_path)
         if os.path.exists(abs_path):
-            return send_file(abs_path, as_attachment=True, download_name=f"{slug}-vsl.mp4", mimetype="video/mp4")
+            return send_file(abs_path, as_attachment=True, download_name=dl_name, mimetype="video/mp4")
         return jsonify({"success": False, "error": "Arquivo de vídeo ainda não disponível no servidor."}), 404
     return redirect(vurl)
 

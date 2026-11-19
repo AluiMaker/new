@@ -2538,7 +2538,9 @@ def get_sales_academy_for_user(user_id: int, include_unpublished: bool = False) 
             if not unlocked and not include_unpublished:
                 d["course_video_url"] = ""
                 d["vsl_video_url"] = ""
+                d["vsl_stories_video_url"] = ""
                 d["download_url"] = ""
+                d["download_stories_url"] = ""
                 d["delivery_guide"] = ""
                 d["script_followup"] = ""
                 d["proposal_script"] = ""
@@ -2556,7 +2558,10 @@ def get_sales_academy_for_user(user_id: int, include_unpublished: bool = False) 
                 d["pricing_tiers"] = raw_pricing
                 d["checklist"] = raw_checklist
             else:
+                vurl = d.get("vsl_video_url") or ""
+                d["vsl_stories_video_url"] = vurl[:-4] + "-stories.mp4" if vurl.endswith(".mp4") else ""
                 d["download_url"] = f"/api/sales-academy/download/{d['slug']}"
+                d["download_stories_url"] = f"/api/sales-academy/download/{d['slug']}?format=stories"
                 d["lessons"] = raw_lessons
                 d["pricing_tiers"] = raw_pricing
                 d["checklist"] = raw_checklist

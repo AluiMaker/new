@@ -2803,12 +2803,34 @@ function renderSalesAcademy() {
       dlBtn.classList.remove('hidden');
       dlBtn.href = course.download_url;
       dlBtn.setAttribute('download', `${course.slug || 'vsl'}.mp4`);
+      dlBtn.onclick = null;
     } else {
+      if (dlId === 'btn-sa-download-vsl') dlBtn.classList.add('hidden');
       dlBtn.href = '#';
       dlBtn.onclick = (ev) => {
         if (!unlocked) {
           ev.preventDefault();
           openUpgradeModal('O download das VSLs White-Label em MP4 é exclusivo do Plano PRO!');
+        }
+      };
+    }
+  }
+
+  for (const dlId of ['btn-sa-download-vsl-stories', 'btn-sa-download-vsl-stories-pane']) {
+    const dlBtn = document.getElementById(dlId);
+    if (!dlBtn) continue;
+    if (unlocked && course.download_stories_url) {
+      dlBtn.classList.remove('hidden');
+      dlBtn.href = course.download_stories_url;
+      dlBtn.setAttribute('download', `${course.slug || 'vsl'}-stories-9x16.mp4`);
+      dlBtn.onclick = null;
+    } else {
+      if (dlId === 'btn-sa-download-vsl-stories') dlBtn.classList.add('hidden');
+      dlBtn.href = '#';
+      dlBtn.onclick = (ev) => {
+        if (!unlocked) {
+          ev.preventDefault();
+          openUpgradeModal('O download das VSLs Verticais Stories/Reels (9:16) em MP4 é exclusivo do Plano PRO!');
         }
       };
     }
@@ -2848,16 +2870,36 @@ function renderSalesAcademy() {
   setScriptText('sa-script-objections', course.script_objections);
   setScriptText('sa-script-proposal', course.proposal_script);
 
-  // Render Pane 5: VSL Player
+  // Render Pane 5: VSL Player (Horizontal 16:9 ou Stories Vertical 9:16)
+  const vslFmt = STATE.salesVslFormat === 'stories' ? 'stories' : 'landscape';
+  document.querySelectorAll('.sa-vsl-fmt-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.vslFmt === vslFmt);
+  });
+  const vslStage = document.getElementById('sa-vsl-stage');
+  if (vslStage) {
+    vslStage.classList.toggle('is-stories-vertical', vslFmt === 'stories');
+  }
   if (mode === 'vsl') {
+    const activeVslUrl = vslFmt === 'stories' && course.vsl_stories_video_url
+      ? course.vsl_stories_video_url
+      : course.vsl_video_url;
     renderSalesVideoElement(
-      document.getElementById('sa-vsl-stage'),
-      course.vsl_video_url,
+      vslStage,
+      activeVslUrl,
       course.thumbnail_url,
       unlocked,
-      'VSL White-Label Pronta para Baixar (.MP4) — Exclusivo PRO'
+      vslFmt === 'stories'
+        ? 'VSL Vertical Stories / Reels 9:16 (.MP4) — Exclusivo PRO'
+        : 'VSL Horizontal 16:9 White-Label (.MP4) — Exclusivo PRO'
     );
   }
+}
+
+function setSalesVslFormat(fmt) {
+  STATE.salesVslFormat = fmt === 'stories' ? 'stories' : 'landscape';
+  const stage = document.getElementById('sa-vsl-stage');
+  if (stage) stage.dataset.renderedUrl = '';
+  renderSalesAcademy();
 }
 
 function renderSalesCourseLessons(course, unlocked) {
