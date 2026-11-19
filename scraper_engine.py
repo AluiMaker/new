@@ -7,6 +7,7 @@ import shutil
 import socket
 import subprocess
 import tempfile
+import unicodedata
 import urllib.request
 import urllib.parse
 from typing import Dict, Any, List, Optional, Callable, Tuple, Set
@@ -287,6 +288,169 @@ def is_bare_address_title(title: str, street: str = "") -> bool:
             return True
         if street and t_low == street.strip().lower():
             return True
+
+    return False
+
+
+_PUBLIC_ENTITY_EXACT_TOKENS = {
+    # Concessionárias de água, energia, saneamento e estatais públicas
+    "copasa", "cemig", "sabesp", "sanepar", "cedae", "compesa", "embasa",
+    "casan", "corsan", "cagece", "cosanpa", "caesb", "cesan", "saae", "dmae",
+    "samae", "enel", "cpfl", "neoenergia", "equatorial", "energisa", "coelba",
+    "celpe", "copel", "ceee", "eletropaulo", "celesc", "celg", "cemar",
+    "correios", "ebct", "petrobras", "transpetro", "infraero", "dnit",
+    "eletrobras", "sabesp", "deso", "caern", "cagepa", "caema", "agespisa",
+    # Tribunais, judiciário e órgãos federais/estaduais/municipais
+    "trt", "tre", "trf", "stf", "stj", "tst", "tse", "cnj",
+    "tjmg", "tjsp", "tjrj", "tjes", "tjba", "tjrs", "tjpr", "tjsc", "tjpe",
+    "tjce", "tjgo", "tjdf", "tjmt", "tjms", "tjpa", "tjam", "tjma", "tjrn",
+    "mpf", "mpt", "mpmg", "mpsp", "mprj", "mpes", "mpba", "mprs", "mppr",
+    "inss", "detran", "ciretran", "procon", "sine", "cras", "creas", "ibge",
+    "sefaz", "incra", "ibama", "icmbio", "anvisa", "anatel", "aneel", "bacen",
+    "cmei", "emei", "emef", "emeb", "ceinf", "samu", "sus", "ubs", "upa",
+    "poupatempo", "bhtrans", "cet", "der", "dnit", "funai", "fiocruz",
+}
+
+_PUBLIC_ENTITY_PHRASES = (
+    "prefeitura",
+    "camara municipal",
+    "assembleia legislativa",
+    "governo do estado",
+    "governo federal",
+    "secretaria municipal",
+    "secretaria estadual",
+    "secretaria de estado",
+    "ministerio publico",
+    "ministerio da ",
+    "ministerio do ",
+    "defensoria publica",
+    "tribunal regional",
+    "tribunal de justica",
+    "tribunal de contas",
+    "vara do trabalho",
+    "justica do trabalho",
+    "justica federal",
+    "justica eleitoral",
+    "juizado especial",
+    "forum da comarca",
+    "forum trabalhista",
+    "forum eleitoral",
+    "cartorio eleitoral",
+    "receita federal",
+    "receita estadual",
+    "policia militar",
+    "policia civil",
+    "policia federal",
+    "policia rodoviaria",
+    "delegacia de policia",
+    "delegacia regional",
+    "delegacia da mulher",
+    "corpo de bombeiros",
+    "guarda municipal",
+    "guarda civil",
+    "exercito brasileiro",
+    "tiro de guerra",
+    "junta militar",
+    "junta de servico militar",
+    "conselho tutelar",
+    "defesa civil",
+    "agencia dos correios",
+    "cdd correios",
+    "cee correios",
+    "escola municipal",
+    "escola estadual",
+    "colegio estadual",
+    "colegio municipal",
+    "creche municipal",
+    "universidade federal",
+    "universidade estadual",
+    "instituto federal",
+    "posto de saude",
+    "unidade basica de saude",
+    "unidade de pronto atendimento",
+    "centro de saude",
+    "policlinica municipal",
+    "hospital municipal",
+    "hospital estadual",
+    "hospital universitario",
+    "hospital regional publico",
+    "unidade de atendimento integrado",
+    "vapt vupt",
+    "estacao de tratamento de agua",
+    "estacao de tratamento de esgoto",
+    "companhia de saneamento",
+    "companhia energetica",
+    "servico autonomo de agua",
+    "departamento municipal",
+    "autarquia municipal",
+)
+
+_PUBLIC_CATEGORY_PHRASES = (
+    "orgao governamental",
+    "reparticao publica",
+    "escritorio do governo",
+    "governo local",
+    "administracao publica",
+    "servico publico",
+    "prefeitura",
+    "tribunal",
+    "justica",
+    "delegacia",
+    "departamento de policia",
+    "departamento de transito",
+    "corpo de bombeiros",
+    "correios",
+    "escola publica",
+    "posto de saude",
+    "centro de saude publico",
+    "estacao de tratamento",
+    "empresa de fornecimento de agua",
+    "empresa de fornecimento de energia",
+    "servicos de utilidade publica",
+)
+
+
+def _strip_accents_lower(text: str) -> str:
+    if not text:
+        return ""
+    nfkd = unicodedata.normalize("NFKD", str(text))
+    return "".join(ch for ch in nfkd if not unicodedata.combining(ch)).lower().strip()
+
+
+def is_public_or_government_entity(title: str, category: str = "") -> bool:
+    """
+    Filtra órgãos públicos, tribunais, concessionárias de água/energia e repartições
+    (COPASA, CEMIG, TRT, Prefeituras, INSS, Detran, Delegacias, UPA/UBS, etc.)
+    para não poluir a base comercial de prospecção do assinante.
+    """
+    t_norm = _strip_accents_lower(title)
+    c_norm = _strip_accents_lower(category)
+    if not t_norm:
+        return False
+
+    # 1. Tokens exatos por fronteira de palavra no nome (ex: COPASA, CEMIG, TRT, INSS, DETRAN, UPA, UBS)
+    tokens = set(re.findall(r"[a-z0-9]+", t_norm))
+    if tokens & _PUBLIC_ENTITY_EXACT_TOKENS:
+        return True
+
+    # Siglas numeradas comuns (ex: "TRT3", "TRT-3", "TRF1", "TRE-MG", "1ª Vara", "UAI Venda Nova")
+    if re.search(r"\b(trt|trf|tre)\s*-?\s*\d+\b", t_norm):
+        return True
+    if re.search(r"\buai\b", t_norm) and any(k in t_norm for k in ("atendimento", "governo", "mg", "praca", "unidade", "barreiro", "venda nova", "centro", "contagem", "betim")):
+        return True
+    if re.search(r"\bforum\b", t_norm) and not any(k in c_norm for k in ("restaurante", "bar", "hotel", "loja", "academia", "imobiliaria")):
+        return True
+
+    # 2. Frases típicas de órgãos públicos / concessionárias no nome
+    for phrase in _PUBLIC_ENTITY_PHRASES:
+        if phrase in t_norm:
+            return True
+
+    # 3. Categoria governamental / serviço público no Google Maps
+    if c_norm:
+        for cat_p in _PUBLIC_CATEGORY_PHRASES:
+            if cat_p in c_norm:
+                return True
 
     return False
 
@@ -788,6 +952,13 @@ class GoogleMapsScraper:
                         continue
 
                     lines_info = parse_card_lines(c.get("lines", []), name, direct_phone=c.get("phone"))
+
+                    # Ignora órgãos públicos, tribunais e concessionárias (COPASA, CEMIG, TRT, Prefeituras, etc.)
+                    if is_public_or_government_entity(name, lines_info.get("category") or ""):
+                        if m_url:
+                            seen_urls.add(m_url)
+                        continue
+
                     if not lines_info["is_whatsapp"] or not lines_info["clean_phone"]:
                         # Regra: Só pegar negócios com telefone válido para WhatsApp!
                         continue

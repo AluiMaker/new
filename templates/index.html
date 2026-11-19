@@ -21,7 +21,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 
-  <link rel="stylesheet" href="/static/css/style.css?v=5.3">
+  <link rel="stylesheet" href="/static/css/style.css?v=5.4">
 </head>
 <body>
   <script>
@@ -413,9 +413,17 @@
                   </select>
                 </div>
 
-                <div class="field" id="wrap-niche">
-                  <label>3. Segmento / Palavra-chave</label>
-                  <input type="text" id="search-niche" placeholder="Ex: Restaurantes, Barbearias, Dentistas...">
+                <div class="field col-span-2 hidden" id="wrap-niche">
+                  <label>3. Nichos / Termos Específicos <small class="text-muted">(digite o termo e aperte <strong>Enter</strong> para fixar — adicione quantos quiser)</small></label>
+                  <div class="niche-tags-box" id="niche-tags-box" onclick="document.getElementById('search-niche')?.focus()">
+                    <div class="niche-tags-list" id="niche-tags-list"></div>
+                    <div class="niche-tags-input-row">
+                      <input type="text" id="search-niche" placeholder="Ex: Pizzaria (Enter), Clínica Odontológica (Enter), Barbearia..." autocomplete="off">
+                      <button type="button" class="btn btn-outline btn-xs" id="btn-add-niche-term" onclick="commitNicheTagInput()" title="Adicionar termo">
+                        <i class="fa-solid fa-plus"></i> Adicionar
+                      </button>
+                    </div>
+                  </div>
                 </div>
 
                 <div class="field">
@@ -453,6 +461,10 @@
                 <button class="btn btn-danger btn-lg hidden" id="btn-stop-search">
                   <i class="fa-solid fa-stop"></i> Parar Busca
                 </button>
+              </div>
+              <div class="text-muted" style="font-size:0.75rem; margin-top:10px; display:flex; align-items:center; gap:6px;">
+                <i class="fa-solid fa-shield-halved text-emerald"></i>
+                <span>Filtro comercial ativo: órgãos públicos e concessionárias (COPASA, CEMIG, TRT, Prefeituras, etc.) são ignorados automaticamente.</span>
               </div>
             </div>
 
@@ -2287,6 +2299,6 @@
     window.CURRENT_USER = {{ current_user | tojson if current_user else 'null' }};
     window.ACCESS_STATUS = {{ access_status | tojson if access_status else 'null' }};
   </script>
-  <script src="/static/js/app.js?v=5.6"></script>
+  <script src="/static/js/app.js?v=5.7"></script>
 </body>
 </html>

@@ -1,6 +1,4 @@
 (common_app) {
-    encode zstd gzip
-
     header {
         Strict-Transport-Security "max-age=31536000; includeSubDomains"
         X-Content-Type-Options "nosniff"
@@ -9,19 +7,25 @@
         -Server
     }
 
+    # SSE em tempo real: NUNCA comprimir (gzip/zstd faz buffer e trava eventos!)
+    handle /api/search/stream {
+        reverse_proxy mapaleads:5055 {
+            flush_interval -1
+            transport http {
+                compression off
+            }
+        }
+    }
+
     handle_path /static/* {
+        encode zstd gzip
         root * /srv/static
         header Cache-Control "public, max-age=86400"
         file_server
     }
 
-    handle /api/search/stream {
-        reverse_proxy mapaleads:5055 {
-            flush_interval -1
-        }
-    }
-
     handle {
+        encode zstd gzip
         reverse_proxy mapaleads:5055
     }
 }

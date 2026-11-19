@@ -352,8 +352,30 @@ function initSearchControls() {
     const m = modeSel.value;
     document.getElementById('multi-segments-box').classList.toggle('hidden', m !== 'multi');
     document.getElementById('wrap-niche').classList.toggle('hidden', m !== 'single');
+    if (m === 'single') {
+      setTimeout(() => document.getElementById('search-niche')?.focus(), 40);
+    }
   });
   document.getElementById('wrap-niche')?.classList.add('hidden');
+
+  // Campo de Nichos Específicos por Chips (Enter, vírgula ou ponto-e-vírgula fixa o termo)
+  const nicheInput = document.getElementById('search-niche');
+  nicheInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ',' || e.key === ';') {
+      e.preventDefault();
+      commitNicheTagInput();
+    } else if (e.key === 'Backspace' && !nicheInput.value && (STATE.nicheTerms || []).length) {
+      STATE.nicheTerms.pop();
+      renderNicheTags();
+    }
+  });
+  nicheInput?.addEventListener('paste', (e) => {
+    const pasted = (e.clipboardData || window.clipboardData)?.getData('text') || '';
+    if (/[,\n;]/.test(pasted)) {
+      e.preventDefault();
+      pasted.split(/[,\n;]+/).forEach(p => addNicheTerm(p));
+    }
+  });
 
   document.getElementById('btn-start-search')?.addEventListener('click', startSearch);
   document.getElementById('btn-stop-search')?.addEventListener('click', async () => {
@@ -361,6 +383,45 @@ function initSearchControls() {
     setSearchRunning(false);
     toast('Parada solicitada.', 'info');
   });
+}
+
+function addNicheTerm(raw) {
+  const clean = String(raw || '').trim();
+  if (!clean) return;
+  if (!Array.isArray(STATE.nicheTerms)) STATE.nicheTerms = [];
+  if (!STATE.nicheTerms.some(t => t.toLowerCase() === clean.toLowerCase())) {
+    STATE.nicheTerms.push(clean);
+    renderNicheTags();
+  }
+}
+
+function commitNicheTagInput() {
+  const inp = document.getElementById('search-niche');
+  if (!inp) return;
+  const val = inp.value || '';
+  if (val.trim()) {
+    val.split(/[,\n;]+/).forEach(p => addNicheTerm(p));
+    inp.value = '';
+  }
+  inp.focus();
+}
+
+function removeNicheTerm(idx) {
+  if (!Array.isArray(STATE.nicheTerms)) return;
+  STATE.nicheTerms.splice(idx, 1);
+  renderNicheTags();
+}
+
+function renderNicheTags() {
+  const list = document.getElementById('niche-tags-list');
+  if (!list) return;
+  const terms = STATE.nicheTerms || [];
+  list.innerHTML = terms.map((t, idx) => `
+    <span class="niche-tag-chip">
+      <span>${escapeHtml(t)}</span>
+      <button type="button" onclick="removeNicheTerm(${idx})" aria-label="Remover termo">&times;</button>
+    </span>
+  `).join('');
 }
 
 async function loadSegments() {
@@ -400,7 +461,15 @@ async function loadSearchHistory() {
 async function startSearch() {
   const locText = document.getElementById('search-location-input').value.trim();
   const mode = document.getElementById('search-mode').value;
-  const niche = document.getElementById('search-niche').value.trim();
+  if (mode === 'single') {
+    const inp = document.getElementById('search-niche');
+    if (inp && inp.value.trim()) {
+      inp.value.split(/[,\n;]+/).forEach(p => addNicheTerm(p));
+      inp.value = '';
+    }
+  }
+  const nicheTerms = mode === 'single' ? [...(STATE.nicheTerms || [])] : [];
+  const niche = nicheTerms.join(', ');
   const limit = Number(document.getElementById('search-limit').value || 50);
   const visible = Boolean(document.getElementById('chk-visible-browser')?.checked);
   const selLoc = STATE.selectedLocation;
@@ -414,6 +483,7 @@ async function startSearch() {
   const payload = {
     mode,
     niche,
+    niche_terms: nicheTerms,
     segments,
     target_limit: limit,
     visible_browser: visible,
@@ -426,8 +496,13 @@ async function startSearch() {
     zoom: selLoc?.recommended_zoom || null,
   };
 
+  STATE._renderedLogCount = 0;
+  STATE._renderedLeadIds = new Set();
+  STATE._searchCompletionHandled = false;
   document.getElementById('live-log-box').innerHTML = '';
   document.getElementById('live-leads-list').innerHTML = '';
+  document.getElementById('live-found-count').textContent = '0 encontrados';
+  document.getElementById('search-status-text').textContent = `Iniciando busca em ${locText || niche}...`;
   document.getElementById('search-progress-bar').style.width = '5%';
 
   try {
@@ -449,11 +524,128 @@ async function startSearch() {
   }
 }
 
+let _searchStatusPollTimer = null;
+
 function setSearchRunning(running) {
+  STATE.searchRunning = Boolean(running);
   document.getElementById('btn-start-search')?.classList.toggle('hidden', running);
   document.getElementById('btn-stop-search')?.classList.toggle('hidden', !running);
   document.getElementById('topbar-live-pill')?.classList.toggle('hidden', !running);
   document.getElementById('nav-search-dot')?.classList.toggle('hidden', !running);
+  if (running) {
+    startSearchStatusPoller();
+  } else {
+    stopSearchStatusPoller();
+  }
+}
+
+function startSearchStatusPoller() {
+  if (_searchStatusPollTimer) return;
+  _searchStatusPollTimer = setInterval(() => {
+    syncSearchStatusFromApi(false);
+  }, 2500);
+}
+
+function stopSearchStatusPoller() {
+  if (_searchStatusPollTimer) {
+    clearInterval(_searchStatusPollTimer);
+    _searchStatusPollTimer = null;
+  }
+}
+
+function appendLiveLogLine(timeStr, message) {
+  const box = document.getElementById('live-log-box');
+  if (!box) return;
+  const emptyEl = box.querySelector('.log-empty');
+  if (emptyEl) emptyEl.remove();
+  const line = document.createElement('div');
+  line.textContent = `[${timeStr || ''}] ${message || ''}`;
+  box.appendChild(line);
+  box.scrollTop = box.scrollHeight;
+}
+
+function prependLiveLeadRow(lead) {
+  if (!lead || !lead.id) return;
+  if (!STATE._renderedLeadIds) STATE._renderedLeadIds = new Set();
+  if (STATE._renderedLeadIds.has(lead.id)) return;
+  STATE._renderedLeadIds.add(lead.id);
+  const list = document.getElementById('live-leads-list');
+  if (!list) return;
+  const row = document.createElement('div');
+  row.className = 'live-lead-row';
+  row.innerHTML = `
+    <div>
+      <strong>${escapeHtml(lead.name)}</strong>
+      <div class="text-muted" style="font-size:0.75rem">${escapeHtml(lead.category || '')} · ${escapeHtml(lead.phone || '')}</div>
+    </div>
+    <span class="opp-badge opp-bio">${lead.website_type === 'none' ? 'Sem Site' : lead.website_type === 'social' ? 'Rede Social' : 'Com Site'}</span>
+  `;
+  row.addEventListener('click', () => openLeadDrawerById(lead.id));
+  list.prepend(row);
+}
+
+async function handleSearchCompletionUI(message) {
+  if (STATE._searchCompletionHandled) return;
+  STATE._searchCompletionHandled = true;
+  setSearchRunning(false);
+  document.getElementById('search-progress-bar').style.width = '100%';
+  document.getElementById('search-status-text').textContent = message || 'Busca concluída!';
+  toast(message || 'Busca concluída!', 'success');
+  loadAllData();
+  try {
+    const mr = await apiFetch('/api/me');
+    const md = await mr.json();
+    const acc = md.access;
+    if (acc) {
+      updateTopbarQuotaDisplay(acc);
+      if (!acc.active) {
+        openUpgradeModal(`Seu período de acesso do plano (${String(acc.plan).toUpperCase()}) encerrou. Escolha um plano para continuar!`);
+      } else if (acc.leads_limit_reached) {
+        toast(`Limite de ${acc.max_leads} leads do seu plano atingido! Novas buscas foram pausadas, mas seus ${acc.leads_count} leads continuam 100% liberados para ver e atender no CRM e Chat.`, 'info');
+      }
+    }
+  } catch (err) {}
+}
+
+async function syncSearchStatusFromApi(isInitialCheck = false) {
+  try {
+    const res = await apiFetch('/api/search/status');
+    if (!res.ok) return;
+    const d = await res.json();
+    const logs = Array.isArray(d.recent_logs) ? d.recent_logs : [];
+    const leads = Array.isArray(d.recent_leads) ? d.recent_leads : [];
+
+    if (d.is_running || (!isInitialCheck && STATE.searchRunning)) {
+      if (d.query) {
+        const stEl = document.getElementById('search-status-text');
+        if (stEl) stEl.textContent = d.is_running ? `Buscando: ${d.query}` : (d.completed_message || `Concluído: ${d.query}`);
+        const topEl = document.getElementById('topbar-live-text');
+        if (topEl && d.is_running) topEl.textContent = `Buscando (${d.total_found || 0})...`;
+      }
+      const cntEl = document.getElementById('live-found-count');
+      if (cntEl) cntEl.textContent = `${d.total_found || 0} encontrados`;
+      if (d.target_limit && d.is_running) {
+        const pct = Math.max(5, Math.min(98, Math.round(((d.total_found || 0) / d.target_limit) * 100)));
+        const bar = document.getElementById('search-progress-bar');
+        if (bar) bar.style.width = `${pct}%`;
+      }
+      const prevCount = STATE._renderedLogCount || 0;
+      if (logs.length > prevCount) {
+        for (let i = prevCount; i < logs.length; i++) {
+          appendLiveLogLine(logs[i].time, logs[i].message);
+        }
+        STATE._renderedLogCount = logs.length;
+      }
+      leads.forEach(l => prependLiveLeadRow(l));
+    }
+
+    if (d.is_running) {
+      if (!STATE.searchRunning) setSearchRunning(true);
+    } else if (!isInitialCheck && STATE.searchRunning) {
+      // Busca finalizou no servidor (fallback caso o evento SSE tenha se perdido na rede)
+      await handleSearchCompletionUI(d.completed_message || `Busca finalizada! ${d.total_found || 0} empresas encontradas.`);
+    }
+  } catch (e) {}
 }
 
 function initSSE() {
@@ -463,11 +655,17 @@ function initSSE() {
 
   es.addEventListener('init', (e) => {
     const d = JSON.parse(e.data || '{}');
-    setSearchRunning(Boolean(d.is_running));
+    if (d.is_running) {
+      setSearchRunning(true);
+      syncSearchStatusFromApi(true);
+    } else {
+      setSearchRunning(false);
+    }
   });
 
   es.addEventListener('search_started', (e) => {
     const d = JSON.parse(e.data || '{}');
+    STATE._searchCompletionHandled = false;
     setSearchRunning(true);
     document.getElementById('search-status-text').textContent = `Buscando: ${d.query || ''}`;
     document.getElementById('topbar-live-text').textContent = `Buscando (${d.location || ''})...`;
@@ -475,61 +673,27 @@ function initSSE() {
 
   es.addEventListener('log', (e) => {
     const d = JSON.parse(e.data || '{}');
-    const box = document.getElementById('live-log-box');
-    if (box) {
-      const line = document.createElement('div');
-      line.textContent = `[${d.time || ''}] ${d.message || ''}`;
-      box.appendChild(line);
-      box.scrollTop = box.scrollHeight;
-    }
+    appendLiveLogLine(d.time, d.message);
+    STATE._renderedLogCount = (STATE._renderedLogCount || 0) + 1;
   });
 
   es.addEventListener('progress', (e) => {
     const d = JSON.parse(e.data || '{}');
     document.getElementById('live-found-count').textContent = `${d.total_extracted || 0} encontrados`;
     if (d.target_limit) {
-      const pct = Math.min(100, Math.round(((d.total_extracted || 0) / d.target_limit) * 100));
+      const pct = Math.max(5, Math.min(99, Math.round(((d.total_extracted || 0) / d.target_limit) * 100)));
       document.getElementById('search-progress-bar').style.width = `${pct}%`;
     }
   });
 
   es.addEventListener('lead_found', (e) => {
     const lead = JSON.parse(e.data || '{}');
-    const list = document.getElementById('live-leads-list');
-    if (list) {
-      const row = document.createElement('div');
-      row.className = 'live-lead-row';
-      row.innerHTML = `
-        <div>
-          <strong>${escapeHtml(lead.name)}</strong>
-          <div class="text-muted" style="font-size:0.75rem">${escapeHtml(lead.category || '')} · ${escapeHtml(lead.phone || '')}</div>
-        </div>
-        <span class="opp-badge opp-bio">${lead.website_type === 'none' ? 'Sem Site' : lead.website_type === 'social' ? 'Rede Social' : 'Com Site'}</span>
-      `;
-      row.addEventListener('click', () => openLeadDrawerById(lead.id));
-      list.prepend(row);
-    }
+    prependLiveLeadRow(lead);
   });
 
   es.addEventListener('search_completed', async (e) => {
     const d = JSON.parse(e.data || '{}');
-    document.getElementById('search-progress-bar').style.width = '100%';
-    document.getElementById('search-status-text').textContent = d.message || 'Busca concluída!';
-    toast(d.message || 'Busca concluída!', 'success');
-    loadAllData();
-    try {
-      const mr = await apiFetch('/api/me');
-      const md = await mr.json();
-      const acc = md.access;
-      if (acc) {
-        updateTopbarQuotaDisplay(acc);
-        if (!acc.active) {
-          openUpgradeModal(`Seu período de acesso do plano (${String(acc.plan).toUpperCase()}) encerrou. Escolha um plano para continuar!`);
-        } else if (acc.leads_limit_reached) {
-          toast(`Limite de ${acc.max_leads} leads do seu plano atingido! Novas buscas foram pausadas, mas seus ${acc.leads_count} leads continuam 100% liberados para ver e atender no CRM e Chat.`, 'info');
-        }
-      }
-    } catch (err) {}
+    await handleSearchCompletionUI(d.message || 'Busca concluída!');
   });
 
   es.addEventListener('search_finished', () => setSearchRunning(false));

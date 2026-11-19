@@ -221,9 +221,13 @@ def get_user_search_state(user_id: int) -> Dict[str, Any]:
             _user_search_states[user_id] = {
                 "is_running": False,
                 "current_query": "",
+                "target_limit": 50,
                 "total_found": 0,
                 "no_website_count": 0,
                 "last_log": "Pronto para buscar.",
+                "recent_logs": [],
+                "recent_leads": [],
+                "completed_message": "",
                 "scraper_instance": None,
             }
         return _user_search_states[user_id]
@@ -303,8 +307,12 @@ def run_scraper_thread(
     st = get_user_search_state(user_id)
     st["is_running"] = True
     st["current_query"] = query
+    st["target_limit"] = target_limit
     st["total_found"] = 0
     st["no_website_count"] = 0
+    st["recent_logs"] = []
+    st["recent_leads"] = []
+    st["completed_message"] = ""
 
     loc_summary = ", ".join([p for p in (street, neighborhood, city) if p.strip()]) or query
     broadcast_event("search_started", {
@@ -316,13 +324,20 @@ def run_scraper_thread(
     }, user_id=user_id)
 
     def log_cb(msg: str):
+        ts = time.strftime("%H:%M:%S")
         st["last_log"] = msg
-        broadcast_event("log", {"message": msg, "time": time.strftime("%H:%M:%S")}, user_id=user_id)
+        logs_buf = st.setdefault("recent_logs", [])
+        logs_buf.append({"time": ts, "message": msg})
+        if len(logs_buf) > 80:
+            del logs_buf[:-80]
+        broadcast_event("log", {"message": msg, "time": ts}, user_id=user_id)
 
     def progress_cb(prog: Dict[str, Any]):
         st["total_found"] = prog["total_extracted"]
         st["no_website_count"] = prog["no_website_count"]
-        broadcast_event("progress", prog, user_id=user_id)
+        prog_payload = dict(prog)
+        prog_payload.setdefault("target_limit", target_limit)
+        broadcast_event("progress", prog_payload, user_id=user_id)
 
     limit_notified = False
 
@@ -346,6 +361,16 @@ def run_scraper_thread(
             return
         lead["id"] = lead_id
         lead["is_new"] = is_new
+        leads_buf = st.setdefault("recent_leads", [])
+        leads_buf.append({
+            "id": lead_id,
+            "name": lead.get("name", ""),
+            "category": lead.get("category", ""),
+            "phone": lead.get("phone", ""),
+            "website_type": lead.get("website_type", "none"),
+        })
+        if len(leads_buf) > 40:
+            del leads_buf[:-40]
         broadcast_event("lead_found", lead, user_id=user_id)
         if lead.get("clean_phone"):
             broadcast_event("queue_updated", wa.get_queue_summary(user_id=user_id), user_id=user_id)
@@ -380,7 +405,7 @@ def run_scraper_thread(
 
         if mode == "all":
             sweep_list = segments_to_run if segments_to_run else SWEEP_ALL_TERMS
-            broadcast_event("log", {"message": f"Iniciando Varredura Completa em {loc_summary} (Meta: {target_limit} empresas)...", "time": time.strftime("%H:%M:%S")}, user_id=user_id)
+            log_cb(f"Iniciando Varredura Completa em {loc_summary} (Meta: {target_limit} empresas)...")
             results = scraper.scrape_multi_segments(
                 segments=sweep_list,
                 street=street,
@@ -397,7 +422,8 @@ def run_scraper_thread(
                 on_segment_change=seg_cb
             )
         elif mode == "multi" and segments_to_run:
-            broadcast_event("log", {"message": f"Iniciando busca em {len(segments_to_run)} segmentos ({place_type.upper()})...", "time": time.strftime("%H:%M:%S")}, user_id=user_id)
+            log_cb(f"Iniciando busca em {len(segments_to_run)} termos/segmentos ({loc_summary} · Meta: {target_limit})...")
+            per_term = max(10, (target_limit // max(1, len(segments_to_run))) + 5)
             results = scraper.scrape_multi_segments(
                 segments=segments_to_run,
                 street=street,
@@ -405,8 +431,8 @@ def run_scraper_thread(
                 city=city,
                 lat=lat,
                 lon=lon,
-                target_per_segment=target_limit,
-                total_target_limit=None,
+                target_per_segment=min(target_limit, per_term),
+                total_target_limit=target_limit,
                 place_type=place_type,
                 zoom=zoom,
                 on_lead_found=lead_cb,
@@ -414,6 +440,7 @@ def run_scraper_thread(
                 on_segment_change=seg_cb
             )
         else:
+            log_cb(f"Iniciando busca por '{niche or query}' em {loc_summary} (Meta: {target_limit} empresas)...")
             results = scraper.scrape_leads(
                 query=query,
                 niche=niche,
@@ -430,14 +457,19 @@ def run_scraper_thread(
             )
 
         no_web = sum(1 for x in results if x.get("website_type") in ("none", "social", "directory"))
+        done_msg = f"Busca finalizada! {len(results)} empresas com telefone válido encontradas ({no_web} sem site próprio)."
+        st["total_found"] = len(results)
+        st["no_website_count"] = no_web
+        st["completed_message"] = done_msg
         record_search(query, niche or ("Todos os Negócios" if mode == "all" else "Multi-Segmentos"), f"{street} {neighborhood} {city}".strip(), len(results), no_web, user_id=user_id)
         broadcast_event("search_completed", {
             "total": len(results),
             "no_website": no_web,
-            "message": f"Busca finalizada! {len(results)} empresas com telefone válido encontradas ({no_web} sem site próprio)."
+            "message": done_msg
         }, user_id=user_id)
-        broadcast_event("queue_updated", wa.get_queue_summary(), user_id=user_id)
+        broadcast_event("queue_updated", wa.get_queue_summary(user_id=user_id), user_id=user_id)
     except Exception as e:
+        st["completed_message"] = f"Erro na busca: {str(e)}"
         log_cb(f"Erro na busca: {str(e)}")
         broadcast_event("search_error", {"error": str(e)}, user_id=user_id)
     finally:
@@ -1604,13 +1636,27 @@ def api_search_start():
     segments_raw = data.get("segments") or []
     auto_dispatch = False
 
-    niche = (data.get("niche") or "").strip()
+    niche_raw = (data.get("niche") or "").strip()
+    niche_terms_raw = data.get("niche_terms") or []
+    niche_terms = []
+    if isinstance(niche_terms_raw, list):
+        for t in niche_terms_raw:
+            tc = str(t or "").strip()
+            if tc and tc.lower() not in [x.lower() for x in niche_terms]:
+                niche_terms.append(tc)
+    if niche_raw:
+        # Se digitou separado por vírgula ou ponto-e-vírgula, separa em termos individuais automaticamente
+        for part in [p.strip() for p in niche_raw.replace(";", ",").split(",")]:
+            if part and part.lower() not in [x.lower() for x in niche_terms]:
+                niche_terms.append(part)
+    niche = ", ".join(niche_terms) if niche_terms else niche_raw
+
     street = (data.get("street") or "").strip()
     neighborhood = (data.get("neighborhood") or "").strip()
     city = (data.get("city") or "").strip()
     lat = data.get("lat")
     lon = data.get("lon")
-    target_limit = int(data.get("target_limit") or (80 if mode == "all" else (20 if mode == "multi" else 40)))
+    target_limit = int(data.get("target_limit") or (80 if mode == "all" else (40 if mode == "multi" else 40)))
     if acc.get("max_leads", 0) > 0:
         remaining = max(1, acc["max_leads"] - acc.get("leads_count", 0))
         target_limit = min(target_limit, remaining)
@@ -1619,11 +1665,16 @@ def api_search_start():
     if not street and not neighborhood and not city and not niche:
         return jsonify({"success": False, "error": "Informe uma rua, bairro ou cidade para buscar."}), 400
 
-    if mode == "single" and (not niche or niche.lower() in ("todos", "todos os negócios", "qualquer")):
+    if mode == "single" and (not niche_terms or (len(niche_terms) == 1 and niche_terms[0].lower() in ("todos", "todos os negócios", "qualquer"))):
         mode = "all"
 
     segments_to_run = []
-    if mode == "all":
+    effective_mode = mode
+    if mode == "single" and len(niche_terms) >= 2:
+        # Múltiplos termos individuais (chips) em Nicho Específico -> varre cada termo separadamente!
+        effective_mode = "multi"
+        segments_to_run = list(niche_terms)
+    elif mode == "all":
         segments_to_run = list(SWEEP_ALL_TERMS)
     elif mode == "multi":
         if not segments_raw or segments_raw == "todos" or (isinstance(segments_raw, list) and "todos" in segments_raw):
@@ -1660,11 +1711,11 @@ def api_search_start():
     query = " ".join(parts) or (f"Varredura Completa em {street or neighborhood or city or 'Região'}")
 
     update_user_onboarding(uid, {"step_first_search": 1})
-    track_event(uid, "first_search", {"query": query, "mode": mode, "place_type": place_type})
+    track_event(uid, "first_search", {"query": query, "mode": effective_mode, "place_type": place_type})
 
     t = threading.Thread(
         target=run_scraper_thread,
-        args=(uid, query, niche, street, neighborhood, city, lat, lon, target_limit, visible_browser, mode, segments_to_run, auto_dispatch, place_type, zoom),
+        args=(uid, query, niche, street, neighborhood, city, lat, lon, target_limit, visible_browser, effective_mode, segments_to_run, auto_dispatch, place_type, zoom),
         daemon=True
     )
     t.start()
@@ -1672,7 +1723,7 @@ def api_search_start():
     return jsonify({
         "success": True,
         "query": query,
-        "mode": mode,
+        "mode": effective_mode,
         "place_type": place_type,
         "segments": segments_to_run,
         "target_limit": target_limit,
@@ -1700,9 +1751,13 @@ def api_search_status():
     return jsonify({
         "is_running": st["is_running"],
         "query": st["current_query"],
+        "target_limit": st.get("target_limit", 50),
         "total_found": st["total_found"],
         "no_website_count": st["no_website_count"],
-        "last_log": st["last_log"]
+        "last_log": st["last_log"],
+        "recent_logs": list(st.get("recent_logs") or []),
+        "recent_leads": list(st.get("recent_leads") or []),
+        "completed_message": st.get("completed_message", ""),
     })
 
 
@@ -1717,7 +1772,9 @@ def api_search_stream():
         _user_sse_gen_id[uid] = my_gen
 
     def event_stream():
-        initial_msg = f"event: init\ndata: {json.dumps({'is_running': st['is_running']})}\n\n"
+        # Padding inicial de 2KB força proxies/navegadores a liberarem o stream SSE imediatamente
+        yield ":" + (" " * 2048) + "\n\n"
+        initial_msg = f"event: init\ndata: {json.dumps({'is_running': st['is_running'], 'query': st['current_query'], 'total_found': st['total_found'], 'target_limit': st.get('target_limit', 50), 'last_log': st.get('last_log', '')})}\n\n"
         yield initial_msg
         idle_started = time.monotonic()
 
@@ -1738,8 +1795,9 @@ def api_search_stream():
                 break
 
     resp = Response(event_stream(), mimetype="text/event-stream")
-    resp.headers["Cache-Control"] = "no-cache"
+    resp.headers["Cache-Control"] = "no-cache, no-transform"
     resp.headers["X-Accel-Buffering"] = "no"
+    resp.headers["Connection"] = "keep-alive"
     return resp
 
 
