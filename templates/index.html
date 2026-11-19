@@ -1334,18 +1334,18 @@
           <div class="card settings-pane hidden" id="pane-account">
             <div class="card-header">
               <div>
-                <h3>Dados da Sua Conta</h3>
-                <p class="card-sub">Atualize seu nome, empresa ou senha de acesso</p>
+                <h3>Dados da Sua Conta &amp; Marca White-Label (Propostas PDF)</h3>
+                <p class="card-sub">Atualize seus dados de acesso e personalize a logo, cor e WhatsApp que aparecem nas suas Propostas Comerciais em PDF</p>
               </div>
             </div>
             <form id="form-my-account" class="form-grid">
               <div class="field">
-                <label>Seu Nome</label>
+                <label>Seu Nome (Assinatura na Proposta)</label>
                 <input type="text" id="acc-name" value="{{ current_user.name if current_user else '' }}">
               </div>
               <div class="field">
-                <label>Empresa / Agência</label>
-                <input type="text" id="acc-company" value="{{ current_user.company_name if current_user else '' }}">
+                <label>Empresa / Agência (Cabeçalho White-Label)</label>
+                <input type="text" id="acc-company" value="{{ current_user.company_name if current_user else '' }}" placeholder="Ex: Silva Digital · Posicionamento Local">
               </div>
               <div class="field">
                 <label>E-mail</label>
@@ -1355,8 +1355,47 @@
                 <label>Nova Senha (deixe em branco para manter)</label>
                 <input type="password" id="acc-password" placeholder="Mínimo 6 caracteres">
               </div>
+
+              <div class="field col-span-2" style="padding-top:12px; margin-top:4px; border-top:1px dashed var(--border);">
+                <strong style="font-size:0.88rem;"><i class="fa-solid fa-file-pdf text-blue"></i> Identidade White-Label para Diagnósticos &amp; Propostas PDF</strong>
+                <div class="text-muted" style="font-size:0.78rem; margin-top:2px;">Suas propostas saem 100% com a sua marca (sem menção ao MapaLeads) e com botão direto para o cliente aprovar no seu WhatsApp.</div>
+              </div>
+              <div class="field">
+                <label>WhatsApp Comercial para Aprovação (com DDD)</label>
+                <input type="text" id="acc-brand-phone" value="{{ current_user.brand_phone if current_user else '' }}" placeholder="Ex: (11) 99999-8888">
+              </div>
+              <div class="field">
+                <label>Cor Primária da Sua Marca</label>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <input type="color" id="acc-brand-color" value="{{ (current_user.brand_color if current_user and current_user.brand_color else '#2563eb') }}" style="width:52px; height:38px; padding:2px; cursor:pointer;">
+                  <input type="text" id="acc-brand-tagline" value="{{ current_user.brand_tagline if current_user else '' }}" placeholder="Subtítulo: Ex: Especialistas em Google Maps &amp; Vendas Locais" style="flex:1;">
+                </div>
+              </div>
               <div class="field col-span-2">
-                <button type="submit" class="btn btn-primary">Salvar Alterações</button>
+                <label>Logotipo da Sua Agência / Consultoria (Upload PNG/JPG ou URL)</label>
+                <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+                  <div id="acc-brand-logo-preview" style="width:56px; height:56px; border-radius:12px; border:1px solid var(--border); background:#f8fafc; display:grid; place-items:center; overflow:hidden; flex-shrink:0;">
+                    {% if current_user and current_user.brand_logo_url %}
+                    <img src="{{ current_user.brand_logo_url }}" alt="Logo" style="max-width:100%; max-height:100%; object-fit:contain;">
+                    {% else %}
+                    <i class="fa-regular fa-image text-muted"></i>
+                    {% endif %}
+                  </div>
+                  <div style="flex:1; min-width:220px; display:flex; flex-direction:column; gap:6px;">
+                    <input type="text" id="acc-brand-logo-url" value="{{ current_user.brand_logo_url if current_user else '' }}" placeholder="Cole a URL da logo ou selecione uma imagem do computador ao lado">
+                    <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+                      <label class="btn btn-outline btn-xs" style="cursor:pointer; margin:0;">
+                        <i class="fa-solid fa-upload"></i> Enviar Logo (PNG/JPG)
+                        <input type="file" id="acc-brand-logo-file" accept="image/png,image/jpeg,image/webp" style="display:none;" onchange="handleAccountLogoFile(this)">
+                      </label>
+                      <button type="button" class="btn btn-outline btn-xs text-danger" onclick="clearAccountBrandLogo()">Remover Logo</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="field col-span-2">
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Salvar Dados da Conta &amp; Marca White-Label</button>
               </div>
             </form>
           </div>
@@ -1676,6 +1715,110 @@
             </div>
           </div>
 
+          <!-- Gestão dos Cursos da Academia de Vendas PRO (6 Formações + VSLs) -->
+          <div class="card" id="admin-sales-academy-card" style="margin-top: 20px;">
+            <div class="card-header" style="flex-wrap:wrap; gap:10px;">
+              <div>
+                <h3><i class="fa-solid fa-crown text-amber"></i> Gerenciar Cursos da Academia de Vendas PRO &amp; VSLs</h3>
+                <p class="card-sub">Edite títulos, preços sugeridos, links de vídeos/VSLs, scripts e manuais de entrega ou crie novos cursos PRO</p>
+              </div>
+              <button type="button" class="btn btn-outline btn-sm" id="btn-admin-sa-reset" onclick="resetAdminSalesCourseForm()">
+                <i class="fa-solid fa-plus"></i> Novo Curso PRO
+              </button>
+            </div>
+            <form id="form-admin-sales-course" class="form-grid" style="margin-bottom: 18px;" onsubmit="submitAdminSalesCourse(event)">
+              <input type="hidden" id="adm-sa-id">
+              <div class="field">
+                <label>Chave / Estratégia</label>
+                <select id="adm-sa-strategy">
+                  <option value="gmn">gmn (Google Meu Negócio)</option>
+                  <option value="nfc">nfc (Plaquinha NFC + QR)</option>
+                  <option value="whatsapp">whatsapp (WhatsApp Business)</option>
+                  <option value="cardapio">cardapio (Cardápio Digital)</option>
+                  <option value="biossite">biossite (Biossite &amp; LP)</option>
+                  <option value="combo">combo (Combo 360° &amp; Recorrência)</option>
+                </select>
+              </div>
+              <div class="field">
+                <label>Etiqueta / Selo do Curso</label>
+                <input type="text" id="adm-sa-badge" placeholder="Ex: Curso 01 • Google Meu Negócio" required>
+              </div>
+              <div class="field">
+                <label>Título do Curso</label>
+                <input type="text" id="adm-sa-title" placeholder="Ex: Domínio do Google Meu Negócio Top 3" required>
+              </div>
+              <div class="field">
+                <label>Ticket Médio / Faixa de Preço</label>
+                <input type="text" id="adm-sa-ticket" placeholder="Ex: R$ 350 a R$ 800 + R$ 250/mês">
+              </div>
+              <div class="field col-span-2">
+                <label>Subtítulo / Promessa</label>
+                <input type="text" id="adm-sa-subtitle" placeholder="Resumo objetivo do curso...">
+              </div>
+              <div class="field">
+                <label>URL do Vídeo da Aula (MP4 / YouTube / Vimeo)</label>
+                <input type="text" id="adm-sa-course-url" placeholder="/static/video/sales-academy/curso-gmn.mp4" required>
+              </div>
+              <div class="field">
+                <label>URL da VSL White-Label (MP4)</label>
+                <input type="text" id="adm-sa-vsl-url" placeholder="/static/video/sales-academy/vsl-gmn.mp4">
+              </div>
+              <div class="field">
+                <label>Capa / Thumbnail URL</label>
+                <input type="text" id="adm-sa-thumb" placeholder="/static/img/academy/gmn-hero.jpg">
+              </div>
+              <div class="field">
+                <label>Ordem &amp; Duração</label>
+                <div style="display:grid; grid-template-columns:100px 1fr; gap:8px;">
+                  <input type="number" id="adm-sa-order" value="7" min="1">
+                  <input type="text" id="adm-sa-duration" value="5 Aulas • ~45 min" placeholder="5 Aulas • ~45 min">
+                </div>
+              </div>
+              <div class="field">
+                <label>Script de Abordagem Inicial</label>
+                <textarea id="adm-sa-approach" rows="3" placeholder="Roteiro de abordagem inicial..."></textarea>
+              </div>
+              <div class="field">
+                <label>Quebra de Objeções</label>
+                <textarea id="adm-sa-objections" rows="3" placeholder="Respostas às objeções..."></textarea>
+              </div>
+              <div class="field">
+                <label>Cadência de Follow-up &amp; Áudio</label>
+                <textarea id="adm-sa-followup" rows="3" placeholder="Follow-up 24h, 72h e roteiro de áudio..."></textarea>
+              </div>
+              <div class="field">
+                <label>Proposta Comercial Pronta</label>
+                <textarea id="adm-sa-proposal" rows="3" placeholder="Modelo de proposta comercial..."></textarea>
+              </div>
+              <div class="field col-span-2">
+                <label>Manual Técnico de Entrega &amp; Fornecedores</label>
+                <textarea id="adm-sa-delivery" rows="3" placeholder="Passo a passo técnico de execução..."></textarea>
+              </div>
+              <div class="field col-span-2" style="display:flex; gap:10px; align-items:center; flex-wrap:wrap;">
+                <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-floppy-disk"></i> Salvar Curso PRO</button>
+                <label class="checkbox-inline" style="margin-left:8px;">
+                  <input type="checkbox" id="adm-sa-published" checked>
+                  <span>Publicado na Academia de Vendas PRO</span>
+                </label>
+              </div>
+            </form>
+            <div class="table-wrap">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Ordem</th>
+                    <th>Selo / Estratégia</th>
+                    <th>Título &amp; Ticket</th>
+                    <th>Aulas</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                  </tr>
+                </thead>
+                <tbody id="admin-sales-academy-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+
           <!-- P0.3 & P0.4 — Analytics de Eventos & Sequência Automática de Ativação -->
           <div class="card" style="margin-top: 20px;">
             <div class="card-header">
@@ -1708,11 +1851,32 @@
                 <h3><i class="fa-solid fa-shield-halved text-emerald"></i> Saúde do Servidor OCI &amp; Backups Consistentes (SQLite WAL + Sessões WA)</h3>
                 <p class="card-sub">Snapshots via <code>sqlite3.Connection.backup()</code> criptografados e validados com teste real de restauração</p>
               </div>
-              <button type="button" class="btn btn-emerald btn-sm" id="btn-admin-run-backup" onclick="triggerAdminBackupNow()">
-                <i class="fa-solid fa-cloud-arrow-up"></i> Criar Backup + Testar Restauração Agora
-              </button>
+              <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button type="button" class="btn btn-outline btn-sm" id="btn-admin-test-oci" onclick="testAdminOciBackup()">
+                  <i class="fa-solid fa-plug-circle-check"></i> Testar Envio OCI
+                </button>
+                <button type="button" class="btn btn-emerald btn-sm" id="btn-admin-run-backup" onclick="triggerAdminBackupNow()">
+                  <i class="fa-solid fa-cloud-arrow-up"></i> Criar Backup + Testar Restauração Agora
+                </button>
+              </div>
             </div>
             <div id="adm-system-health-strip" style="margin-bottom:14px; font-size:0.84rem; display:flex; gap:14px; flex-wrap:wrap;"></div>
+            <details style="margin-bottom:14px; border:1px solid var(--border); border-radius:10px; padding:10px 14px; background:rgba(37,99,235,0.04);">
+              <summary style="cursor:pointer; font-weight:700; font-size:0.84rem; color:var(--primary);">
+                <i class="fa-solid fa-server"></i> Guia Rápido: Ativar Backup Off-Site OCI (Grátis) &amp; Escalar para Oracle ARM Ampere A1 (4 OCPUs / 24 GB RAM Grátis)
+              </summary>
+              <div style="margin-top:10px; font-size:0.81rem; line-height:1.55; color:var(--text-muted);">
+                <strong>1. Como ativar o Backup Externo Criptografado no OCI Object Storage (Always Free 20 GB):</strong>
+                <ol style="margin:5px 0 10px; padding-left:20px;">
+                  <li>No Console da Oracle Cloud (<code>sa-vinhedo-1</code>), abra <strong>Storage → Buckets → Create Bucket</strong> com o nome <code>mapaleads-backups</code> (Visibility: Private).</li>
+                  <li>Abra o bucket criado → menu esquerdo <strong>Pre-Authenticated Requests → Create Pre-Authenticated Request</strong>.</li>
+                  <li>Escolha <strong>Target: Bucket</strong>, <strong>Access Type: Permit object writes</strong> (validade de 1 ano) e copie a <strong>PAR URL</strong> gerada.</li>
+                  <li>Cole essa URL no campo <strong>OCI Object Storage PAR URL</strong> acima, clique em Salvar e depois clique em <strong>Testar Envio OCI</strong>!</li>
+                </ol>
+                <strong>2. Escala Gratuita para Oracle ARM Ampere A1 (24 GB RAM · Multi-Busca Simultânea):</strong>
+                <p style="margin:4px 0 0;">O <code>Dockerfile</code> já está preparado para arquitetura dupla (<strong>AMD64 + ARM64</strong>). Quando quiser migrar da VM Micro (1 GB RAM) para a VM <code>VM.Standard.A1.Flex</code> (Always Free até 4 OCPUs e 24 GB RAM), basta executar o script automatizado <code>scripts/migrate_to_oci_ampere_a1.sh</code> incluído no repositório — ele transfere o SQLite via snapshot consistente, as sessões do WhatsApp e o SSL sem perda de dados.</p>
+              </div>
+            </details>
             <div class="table-wrap">
               <table class="data-table">
                 <thead>
@@ -1757,13 +1921,13 @@
       </p>
       <div style="display:flex; flex-direction:column; gap:10px; text-align:left;">
         <a href="{{ (site_cfg.checkout_url if site_cfg and site_cfg.checkout_url else '/vendas#planos') }}" target="_blank" class="btn btn-outline btn-lg" style="border-color:#2563eb; color:#2563eb; justify-content:space-between; width:100%;">
-          <span><i class="fa-solid fa-rocket"></i> <strong>Plano Starter</strong> · 500 leads salvos (todas funções)</span>
+          <span><i class="fa-solid fa-rocket"></i> <strong>Plano Starter</strong> · 500 leads + Copiloto IA + Proposta PDF</span>
           <span style="font-weight:800;">{{ (site_cfg.plan_starter_price if site_cfg else None) or 'R$ 37' }}/mês <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.8em;"></i></span>
         </a>
         <a href="{{ (site_cfg.checkout_pro_url if site_cfg and site_cfg.checkout_pro_url else (site_cfg.enterprise_wa_url if site_cfg and site_cfg.enterprise_wa_url else '/vendas#planos')) }}" target="_blank" class="btn btn-primary btn-lg" style="justify-content:space-between; width:100%; background:linear-gradient(135deg,#2563eb,#1d4ed8); box-shadow:0 10px 25px -8px rgba(37,99,235,0.55);">
           <span style="text-align:left;">
             <i class="fa-solid fa-crown" style="color:#fde68a;"></i> <strong>Plano PRO</strong> · 2.000 leads + Fila Prioritária
-            <span style="display:block; font-size:0.74rem; font-weight:600; color:#fde68a; margin-top:2px;">+ Bônus: Academia de Vendas (5 Cursos) + VSLs Prontas p/ Baixar</span>
+            <span style="display:block; font-size:0.74rem; font-weight:600; color:#fde68a; margin-top:2px;">+ Bônus: 6 Cursos (30 Aulas + Manuais) + 6 VSLs White-Label (.MP4)</span>
           </span>
           <span style="font-weight:800; white-space:nowrap;">{{ (site_cfg.plan_pro_price if site_cfg else None) or 'R$ 79' }}/mês <i class="fa-solid fa-arrow-up-right-from-square" style="font-size:0.8em;"></i></span>
         </a>
@@ -1941,6 +2105,17 @@
         </div>
       </div>
 
+      <!-- Gerador de Diagnóstico & Proposta Comercial PDF White-Label -->
+      <div class="drawer-section" style="padding:12px 14px; border-radius:12px; border:1px solid rgba(37,99,235,0.28); background:rgba(37,99,235,0.05); display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+        <div>
+          <strong style="font-size:0.86rem; display:block;"><i class="fa-solid fa-file-pdf" style="color:#dc2626;"></i> Diagnóstico &amp; Proposta PDF (White-Label)</strong>
+          <small class="text-muted" style="font-size:0.75rem;">Gera um PDF executivo com a logo da sua agência pronto para enviar no WhatsApp</small>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" onclick="openLeadProposalModal()">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> Gerar Proposta PDF
+        </button>
+      </div>
+
       <div class="drawer-info-grid">
         <div><small>Telefone / WhatsApp</small><strong id="drawer-phone">-</strong></div>
         <div><small>Avaliação Google</small><strong id="drawer-rating">-</strong></div>
@@ -2050,6 +2225,61 @@
     </div>
   </aside>
 
+  <!-- ==================== MODAL GERAR PROPOSTA & DIAGNÓSTICO PDF WHITE-LABEL ==================== -->
+  <div id="modal-proposal-builder" class="hidden" onclick="if (event.target === this) closeLeadProposalModal()" style="position:fixed; inset:0; background:rgba(15,23,42,0.72); backdrop-filter:blur(4px); z-index:1015; display:flex; align-items:center; justify-content:center; padding:18px; overflow-y:auto;">
+    <div class="card" style="max-width:560px; width:100%; padding:22px 24px; position:relative;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:10px; margin-bottom:14px; border-bottom:1px solid var(--border); padding-bottom:10px;">
+        <div>
+          <h3 style="margin:0 0 3px;"><i class="fa-solid fa-file-pdf" style="color:#dc2626;"></i> Gerar Diagnóstico &amp; Proposta PDF</h3>
+          <p class="text-muted" id="prop-modal-lead-label" style="margin:0; font-size:0.8rem;">Personalize a oferta e os valores para gerar o PDF com a sua marca.</p>
+        </div>
+        <button type="button" class="icon-btn" onclick="closeLeadProposalModal()" aria-label="Fechar"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="form-proposal-builder" onsubmit="launchLeadProposalPdf(event)" class="form-grid">
+        <div class="field col-span-2">
+          <label>Serviço / Oferta da Proposta</label>
+          <select id="prop-offer-select" onchange="onProposalOfferChange()">
+            <option value="gmn">Otimização Google Meu Negócio &amp; Top 3 Local</option>
+            <option value="nfc">Kit Plaquinhas NFC + QR Code Avaliações 5⭐</option>
+            <option value="whatsapp">Estruturação WhatsApp Business PRO &amp; Funil</option>
+            <option value="cardapio">Cardápio Digital Sem Taxas + QR de Mesa</option>
+            <option value="biossite">Biossite &amp; Landing Page Local (5 Blocos)</option>
+            <option value="combo">Combo Presença Local 360° (4 Pilares + Recorrência)</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Valor de Implantação (Setup)</label>
+          <input type="text" id="prop-setup-price" placeholder="Ex: R$ 497,00">
+        </div>
+        <div class="field">
+          <label>Mensalidade / Recorrência <small class="text-muted">(opcional)</small></label>
+          <input type="text" id="prop-mrr-price" placeholder="Ex: R$ 250,00/mês (ou vazio)">
+        </div>
+        <div class="field">
+          <label>Validade da Proposta (dias)</label>
+          <input type="number" id="prop-validity-days" value="7" min="1" max="30">
+        </div>
+        <div class="field">
+          <label>Condição de Pagamento</label>
+          <input type="text" id="prop-terms" value="50% na aprovação via Pix + 50% na entrega">
+        </div>
+        <div class="field col-span-2">
+          <label>Observação Personalizada <small class="text-muted">(opcional)</small></label>
+          <input type="text" id="prop-notes" placeholder="Ex: Bônus especial para fechamento até sexta-feira.">
+        </div>
+        <div class="field col-span-2" style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; padding-top:10px; border-top:1px solid var(--border);">
+          <button type="button" class="btn btn-outline btn-xs" onclick="closeLeadProposalModal(); closeLeadDrawer(); switchTab('tab-settings'); setSettingsSubtab('account');">
+            <i class="fa-solid fa-palette"></i> Configurar Minha Logo/Marca
+          </button>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="btn btn-outline btn-sm" onclick="closeLeadProposalModal()">Cancelar</button>
+            <button type="submit" class="btn btn-primary btn-sm"><i class="fa-solid fa-file-arrow-down"></i> Abrir &amp; Baixar PDF</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
@@ -2057,6 +2287,6 @@
     window.CURRENT_USER = {{ current_user | tojson if current_user else 'null' }};
     window.ACCESS_STATUS = {{ access_status | tojson if access_status else 'null' }};
   </script>
-  <script src="/static/js/app.js?v=5.5"></script>
+  <script src="/static/js/app.js?v=5.6"></script>
 </body>
 </html>

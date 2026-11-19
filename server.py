@@ -8,6 +8,8 @@ import shutil
 import secrets
 import threading
 from functools import wraps
+from datetime import datetime, timedelta
+from urllib.parse import quote
 from typing import Dict, Any, Optional
 from flask import Flask, request, jsonify, render_template, Response, send_file, session, redirect, url_for
 import io
@@ -34,7 +36,7 @@ from database import (
     get_activation_rules, save_activation_rule, evaluate_user_activations,
     get_admin_saas_analytics, add_lead_interaction, get_lead_interactions,
     get_followup_agenda, get_user_results_dashboard,
-    check_ai_quota, log_ai_usage, generate_ai_copilot_response
+    check_ai_quota, log_ai_usage, generate_ai_copilot_response, compute_lead_score
 )
 from scraper_engine import GoogleMapsScraper, DEFAULT_SEGMENTS, SWEEP_ALL_TERMS
 from exporter import export_to_csv_bytes, export_to_json_bytes
@@ -618,15 +620,281 @@ def api_me():
         data = request.get_json(silent=True) or {}
         allowed_updates = {}
         if "name" in data:
-            allowed_updates["name"] = data["name"]
+            allowed_updates["name"] = str(data["name"] or "").strip()
         if "company_name" in data:
-            allowed_updates["company_name"] = data["company_name"]
+            allowed_updates["company_name"] = str(data["company_name"] or "").strip()
+        if "brand_phone" in data:
+            allowed_updates["brand_phone"] = str(data["brand_phone"] or "").strip()
+        if "brand_tagline" in data:
+            allowed_updates["brand_tagline"] = str(data["brand_tagline"] or "").strip()[:140]
+        if "brand_color" in data:
+            c = str(data["brand_color"] or "#2563eb").strip()
+            if c.startswith("#") and len(c) in (4, 7):
+                allowed_updates["brand_color"] = c
+        if "brand_logo_url" in data:
+            logo = str(data["brand_logo_url"] or "").strip()
+            if len(logo) > 450_000:
+                return jsonify({"success": False, "error": "A imagem da logo excede o limite (use uma imagem menor que 300 KB)."}), 400
+            if logo and not (logo.startswith("https://") or logo.startswith("http://") or logo.startswith("data:image/") or logo.startswith("/static/")):
+                return jsonify({"success": False, "error": "URL de logo inválida."}), 400
+            allowed_updates["brand_logo_url"] = logo
         if data.get("password"):
             if len(str(data["password"])) < 6:
                 return jsonify({"success": False, "error": "A nova senha deve ter pelo menos 6 caracteres."}), 400
             allowed_updates["password"] = data["password"]
         update_user(uid, allowed_updates)
     return jsonify({"success": True, "user": get_user_by_id(uid), "access": get_user_access_status(uid)})
+
+
+# ==================== GERADOR DE PROPOSTA & DIAGNÓSTICO PDF WHITE-LABEL ====================
+_PROPOSAL_OFFERS = {
+    "gmn": {
+        "title": "Otimização Google Meu Negócio & Posicionamento Top 3 Local",
+        "summary": "Reestruturação completa da ficha da empresa no Google Maps para elevar autoridade visual, multiplicar ligações orgânicas e conquistar as 3 primeiras posições da região.",
+        "delivery_time": "48 horas úteis",
+        "default_setup": "R$ 497,00",
+        "default_mrr": "R$ 250,00/mês (Gestão Contínua opcional)",
+        "deliverables": [
+            "Auditoria e configuração cirúrgica da Categoria Principal + Categorias Secundárias",
+            "Redação da Descrição Oficial (750 caracteres) com palavras-chave locais e bairros atendidos",
+            "Criação da Vitrine Visual com até 12 Produtos/Serviços e botão direto para WhatsApp",
+            "Tratamento e upload de até 15 fotos estratégicas do negócio e equipe",
+            "Estruturação de 5 Perguntas & Respostas estratégicas (FAQ nativo no Google)",
+            "Resposta otimizada com SEO Local às últimas 20 avaliações de clientes",
+            "Geração do Link Curto Oficial + Roteiro para multiplicar novas avaliações 5 estrelas",
+            "Relatório comparativo de Antes vs. Depois da otimização da ficha"
+        ],
+    },
+    "nfc": {
+        "title": "Kit Plaquinhas Inteligentes NFC + QR Code de Avaliações 5⭐",
+        "summary": "Displays físicos em acrílico personalizado com tecnologia por aproximação (NFC) + QR Code para transformar clientes satisfeitos no balcão em avaliações 5 estrelas no Google em 3 segundos.",
+        "delivery_time": "48 horas úteis",
+        "default_setup": "R$ 247,00 (Kit Duplo Personalizado)",
+        "default_mrr": "",
+        "deliverables": [
+            "2 Displays de Balcão em Acrílico Personalizado com a logo e cores da empresa",
+            "Chip NXP NTAG215 integrado (aproximação em iPhone e Android, sem bateria e sem mensalidade)",
+            "QR Code espelho de alta precisão integrado ao design da placa",
+            "Configuração direta para a janela oficial de 5 estrelas do Google Maps da empresa",
+            "Cartão com Script de Balcão para treinar a equipe a multiplicar avaliações na 1ª semana",
+            "Teste completo de leitura e garantia vitalícia do chip NFC"
+        ],
+    },
+    "whatsapp": {
+        "title": "Estruturação Comercial WhatsApp Business PRO & Funil de Vendas",
+        "summary": "Transformação completa do seu número atual de WhatsApp em uma máquina de atendimento ágil com Catálogo Nativo, Etiquetas de CRM e Respostas Rápidas para recuperar orçamentos.",
+        "delivery_time": "24 a 48 horas úteis",
+        "default_setup": "R$ 497,00",
+        "default_mrr": "",
+        "deliverables": [
+            "Blindagem completa do Perfil Comercial (Descrição, Mapa, Horários e Links)",
+            "Design e cadastro de Catálogo Nativo com até 12 serviços/produtos principais",
+            "Configuração de Mensagem de Saudação imediata e Mensagem de Ausência inteligente",
+            "Criação de 12 Atalhos de Resposta Rápida (/) para orçamento, Pix, endereço e dúvidas",
+            "Implantação do CRM visual de 5 Etiquetas Coloridas para acompanhar orçamentos abertos",
+            "Treinamento express de 10 minutos + Rotina diária de follow-up para a equipe"
+        ],
+    },
+    "cardapio": {
+        "title": "Cardápio Digital Sem Taxas + QR Code de Mesa & Canal Próprio",
+        "summary": "Canal próprio de pedidos online com 0% de comissão por venda, carrinho inteligente integrado ao WhatsApp da cozinha e estratégia de migração de clientes recorrentes.",
+        "delivery_time": "48 horas úteis",
+        "default_setup": "R$ 497,00",
+        "default_mrr": "R$ 97,00/mês (Suporte & Atualizações)",
+        "deliverables": [
+            "Cadastro completo do cardápio com categorias, fotos, descrições sensoriais e preços",
+            "Engenharia de Adicionais (bordas, complementos, bebidas) para aumentar o ticket médio",
+            "Cálculo automático de entrega por bairro + Pix Copia e Cola + Cálculo de troco",
+            "Pedidos chegam 100% somados e formatados direto no WhatsApp da cozinha",
+            "Arte pronta do Cupom de Sacola com QR Code para migrar clientes recorrentes dos apps",
+            "Instalação do link oficial na Bio do Instagram, Google Maps e saudação do WhatsApp"
+        ],
+    },
+    "biossite": {
+        "title": "Biossite & Landing Page Local de Alta Conversão (5 Blocos)",
+        "summary": "Página mobile-first ultra rápida criada sob medida para transformar visitantes do Google Maps e do Instagram em orçamentos qualificados direto no seu WhatsApp.",
+        "delivery_time": "48 horas úteis",
+        "default_setup": "R$ 597,00",
+        "default_mrr": "R$ 67,00/mês (Hospedagem VIP + SSL)",
+        "deliverables": [
+            "Primeira Dobra de alto impacto com sua marca, promessa local e botão WhatsApp pulsante",
+            "Vitrine visual dos seus principais serviços com fotos reais e botão individual de orçamento",
+            "Bloco de Prova Social destacando sua nota e avaliações 5 estrelas do Google Maps",
+            "Mapa interativo 'Como Chegar' (Google Maps/Waze) + Horários de atendimento",
+            "Consistência NAP no rodapé para fortalecer o ranqueamento local no Google",
+            "Instalação na Bio do Instagram e no botão oficial 'Website' do Google Meu Negócio"
+        ],
+    },
+    "combo": {
+        "title": "Combo Presença Local 360° (Google + Biossite + WhatsApp + NFC)",
+        "summary": "Estrutura completa de Atração, Conversão, Atendimento e Prova Social em 4 pilares integrados para dominar as buscas e vendas na sua cidade.",
+        "delivery_time": "48 horas úteis",
+        "default_setup": "R$ 1.197,00 (de R$ 1.888 avulso)",
+        "default_mrr": "R$ 297,00/mês (Gestão & Manutenção 360°)",
+        "deliverables": [
+            "Pilar 1 — Otimização Completa do Google Meu Negócio (Categorias, Vitrine, Fotos e SEO Local)",
+            "Pilar 2 — Biossite / Landing Page Local em 5 Blocos integrada ao Google Maps e Instagram",
+            "Pilar 3 — WhatsApp Business PRO com Catálogo Nativo, 12 Atalhos (/) e Funil de 5 Etiquetas",
+            "Pilar 4 — 1 Display Acrílico Físico com Chip NFC + QR Code Google 5⭐ para o balcão",
+            "4 Postagens mensais de Ofertas no Google Maps + Resposta contínua às novas avaliações",
+            "Relatório Mensal de Ligações, Rotas e Cliques gerados + Hospedagem VIP inclusa"
+        ],
+    },
+}
+
+
+@app.route("/leads/<int:lead_id>/proposal")
+@login_required
+def render_lead_proposal_pdf(lead_id):
+    uid = current_user_id()
+    lead = get_lead_by_id(lead_id, user_id=uid)
+    if not lead:
+        return "Lead não encontrado ou sem permissão.", 404
+    user = get_user_by_id(uid) or {}
+
+    # Detecta melhor oferta padrão se não foi informada na URL
+    raw_offer = (request.args.get("offer") or "").strip().lower()
+    if raw_offer not in _PROPOSAL_OFFERS:
+        cat_l = (lead.get("category") or "").lower()
+        if any(k in cat_l for k in ("pizza", "hamburg", "restaurante", "lanchonete", "açaí", "acai", "sushi", "padaria", "doceria")):
+            raw_offer = "cardapio"
+        elif lead.get("website_type") in ("none", "social") or not (lead.get("website") or "").strip():
+            raw_offer = "biossite"
+        elif int(lead.get("reviews_count") or 0) < 35:
+            raw_offer = "nfc"
+        else:
+            raw_offer = "gmn"
+
+    offer = _PROPOSAL_OFFERS[raw_offer]
+    setup_price_display = (request.args.get("setup") or "").strip() or offer["default_setup"]
+    monthly_price_display = (request.args.get("mrr") if "mrr" in request.args else offer["default_mrr"]).strip()
+    payment_terms = (request.args.get("terms") or "").strip() or "50% na aprovação via Pix + 50% na entrega concluída (ou parcelado no cartão)"
+    custom_notes = (request.args.get("notes") or "").strip()
+    try:
+        validity_days = max(1, min(30, int(request.args.get("validity") or 7)))
+    except ValueError:
+        validity_days = 7
+
+    score = compute_lead_score(lead)
+
+    # Gera pontos reais de auditoria com base nos dados do Google Maps do lead
+    audit_points = []
+    rating = float(lead.get("rating") or 0)
+    reviews = int(lead.get("reviews_count") or 0)
+    wtype = (lead.get("website_type") or "none").lower()
+    website = (lead.get("website") or "").strip()
+
+    if reviews < 40:
+        audit_points.append({
+            "ok": False,
+            "title": "Volume Baixo de Avaliações",
+            "detail": f"A ficha possui apenas {reviews} avaliações. Concorrentes no Top 3 local costumam superar 80–150 reviews ativos.",
+        })
+    else:
+        audit_points.append({
+            "ok": True,
+            "title": "Boa Base de Avaliações",
+            "detail": f"A empresa já conta com {reviews} avaliações — excelente ativo para alavancar com respostas otimizadas em SEO Local.",
+        })
+
+    if rating and rating < 4.6:
+        audit_points.append({
+            "ok": False,
+            "title": f"Nota Média Abaixo do Ideal ({rating:.1f}⭐)",
+            "detail": "Empresas abaixo de 4.6 estrelas perdem cliques diretos para concorrentes melhores avaliados na mesma busca.",
+        })
+    elif rating >= 4.6:
+        audit_points.append({
+            "ok": True,
+            "title": f"Excelente Reputação ({rating:.1f}⭐)",
+            "detail": "Sua nota já transmite confiança; o foco agora é aumentar o volume de visualizações e converter cliques em WhatsApp.",
+        })
+
+    if not website or wtype == "none":
+        audit_points.append({
+            "ok": False,
+            "title": "Ausência de Site / Página de Conversão",
+            "detail": "O botão 'Website' na ficha do Google está vazio, desperdiçando visitantes com alta intenção de compra.",
+        })
+    elif wtype == "social":
+        audit_points.append({
+            "ok": False,
+            "title": "Link Apenas para Rede Social",
+            "detail": "Redirecionar buscas do Google apenas para redes sociais causa distração e reduz a taxa de pedidos de orçamento.",
+        })
+    else:
+        audit_points.append({
+            "ok": True,
+            "title": "Site Detectado",
+            "detail": "Site ativo localizado — recomendado reforçar consistência NAP e botões rápidos de WhatsApp.",
+        })
+
+    audit_points.append({
+        "ok": False,
+        "title": "Captura & Atendimento no WhatsApp",
+        "detail": "Oportunidade de acelerar o primeiro contato com vitrine visual, respostas rápidas e acompanhamento de orçamentos.",
+    })
+
+    company_name = (user.get("company_name") or "").strip() or (user.get("name") or "Consultoria Digital").strip()
+    words = [w for w in company_name.split() if w]
+    initials = (words[0][0] + (words[1][0] if len(words) > 1 else "")).upper() if words else "CD"
+    brand_phone_digits = "".join(ch for ch in str(user.get("brand_phone") or "") if ch.isdigit())
+    if brand_phone_digits and not brand_phone_digits.startswith("55") and len(brand_phone_digits) in (10, 11):
+        brand_phone_digits = "55" + brand_phone_digits
+
+    brand = {
+        "company_name": company_name,
+        "consultant_name": (user.get("name") or "").strip() or company_name,
+        "email": user.get("email") or "",
+        "logo_url": (user.get("brand_logo_url") or "").strip(),
+        "color": (user.get("brand_color") or "#2563eb").strip() or "#2563eb",
+        "tagline": (user.get("brand_tagline") or "").strip() or "Consultoria de Posicionamento Local & Vendas Digitais",
+        "phone_display": (user.get("brand_phone") or "").strip(),
+        "initials": initials,
+    }
+
+    now = datetime.now()
+    issue_date = now.strftime("%d/%m/%Y")
+    valid_until = (now + timedelta(days=validity_days)).strftime("%d/%m/%Y")
+    proposal_code = f"{now.strftime('%y%m')}-{lead_id}"
+
+    approve_wa_link = ""
+    if brand_phone_digits:
+        approve_msg = f"Olá {brand['consultant_name']}! Recebi o Diagnóstico & Proposta #{proposal_code} ({offer['title']}) para a {lead['name']} e gostaria de aprovar para iniciarmos."
+        approve_wa_link = f"https://wa.me/{brand_phone_digits}?text={quote(approve_msg)}"
+
+    lead_digits = "".join(ch for ch in str(lead.get("clean_phone") or lead.get("phone") or "") if ch.isdigit())
+    if lead_digits and not lead_digits.startswith("55") and len(lead_digits) in (10, 11):
+        lead_digits = "55" + lead_digits
+    lead_wa_link = ""
+    if lead_digits:
+        send_msg = f"Olá, pessoal da {lead['name']}! Acabei de preparar o Diagnóstico & Proposta Comercial personalizada ({offer['title']}) em PDF para vocês. Estou enviando o arquivo logo abaixo para avaliarem!"
+        lead_wa_link = f"https://wa.me/{lead_digits}?text={quote(send_msg)}"
+
+    try:
+        add_lead_interaction(uid, lead_id, "proposta", f"Proposta PDF gerada ({offer['title']} · {setup_price_display})")
+        track_event(uid, "proposal_generated", {"lead_id": lead_id, "offer": raw_offer})
+    except Exception:
+        pass
+
+    return render_template(
+        "proposal_pdf.html",
+        lead=lead,
+        brand=brand,
+        score=score,
+        offer=offer,
+        audit_points=audit_points[:4],
+        setup_price_display=setup_price_display,
+        monthly_price_display=monthly_price_display,
+        payment_terms=payment_terms,
+        custom_notes=custom_notes,
+        issue_date=issue_date,
+        valid_until=valid_until,
+        validity_days=validity_days,
+        proposal_code=proposal_code,
+        approve_wa_link=approve_wa_link,
+        lead_wa_link=lead_wa_link,
+    )
 
 
 @app.route("/api/admin/users", methods=["GET", "POST"])
@@ -2263,6 +2531,31 @@ def api_admin_backups():
         **res,
         "backups": backup_manager.list_available_backups(DB_PATH),
     }), (200 if res.get("success") else 500)
+
+
+@app.route("/api/admin/backups/test-oci", methods=["POST"])
+@admin_required
+def api_admin_test_oci_backup():
+    par_url = (get_site_settings().get("oci_backup_par_url") or "").strip()
+    if not par_url:
+        return jsonify({
+            "success": False,
+            "error": "Nenhuma OCI Object Storage PAR URL está configurada. Salve a URL no bloco 'Página de Vendas, Meta App & Backup OCI' acima primeiro.",
+        }), 400
+    import tempfile
+    probe_name = f"mapaleads_oci_probe_{int(time.time())}.txt"
+    tmp_path = os.path.join(tempfile.gettempdir(), probe_name)
+    try:
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.write(f"MapaLeads PRO OCI Object Storage connectivity test at {datetime.now().isoformat()}\n")
+        res = backup_manager.upload_to_oci_par(tmp_path, par_url)
+        return jsonify({"success": bool(res.get("uploaded")), **res}), (200 if res.get("uploaded") else 400)
+    finally:
+        if os.path.exists(tmp_path):
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
 
 
 @app.route("/api/admin/system-health")

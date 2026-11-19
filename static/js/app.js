@@ -82,6 +82,7 @@ async function loadAllData() {
     loadAdminUsers();
     loadAdminSaasOverview();
     loadAdminAcademyLessons();
+    loadAdminSalesAcademyCourses();
     loadAdminActivationRules();
     loadAdminSystemHealthAndBackups();
   }
@@ -1377,18 +1378,66 @@ function initSettingsControls() {
       body: JSON.stringify({
         name: document.getElementById('acc-name').value,
         company_name: document.getElementById('acc-company').value,
+        brand_phone: document.getElementById('acc-brand-phone')?.value || '',
+        brand_color: document.getElementById('acc-brand-color')?.value || '#2563eb',
+        brand_tagline: document.getElementById('acc-brand-tagline')?.value || '',
+        brand_logo_url: document.getElementById('acc-brand-logo-url')?.value || '',
         password: document.getElementById('acc-password').value || undefined,
       })
     });
     const d = await res.json();
     if (d.success) {
+      window.CURRENT_USER = d.user;
       document.getElementById('sidebar-user-name').textContent = d.user.name;
       document.getElementById('acc-password').value = '';
-      toast('Dados atualizados!', 'success');
+      toast('Dados da conta e identidade White-Label salvos!', 'success');
     } else {
       toast(d.error || 'Erro ao atualizar.', 'error');
     }
   });
+}
+
+function handleAccountLogoFile(input) {
+  const file = input?.files?.[0];
+  if (!file) return;
+  if (file.size > 3 * 1024 * 1024) {
+    toast('Escolha uma imagem menor que 3 MB.', 'error');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = () => {
+    const img = new Image();
+    img.onload = () => {
+      const maxDim = 260;
+      let w = img.width;
+      let h = img.height;
+      if (w > maxDim || h > maxDim) {
+        const ratio = Math.min(maxDim / w, maxDim / h);
+        w = Math.max(1, Math.round(w * ratio));
+        h = Math.max(1, Math.round(h * ratio));
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      const dataUrl = canvas.toDataURL('image/png', 0.9);
+      const urlInput = document.getElementById('acc-brand-logo-url');
+      if (urlInput) urlInput.value = dataUrl;
+      const prev = document.getElementById('acc-brand-logo-preview');
+      if (prev) prev.innerHTML = `<img src="${dataUrl}" alt="Logo" style="max-width:100%; max-height:100%; object-fit:contain;">`;
+      toast('Logo carregada! Clique em "Salvar Dados da Conta & Marca White-Label".', 'info');
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearAccountBrandLogo() {
+  const urlInput = document.getElementById('acc-brand-logo-url');
+  if (urlInput) urlInput.value = '';
+  const prev = document.getElementById('acc-brand-logo-preview');
+  if (prev) prev.innerHTML = '<i class="fa-regular fa-image text-muted"></i>';
 }
 
 async function loadOfficialConfig() {
@@ -3270,5 +3319,212 @@ async function triggerAdminBackupNow() {
     }
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i> Criar Backup + Testar Restauração Agora'; }
+  }
+}
+
+async function testAdminOciBackup() {
+  const btn = document.getElementById('btn-admin-test-oci');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Testando OCI...'; }
+  try {
+    const res = await apiFetch('/api/admin/backups/test-oci', { method: 'POST' });
+    const d = await res.json();
+    if (res.ok && d.success) {
+      toast(`Conexão com OCI Object Storage validada (HTTP ${d.http_status || 200})!`, 'success');
+    } else {
+      toast(d.error || d.reason || 'Não foi possível enviar para o bucket OCI.', 'error');
+    }
+  } catch (e) {
+    toast('Erro ao testar envio OCI.', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-plug-circle-check"></i> Testar Envio OCI'; }
+  }
+}
+
+// ==================== PROPOSTA & DIAGNÓSTICO PDF WHITE-LABEL ====================
+const PROPOSAL_OFFER_DEFAULTS = {
+  gmn: { setup: 'R$ 497,00', mrr: 'R$ 250,00/mês (Gestão opcional)' },
+  nfc: { setup: 'R$ 247,00 (Kit 2 Placas)', mrr: '' },
+  whatsapp: { setup: 'R$ 497,00', mrr: '' },
+  cardapio: { setup: 'R$ 497,00', mrr: 'R$ 97,00/mês (Suporte & Atualizações)' },
+  biossite: { setup: 'R$ 597,00', mrr: 'R$ 67,00/mês (Hospedagem VIP + SSL)' },
+  combo: { setup: 'R$ 1.197,00 (de R$ 1.888)', mrr: 'R$ 297,00/mês (Gestão 360°)' },
+};
+
+function openLeadProposalModal() {
+  const lead = STATE.activeDrawerLead;
+  if (!lead) return;
+  const modal = document.getElementById('modal-proposal-builder');
+  if (!modal) return;
+  const lbl = document.getElementById('prop-modal-lead-label');
+  if (lbl) lbl.textContent = `Cliente: ${lead.name} (${lead.category || 'Negócio Local'})`;
+
+  // Auto-seleciona melhor oferta de acordo com o lead
+  let autoOffer = lead.product_interest || '';
+  if (!PROPOSAL_OFFER_DEFAULTS[autoOffer]) {
+    const catL = String(lead.category || '').toLowerCase();
+    if (/pizza|hamburg|restaurante|lanchonete|açaí|acai|sushi|padaria|doceria/.test(catL)) autoOffer = 'cardapio';
+    else if (!lead.website || lead.website_type === 'none' || lead.website_type === 'social') autoOffer = 'biossite';
+    else if ((lead.reviews_count || 0) < 35) autoOffer = 'nfc';
+    else autoOffer = 'gmn';
+  }
+  const sel = document.getElementById('prop-offer-select');
+  if (sel) sel.value = autoOffer;
+  onProposalOfferChange();
+  modal.classList.remove('hidden');
+}
+
+function closeLeadProposalModal() {
+  document.getElementById('modal-proposal-builder')?.classList.add('hidden');
+}
+
+function onProposalOfferChange() {
+  const offer = document.getElementById('prop-offer-select')?.value || 'gmn';
+  const def = PROPOSAL_OFFER_DEFAULTS[offer] || PROPOSAL_OFFER_DEFAULTS.gmn;
+  const setupEl = document.getElementById('prop-setup-price');
+  const mrrEl = document.getElementById('prop-mrr-price');
+  if (setupEl) setupEl.value = def.setup;
+  if (mrrEl) mrrEl.value = def.mrr;
+}
+
+function launchLeadProposalPdf(e) {
+  e.preventDefault();
+  const lead = STATE.activeDrawerLead;
+  if (!lead) return;
+  const qs = new URLSearchParams({
+    offer: document.getElementById('prop-offer-select')?.value || 'gmn',
+    setup: document.getElementById('prop-setup-price')?.value || '',
+    mrr: document.getElementById('prop-mrr-price')?.value || '',
+    validity: document.getElementById('prop-validity-days')?.value || '7',
+    terms: document.getElementById('prop-terms')?.value || '',
+    notes: document.getElementById('prop-notes')?.value || '',
+  });
+  window.open(`/leads/${lead.id}/proposal?${qs.toString()}`, '_blank', 'noopener');
+  closeLeadProposalModal();
+  toast('Proposta PDF White-Label aberta em nova aba! Clique em "Baixar / Salvar em PDF".', 'success');
+  setTimeout(() => {
+    if (typeof loadLeadInteractions === 'function') loadLeadInteractions(lead.id);
+  }, 900);
+}
+
+// ==================== ADMIN: GESTOR DOS CURSOS DA ACADEMIA DE VENDAS PRO ====================
+let _adminSalesCourses = [];
+
+async function loadAdminSalesAcademyCourses() {
+  const tb = document.getElementById('admin-sales-academy-tbody');
+  if (!tb) return;
+  try {
+    const res = await apiFetch('/api/admin/sales-academy');
+    if (!res.ok) return;
+    const d = await res.json();
+    _adminSalesCourses = d.items || [];
+    tb.innerHTML = _adminSalesCourses.length ? _adminSalesCourses.map(c => `
+      <tr>
+        <td>#${c.sort_order || 0}</td>
+        <td><span class="status-pill">${escapeHtml(c.badge_label || c.strategy_key)}</span></td>
+        <td>
+          <strong>${escapeHtml(c.title)}</strong>
+          <div class="text-muted" style="font-size:0.75rem">${escapeHtml(c.ticket_range || '')}</div>
+        </td>
+        <td>${Array.isArray(c.lessons) ? c.lessons.length : 0} aulas</td>
+        <td>${c.is_published ? '<span class="status-pill" style="background:#d1fae5;color:#065f46">Publicado</span>' : '<span class="status-pill">Oculto</span>'}</td>
+        <td style="white-space:nowrap;">
+          <button type="button" class="btn btn-outline btn-xs" onclick="editAdminSalesCourse(${c.id})"><i class="fa-solid fa-pen"></i></button>
+          <button type="button" class="btn btn-outline btn-xs text-danger" onclick="deleteAdminSalesCourse(${c.id})"><i class="fa-solid fa-trash"></i></button>
+        </td>
+      </tr>
+    `).join('') : '<tr><td colspan="6" class="text-muted">Nenhum curso PRO cadastrado.</td></tr>';
+  } catch (e) {}
+}
+
+function resetAdminSalesCourseForm() {
+  document.getElementById('adm-sa-id').value = '';
+  document.getElementById('adm-sa-strategy').value = 'gmn';
+  document.getElementById('adm-sa-badge').value = '';
+  document.getElementById('adm-sa-title').value = '';
+  document.getElementById('adm-sa-ticket').value = '';
+  document.getElementById('adm-sa-subtitle').value = '';
+  document.getElementById('adm-sa-course-url').value = '';
+  document.getElementById('adm-sa-vsl-url').value = '';
+  document.getElementById('adm-sa-thumb').value = '/static/img/academy/combo-hero.jpg';
+  document.getElementById('adm-sa-order').value = (_adminSalesCourses.length || 6) + 1;
+  document.getElementById('adm-sa-duration').value = '5 Aulas • ~45 min';
+  document.getElementById('adm-sa-approach').value = '';
+  document.getElementById('adm-sa-objections').value = '';
+  document.getElementById('adm-sa-followup').value = '';
+  document.getElementById('adm-sa-proposal').value = '';
+  document.getElementById('adm-sa-delivery').value = '';
+  document.getElementById('adm-sa-published').checked = true;
+}
+
+function editAdminSalesCourse(id) {
+  const c = _adminSalesCourses.find(x => Number(x.id) === Number(id));
+  if (!c) return;
+  document.getElementById('adm-sa-id').value = c.id;
+  document.getElementById('adm-sa-strategy').value = c.strategy_key || 'gmn';
+  document.getElementById('adm-sa-badge').value = c.badge_label || '';
+  document.getElementById('adm-sa-title').value = c.title || '';
+  document.getElementById('adm-sa-ticket').value = c.ticket_range || '';
+  document.getElementById('adm-sa-subtitle').value = c.subtitle || '';
+  document.getElementById('adm-sa-course-url').value = c.course_video_url || '';
+  document.getElementById('adm-sa-vsl-url').value = c.vsl_video_url || '';
+  document.getElementById('adm-sa-thumb').value = c.thumbnail_url || '';
+  document.getElementById('adm-sa-order').value = c.sort_order || 1;
+  document.getElementById('adm-sa-duration').value = c.course_duration || '5 Aulas • ~45 min';
+  document.getElementById('adm-sa-approach').value = c.script_approach || '';
+  document.getElementById('adm-sa-objections').value = c.script_objections || '';
+  document.getElementById('adm-sa-followup').value = c.script_followup || '';
+  document.getElementById('adm-sa-proposal').value = c.proposal_script || '';
+  document.getElementById('adm-sa-delivery').value = c.delivery_guide || '';
+  document.getElementById('adm-sa-published').checked = Boolean(c.is_published);
+  document.getElementById('admin-sales-academy-card')?.scrollIntoView({ behavior: 'smooth' });
+}
+
+async function submitAdminSalesCourse(e) {
+  e.preventDefault();
+  const id = document.getElementById('adm-sa-id').value;
+  const payload = {
+    strategy_key: document.getElementById('adm-sa-strategy').value,
+    badge_label: document.getElementById('adm-sa-badge').value.trim(),
+    title: document.getElementById('adm-sa-title').value.trim(),
+    ticket_range: document.getElementById('adm-sa-ticket').value.trim(),
+    subtitle: document.getElementById('adm-sa-subtitle').value.trim(),
+    course_video_url: document.getElementById('adm-sa-course-url').value.trim(),
+    vsl_video_url: document.getElementById('adm-sa-vsl-url').value.trim(),
+    thumbnail_url: document.getElementById('adm-sa-thumb').value.trim(),
+    sort_order: parseInt(document.getElementById('adm-sa-order').value || '1', 10),
+    course_duration: document.getElementById('adm-sa-duration').value.trim(),
+    script_approach: document.getElementById('adm-sa-approach').value,
+    script_objections: document.getElementById('adm-sa-objections').value,
+    script_followup: document.getElementById('adm-sa-followup').value,
+    proposal_script: document.getElementById('adm-sa-proposal').value,
+    delivery_guide: document.getElementById('adm-sa-delivery').value,
+    is_published: document.getElementById('adm-sa-published').checked,
+  };
+  const url = id ? `/api/admin/sales-academy/${id}` : '/api/admin/sales-academy';
+  const method = id ? 'PUT' : 'POST';
+  const res = await apiFetch(url, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const d = await res.json();
+  if (!res.ok || !d.success) {
+    toast(d.error || 'Erro ao salvar curso PRO.', 'error');
+    return;
+  }
+  toast('Curso da Academia de Vendas PRO salvo com sucesso!', 'success');
+  resetAdminSalesCourseForm();
+  loadAdminSalesAcademyCourses();
+  loadSalesAcademy();
+}
+
+async function deleteAdminSalesCourse(id) {
+  if (!confirm('Excluir este curso da Academia de Vendas PRO?')) return;
+  const res = await apiFetch(`/api/admin/sales-academy/${id}`, { method: 'DELETE' });
+  const d = await res.json();
+  if (d.success) {
+    toast('Curso PRO excluído.', 'info');
+    loadAdminSalesAcademyCourses();
+    loadSalesAcademy();
   }
 }

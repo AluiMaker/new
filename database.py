@@ -396,6 +396,10 @@ def init_db():
         ("billing_customer_id", "TEXT DEFAULT ''"),
         ("must_set_password", "INTEGER DEFAULT 0"),
         ("verification_hint", "TEXT DEFAULT ''"),
+        ("brand_logo_url", "TEXT DEFAULT ''"),
+        ("brand_color", "TEXT DEFAULT '#2563eb'"),
+        ("brand_phone", "TEXT DEFAULT ''"),
+        ("brand_tagline", "TEXT DEFAULT ''"),
     ]:
         try:
             cursor.execute(f"ALTER TABLE users ADD COLUMN {col_name} {col_type}")
@@ -1087,7 +1091,13 @@ def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
     cur = conn.cursor()
     try:
         cur.execute(
-            "SELECT id, name, email, company_name, role, plan, is_active, subscription_status, plan_expires_at, max_leads, created_at, last_login_at FROM users WHERE id = ?",
+            """
+            SELECT id, name, email, company_name, role, plan, is_active,
+                   subscription_status, plan_expires_at, max_leads,
+                   brand_logo_url, brand_color, brand_phone, brand_tagline,
+                   created_at, last_login_at
+            FROM users WHERE id = ?
+            """,
             (user_id,)
         )
         row = cur.fetchone()
@@ -1217,7 +1227,12 @@ def list_users() -> List[Dict[str, Any]]:
 
 
 def update_user(user_id: int, fields: Dict[str, Any]) -> bool:
-    allowed = {"name", "email", "company_name", "role", "plan", "is_active", "subscription_status", "plan_expires_at", "max_leads", "billing_customer_id", "must_set_password", "verification_hint"}
+    allowed = {
+        "name", "email", "company_name", "role", "plan", "is_active",
+        "subscription_status", "plan_expires_at", "max_leads",
+        "billing_customer_id", "must_set_password", "verification_hint",
+        "brand_logo_url", "brand_color", "brand_phone", "brand_tagline",
+    }
     updates = []
     params = []
     for k, v in fields.items():
@@ -2250,6 +2265,36 @@ DEFAULT_ACADEMY_LESSONS = [
         "target_tab": "tab-chat",
         "sort_order": 5,
     },
+    {
+        "slug": "aula-06-score-ia",
+        "module_name": "Módulo 4 · Inteligência & Fechamento",
+        "title": "Aula 06 — Lead Score (0–100) e Copiloto de Vendas com IA",
+        "description": "Priorize automaticamente os leads mais quentes pela pontuação real do Google Maps e use o Copiloto IA para analisar a empresa, sugerir a melhor oferta e gerar mensagens prontas em 1 clique.",
+        "duration_text": "00:24",
+        "video_url": "/static/video/lessons/aula-06-score-ia.mp4",
+        "target_tab": "tab-crm",
+        "sort_order": 6,
+    },
+    {
+        "slug": "aula-07-proposta-pdf",
+        "module_name": "Módulo 4 · Inteligência & Fechamento",
+        "title": "Aula 07 — Gerando Diagnósticos & Propostas PDF com a Sua Marca (White-Label)",
+        "description": "Configure sua logo, cor primária e WhatsApp em Minha Conta e gere propostas comerciais e diagnósticos executivos em PDF 100% com a identidade da sua agência para enviar no WhatsApp do empresário.",
+        "duration_text": "00:24",
+        "video_url": "/static/video/lessons/aula-07-proposta-pdf.mp4",
+        "target_tab": "tab-settings",
+        "sort_order": 7,
+    },
+    {
+        "slug": "aula-08-resultados",
+        "module_name": "Módulo 4 · Inteligência & Fechamento",
+        "title": "Aula 08 — Follow-ups no CRM, Linha do Tempo e Painel de Resultados",
+        "description": "Agende lembretes de follow-up dentro da ficha de cada empresa, registre interações no histórico e acompanhe sua conversão e faturamento acumulado na Visão Geral.",
+        "duration_text": "00:24",
+        "video_url": "/static/video/lessons/aula-08-resultados.mp4",
+        "target_tab": "tab-dashboard",
+        "sort_order": 8,
+    },
 ]
 
 
@@ -2581,6 +2626,9 @@ def upsert_sales_academy_course(data: Dict[str, Any], course_id: Optional[int] =
         vsl_duration = (data.get("vsl_duration") or "00:30").strip()
         script_approach = (data.get("script_approach") or "").strip()
         script_objections = (data.get("script_objections") or "").strip()
+        script_followup = (data.get("script_followup") or "").strip()
+        proposal_script = (data.get("proposal_script") or "").strip()
+        delivery_guide = (data.get("delivery_guide") or "").strip()
         target_opp = (data.get("target_opp") or "").strip()
         sort_order = int(data.get("sort_order") or 0)
         is_published = 1 if data.get("is_published", True) else 0
@@ -2591,7 +2639,8 @@ def upsert_sales_academy_course(data: Dict[str, Any], course_id: Optional[int] =
                     strategy_key=?, badge_label=?, title=?, subtitle=?, ticket_range=?,
                     thumbnail_url=?, course_video_url=?, course_duration=?,
                     vsl_video_url=?, vsl_title=?, vsl_duration=?,
-                    script_approach=?, script_objections=?, target_opp=?,
+                    script_approach=?, script_objections=?, script_followup=?,
+                    proposal_script=?, delivery_guide=?, target_opp=?,
                     sort_order=?, is_published=?
                 WHERE id=?
                 """,
@@ -2599,7 +2648,8 @@ def upsert_sales_academy_course(data: Dict[str, Any], course_id: Optional[int] =
                     strategy_key, badge_label, title, subtitle, ticket_range,
                     thumbnail_url, course_video_url, course_duration,
                     vsl_video_url, vsl_title, vsl_duration,
-                    script_approach, script_objections, target_opp,
+                    script_approach, script_objections, script_followup,
+                    proposal_script, delivery_guide, target_opp,
                     sort_order, is_published, course_id,
                 ),
             )
@@ -2612,14 +2662,16 @@ def upsert_sales_academy_course(data: Dict[str, Any], course_id: Optional[int] =
                 slug, strategy_key, badge_label, title, subtitle, ticket_range,
                 thumbnail_url, course_video_url, course_duration,
                 vsl_video_url, vsl_title, vsl_duration,
-                script_approach, script_objections, target_opp, sort_order, is_published
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                script_approach, script_objections, script_followup,
+                proposal_script, delivery_guide, target_opp, sort_order, is_published
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 slug, strategy_key, badge_label, title, subtitle, ticket_range,
                 thumbnail_url, course_video_url, course_duration,
                 vsl_video_url, vsl_title, vsl_duration,
-                script_approach, script_objections, target_opp, sort_order, is_published,
+                script_approach, script_objections, script_followup,
+                proposal_script, delivery_guide, target_opp, sort_order, is_published,
             ),
         )
         conn.commit()
